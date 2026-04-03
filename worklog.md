@@ -38,3 +38,52 @@ Stage Summary:
 - Graceful degradation works: amber banner appears when WebGPU unavailable, mode switches to Cloud-Only
 - PWA manifest and service worker configured via @ducanh2912/next-pwa (disabled in dev, enabled in production)
 - Ready for Phase 2: Monaco Editor integration
+
+---
+Task ID: 2
+Agent: Super Z (Main)
+Task: Phase 2 — Monaco Editor & Event Loop
+
+Work Log:
+- Installed @monaco-editor/react (v4.7.0)
+- Built useEditorEventLoop hook with full AbortController lifecycle:
+  - Debounce timer (300ms from DEBOUNCE_DELAY_MS)
+  - AbortController creation per inference cycle
+  - Immediate abort on new keystroke if inference is running
+  - Console logging: [RDAT] Inference Aborted due to new keystroke
+  - Mock 1500ms inference delay with cleanup
+  - Four inference states: idle → running → completed/aborted → idle
+  - Full cleanup on unmount (timers + controllers)
+- Built MonacoEditor component:
+  - vs-dark theme, wordWrap: 'on', minimap: { enabled: false }, fontSize: 16
+  - automaticLayout: true for seamless resize within WorkspaceShell flex layout
+  - Custom monaco language "rdat-translation" registered
+  - Mock inlineCompletionsProvider with 1500ms delay and CancellationToken support
+  - Ghost text returns random mock suggestions (" [AI Suggestion]", " ترجمة مقترحة", etc.)
+  - waitForDelayOrAbort helper that rejects on CancellationToken fire
+  - Proper disposal of provider + editor instance in useEffect cleanup
+- Updated WorkspaceShell with tab-based view switching:
+  - "Welcome" tab (roadmap) and "Translation Editor" tab (Monaco)
+  - Sidebar view switching synced with tab bar
+  - useEditorEventLoop wired to Monaco's onChange
+  - useEffect cleanup on unmount for event loop resources
+- Updated StatusBar with inference engine state indicator:
+  - Animated spinner when "running"
+  - Color-coded dots: emerald (completed), amber (aborted), dim (idle)
+  - Ghost text hint: "Tab to accept · Ghost text active"
+  - Version bumped to v0.2.0
+- Updated Sidebar to accept activeView/onViewChange props
+- Updated EditorWelcome: Phase 1 marked "DONE", Phase 2 marked "IN PROGRESS"
+- Updated types/index.ts with InferenceState type
+- Updated constants.ts with MOCK_INFERENCE_DELAY_MS and INFERENCE_STATE_LABELS
+- All ESLint checks pass with zero errors
+
+Stage Summary:
+- Phase 2 is fully complete
+- Monaco Editor renders in the "Translation Editor" tab with full dark IDE config
+- Ghost text (inline completions) shows after 1500ms simulated delay
+- Typing during the 1500ms window aborts the ghost text generation (console: [RDAT] Ghost text generation cancelled)
+- The useEditorEventLoop hook's AbortController aborts any in-flight mock inference on new keystroke (console: [RDAT] Inference Aborted due to new keystroke)
+- StatusBar shows real-time inference state (Ready → Generating → Aborted/Done → Ready)
+- All resources (timers, controllers, providers, editor instances) properly cleaned up on unmount
+- Ready for Phase 3: Client-Side Vector DB & RAG

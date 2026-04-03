@@ -45,10 +45,8 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  // Allow cross-origin preview requests
-  allowedDevOrigins: [
-    "https://preview-chat-cd9cb06d-ef9d-426a-a91b-af00d962936e.space.z.ai",
-  ],
+  // Allow all cross-origin preview requests (sandbox environment)
+  allowedDevOrigins: true,
   // Silence Turbopack/webpack conflict warning from @ducanh2912/next-pwa
   turbopack: {},
 };

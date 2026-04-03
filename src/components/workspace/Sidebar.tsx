@@ -10,37 +10,14 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import type { EditorView } from "./WorkspaceShell";
 
-export function Sidebar() {
-  const [activeItem, setActiveItem] = useState("editor");
+interface SidebarProps {
+  activeView: EditorView;
+  onViewChange: (view: EditorView) => void;
+}
 
-  const menuItems = [
-    {
-      id: "editor",
-      label: "Editor",
-      icon: FileText,
-      badge: null,
-    },
-    {
-      id: "glossary",
-      label: "GTR Glossary",
-      icon: BookOpen,
-      badge: "Phase 3",
-    },
-    {
-      id: "vector-db",
-      label: "Vector DB",
-      icon: Database,
-      badge: "Phase 3",
-    },
-    {
-      id: "ai-models",
-      label: "AI Models",
-      icon: Sparkles,
-      badge: "Phase 4",
-    },
-  ];
-
+export function Sidebar({ activeView, onViewChange }: SidebarProps) {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     workspace: true,
     ai: false,
@@ -49,6 +26,39 @@ export function Sidebar() {
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
+
+  const menuItems = [
+    {
+      id: "editor" as const,
+      label: "Translation Editor",
+      icon: FileText,
+      badge: null,
+    },
+    {
+      id: "welcome" as const,
+      label: "Welcome & Roadmap",
+      icon: BookOpen,
+      badge: null,
+    },
+    {
+      id: "glossary" as string,
+      label: "GTR Glossary",
+      icon: Database,
+      badge: "Phase 3",
+    },
+    {
+      id: "vector-db" as string,
+      label: "Vector DB",
+      icon: Database,
+      badge: "Phase 3",
+    },
+    {
+      id: "ai-models" as string,
+      label: "AI Models",
+      icon: Sparkles,
+      badge: "Phase 4",
+    },
+  ];
 
   return (
     <aside className="flex flex-col w-56 min-w-56 border-r border-[var(--ide-border)] bg-[var(--ide-sidebar)] overflow-y-auto">
@@ -74,13 +84,14 @@ export function Sidebar() {
         {expandedSections.workspace &&
           menuItems.map((item) => {
             const Icon = item.icon;
-            const isActive = activeItem === item.id;
+            const isActive = activeView === item.id;
             const isDisabled = item.badge !== null;
+            const isClickable = !isDisabled;
 
             return (
               <button
                 key={item.id}
-                onClick={() => !isDisabled && setActiveItem(item.id)}
+                onClick={() => isClickable && onViewChange(item.id as EditorView)}
                 className={cn(
                   "flex items-center gap-2 h-7 pl-6 pr-3 text-[12px] transition-colors",
                   isActive
@@ -145,9 +156,9 @@ export function Sidebar() {
       {/* Bottom info */}
       <div className="mt-auto p-3 border-t border-[var(--ide-border)]">
         <p className="text-[10px] text-[var(--ide-text-dim)] leading-relaxed">
-          RDAT Copilot uses a dual-track AI architecture for adaptive
-          translation co-writing. Features unlock progressively across
-          development phases.
+          Phase 2 active: Monaco Editor with ghost text inline completions.
+          Type in the editor to see the Latency Trap abort cycle in action.
+          Check the browser console for detailed logs.
         </p>
       </div>
     </aside>

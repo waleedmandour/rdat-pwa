@@ -28,6 +28,9 @@ export interface AppState {
   isDarkMode: boolean;
 }
 
+// ─── Inference Engine State ─────────────────────────────────────────
+export type InferenceState = "idle" | "running" | "aborted" | "completed";
+
 // ─── Translation Context ────────────────────────────────────────────
 export interface TranslationPair {
   source: string;

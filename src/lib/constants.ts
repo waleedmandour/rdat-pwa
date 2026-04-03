@@ -2,7 +2,7 @@
 
 export const APP_NAME = "RDAT Copilot";
 export const APP_SHORT_NAME = "RDAT";
-export const APP_VERSION = "0.1.0";
+export const APP_VERSION = "0.2.0";
 export const APP_DESCRIPTION =
   "Repository-Driven Adaptive Translation — AI-Powered Co-Writing IDE";
 
@@ -15,6 +15,9 @@ export const DEFAULT_SOURCE_LANG = "en";
 export const DEFAULT_TARGET_LANG = "ar";
 export const DEBOUNCE_DELAY_MS = 300; // Keystroke debounce for editor
 export const GHOST_TEXT_DEBOUNCE_MS = 150; // Faster debounce for ghost text
+
+// ─── Mock Inference (Phase 2 placeholder) ───────────────────────────
+export const MOCK_INFERENCE_DELAY_MS = 1500; // Simulated AI generation delay
 
 // ─── RAG / Vector DB ────────────────────────────────────────────────
 export const VECTOR_DB_NAME = "rdat-gtr";
@@ -42,4 +45,11 @@ export const GPU_STATUS_LABELS = {
   supported: "WebGPU Ready",
   unsupported: "WebGPU Unavailable",
   error: "GPU Error",
+} as const;
+
+export const INFERENCE_STATE_LABELS = {
+  idle: "Ready",
+  running: "Generating…",
+  aborted: "Aborted",
+  completed: "Done",
 } as const;

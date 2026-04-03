@@ -5,8 +5,8 @@ import {
   Cloud,
   Cpu,
   Zap,
-  ArrowRight,
   BookOpen,
+  FileText,
 } from "lucide-react";
 import type { AppMode } from "@/types";
 import { MODE_LABELS } from "@/lib/constants";
@@ -33,8 +33,11 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
         {/* Subtitle */}
         <p className="text-sm text-[var(--ide-text-muted)] mb-8 leading-relaxed">
           Repository-Driven Adaptive Translation — Your AI-powered co-writing
-          IDE. Features are being built phase by phase. The Monaco Editor and
-          dual-track AI architecture will appear here in Phase 2.
+          IDE. The Monaco Editor is now active. Switch to the{" "}
+          <span className="text-teal-400 font-medium">
+            Translation Editor
+          </span>{" "}
+          tab to start translating with AI ghost text suggestions.
         </p>
 
         {/* Mode Card */}
@@ -73,31 +76,31 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
             {
               phase: 1,
               title: "PWA Scaffold & WebGPU Telemetry",
-              status: "active",
+              status: "completed" as const,
               description: "Workspace shell, GPU detection, PWA manifest",
             },
             {
               phase: 2,
               title: "Monaco Editor & Event Loop",
-              status: "pending",
-              description: "IDE editor, debounced keystrokes, abort logic",
+              status: "active" as const,
+              description: "IDE editor, debounced keystrokes, abort logic, ghost text",
             },
             {
               phase: 3,
               title: "Client-Side Vector DB & RAG",
-              status: "pending",
+              status: "pending" as const,
               description: "Orama/Voy WASM DB, corpus bootstrapping",
             },
             {
               phase: 4,
               title: "Local Sovereign Track (Gemma 4)",
-              status: "pending",
+              status: "pending" as const,
               description: "WebLLM inference, IndexedDB model cache",
             },
             {
               phase: 5,
               title: "Cloud Reasoning Track & Linting",
-              status: "pending",
+              status: "pending" as const,
               description: "Gemini API, AMTA linter, settings UI",
             },
           ].map((item) => (
@@ -106,6 +109,8 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
               className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
                 item.status === "active"
                   ? "border-teal-500/30 bg-teal-500/5"
+                  : item.status === "completed"
+                  ? "border-emerald-500/20 bg-emerald-500/5"
                   : "border-[var(--ide-border)] bg-[var(--ide-bg-secondary)]"
               }`}
             >
@@ -113,10 +118,12 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
                 className={`flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold flex-shrink-0 mt-0.5 ${
                   item.status === "active"
                     ? "bg-teal-500 text-[var(--ide-bg-primary)]"
+                    : item.status === "completed"
+                    ? "bg-emerald-500 text-[var(--ide-bg-primary)]"
                     : "bg-[var(--ide-bg-tertiary)] text-[var(--ide-text-dim)]"
                 }`}
               >
-                {item.phase}
+                {item.status === "completed" ? "✓" : item.phase}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -124,6 +131,8 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
                     className={`text-sm font-medium ${
                       item.status === "active"
                         ? "text-teal-400"
+                        : item.status === "completed"
+                        ? "text-emerald-400"
                         : "text-[var(--ide-text-muted)]"
                     }`}
                   >
@@ -132,6 +141,11 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
                   {item.status === "active" && (
                     <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-teal-500/20 text-teal-400 font-medium">
                       IN PROGRESS
+                    </span>
+                  )}
+                  {item.status === "completed" && (
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+                      DONE
                     </span>
                   )}
                 </div>
@@ -147,11 +161,11 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
         <div className="flex items-center gap-3 mt-8">
           <div className="flex items-center gap-2 text-xs text-[var(--ide-text-dim)]">
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Press</span>
-            <kbd className="px-1.5 py-0.5 rounded bg-[var(--ide-bg-tertiary)] border border-[var(--ide-border)] font-mono text-[10px]">
-              Ctrl+Shift+P
-            </kbd>
-            <span>for command palette (Phase 2)</span>
+            <span>Open the</span>
+            <span className="text-teal-400 font-medium">
+              Translation Editor
+            </span>
+            <span>tab to see Monaco + ghost text in action</span>
           </div>
         </div>
       </div>
