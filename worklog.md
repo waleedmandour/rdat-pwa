@@ -148,3 +148,64 @@ Stage Summary:
 - StatusBar shows real-time RAG pipeline state and embedding mode
 - Console output: [RAG] Search: embed=Xms | vectorSearch=Yms | total=Zms (real/hash embeddings)
 - Ready for Phase 4: Local Sovereign Track (Gemma 4 via WebGPU)
+
+---
+Task ID: 3
+Agent: full-stack-developer
+Task: Phase 4 — Local Sovereign Track (WebLLM Integration)
+
+Work Log:
+- @mlc-ai/web-llm@0.2.82 was already installed in package.json
+- Updated src/lib/constants.ts:
+  - APP_VERSION → "0.4.0"
+  - LOCAL_MODEL_ID → "gemma-2b-it-q4f32_1-MLC"
+  - Added LOCAL_MODEL_INIT_TIMEOUT_MS (300s), LLM_MAX_TOKENS (50), LLM_TEMPERATURE (0.3)
+  - Added WEBLLM_STATE_LABELS with idle/initializing/ready/generating/error states
+- Updated src/types/index.ts:
+  - Added WebLLMState type union (idle | initializing | ready | generating | error)
+  - Added WebLLMProgress interface (progress, text, timeElapsed)
+- Created src/lib/prompt-builder.ts:
+  - SYSTEM_PROMPT constraining LLM to output only 3-15 word ghost text completions
+  - formatRAGContext() to inject translation memory results into the prompt
+  - buildMessages() to construct system + user messages for WebLLM
+- Created src/hooks/useWebLLM.ts:
+  - CreateMLCEngine via dynamic import (keeps initial bundle small)
+  - SSR-safe via useSyncExternalStore for client detection
+  - initProgressCallback for download progress tracking
+  - 5-minute timeout for first model download
+  - generate() with temperature=0.3, max_tokens=50, stream=false
+  - interruptGenerate() calling engine.interruptGenerate() for Latency Trap
+  - Proper cleanup: engine.unload() on unmount to free GPU resources
+  - Console logging prefixed with [RDAT-LLM]
+- Updated src/components/workspace/StatusBar.tsx:
+  - Added webllmState and webllmProgress props
+  - New WebLLM status section after RAG status with state dot + label
+  - Thin progress bar (w-16 h-1.5) showing download percentage during initialization
+  - Color-coded: emerald (ready), amber (initializing), teal (generating), red (error)
+  - Version updated to v0.4.0
+- Updated src/components/workspace/MonacoEditor.tsx:
+  - New props: generateCompletion, interruptGeneration, ragResults, isLLMReady
+  - CompletionConfig ref pattern: stores latest props without re-registering provider
+  - provideInlineCompletions: real WebLLM path when isLLMReady, mock fallback otherwise
+  - CancellationToken handler calls interruptGeneration() for Latency Trap
+  - Console logging: [RDAT] Ghost text delivered (WebLLM) / (mock) / cancelled
+- Updated src/components/workspace/WorkspaceShell.tsx:
+  - Integrated useWebLLM() hook alongside useRAG()
+  - generateCompletion callback: RAG search (if not cached) → buildMessages → webllm.generate
+  - Passes generateCompletion, interruptGeneration, ragResults, isLLMReady to MonacoEditor
+  - Passes webllmState and webllmProgress to StatusBar
+- Updated src/components/workspace/EditorWelcome.tsx:
+  - Phase 3 status → "completed"
+  - Phase 4 status → "active" with updated description
+- Updated src/components/workspace/Sidebar.tsx:
+  - Bottom info text updated for Phase 4 description
+- ESLint: zero errors, zero warnings
+
+Stage Summary:
+- Phase 4 complete: Local LLM (Gemma 2B via WebLLM) integrated for sovereign track
+- Ghost text now uses real AI generation (WebLLM + RAG context) instead of mock
+- engine.interruptGenerate() called on Monaco CancellationToken for Latency Trap prevention
+- Model loading progress displayed in StatusBar with thin progress bar
+- Graceful fallback to Phase 2 mock behavior when LLM is not ready
+- Console output: [RDAT-LLM] Initializing, Progress, Generated, Interrupted logs
+- Ready for Phase 5: Cloud Reasoning Track & Linting (Gemini API)

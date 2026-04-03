@@ -156,8 +156,8 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       {/* Bottom info */}
       <div className="mt-auto p-3 border-t border-[var(--ide-border)]">
         <p className="text-[10px] text-[var(--ide-text-dim)] leading-relaxed">
-          Phase 2 active: Monaco Editor with ghost text inline completions.
-          Type in the editor to see the Latency Trap abort cycle in action.
+          Phase 4 active: WebLLM local inference with ghost text completions.
+          Gemma 2B runs on WebGPU. Type in the editor for real-time AI suggestions.
           Check the browser console for detailed logs.
         </p>
       </div>

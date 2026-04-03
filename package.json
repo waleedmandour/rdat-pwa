@@ -19,6 +19,7 @@
     "@ducanh2912/next-pwa": "^10.2.9",
     "@hookform/resolvers": "^5.1.1",
     "@mdxeditor/editor": "^3.39.1",
+    "@mlc-ai/web-llm": "^0.2.82",
     "@monaco-editor/react": "^4.7.0",
     "@orama/orama": "^3.1.18",
     "@prisma/client": "^6.11.1",

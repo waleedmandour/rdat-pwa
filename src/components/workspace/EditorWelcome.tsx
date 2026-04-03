@@ -88,14 +88,14 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
             {
               phase: 3,
               title: "Client-Side Vector DB & RAG",
-              status: "active" as const,
+              status: "completed" as const,
               description: "Orama vector DB, Transformers.js embeddings, Web Worker",
             },
             {
               phase: 4,
-              title: "Local Sovereign Track (Gemma 4)",
-              status: "pending" as const,
-              description: "WebLLM inference, IndexedDB model cache",
+              title: "Local Sovereign Track (Gemma 2B)",
+              status: "active" as const,
+              description: "WebLLM inference, ghost text, interrupt on keystroke",
             },
             {
               phase: 5,

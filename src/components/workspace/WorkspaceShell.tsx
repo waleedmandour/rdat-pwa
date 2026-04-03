@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { GPUStatus, AppMode, InferenceState } from "@/types";
-import type { RAGState, RAGResult, RAGTiming } from "@/lib/rag-types";
+import type { GPUStatus, AppMode } from "@/types";
+import type { RAGResult } from "@/lib/rag-types";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
@@ -12,6 +12,8 @@ import { EditorWelcome } from "./EditorWelcome";
 import { MonacoEditor } from "./MonacoEditor";
 import { useEditorEventLoop } from "@/hooks/useEditorEventLoop";
 import { useRAG } from "@/hooks/useRAG";
+import { useWebLLM } from "@/hooks/useWebLLM";
+import { buildMessages } from "@/lib/prompt-builder";
 import { extractCurrentSentence, truncateForEmbedding } from "@/lib/sentence-extractor";
 import { FileText, BookOpen } from "lucide-react";
 
@@ -36,6 +38,9 @@ export function WorkspaceShell({
 
   // ─── RAG Pipeline ──────────────────────────────────────────────
   const rag = useRAG();
+
+  // ─── WebLLM Engine ─────────────────────────────────────────────
+  const webllm = useWebLLM();
 
   // ─── Editor Event Loop (with RAG callback) ────────────────────
   const ragSearchRef = useRef(rag.search);
@@ -66,6 +71,36 @@ export function WorkspaceShell({
       cleanup();
     };
   }, [cleanup]);
+
+  /**
+   * generateCompletion — Orchestrates RAG + WebLLM for ghost text.
+   * Called from MonacoEditor's inline completions provider.
+   *
+   * Flow:
+   * 1. Use passed RAG results (already computed by debounce callback)
+   * 2. If no results cached, do a fresh RAG search
+   * 3. Build prompt messages with RAG context
+   * 4. Call WebLLM to generate completion
+   */
+  const generateCompletion = useCallback(
+    async (editorText: string, ragResults: RAGResult[]): Promise<string | null> => {
+      // Step 1: RAG search (if not already cached from debounce)
+      let results = ragResults;
+      if (results.length === 0 && rag.isReady) {
+        const sentence = extractCurrentSentence(editorText);
+        if (sentence && sentence.trim().length >= 3) {
+          results = await rag.search(truncateForEmbedding(sentence));
+        }
+      }
+
+      // Step 2: Build messages with RAG context
+      const messages = buildMessages(editorText, results);
+
+      // Step 3: Generate via WebLLM
+      return webllm.generate(messages);
+    },
+    [rag, webllm]
+  );
 
   const openView = (view: EditorView) => {
     setActiveView(view);
@@ -132,6 +167,10 @@ export function WorkspaceShell({
               <MonacoEditor
                 value={sourceText}
                 onChange={handleEditorChange}
+                generateCompletion={generateCompletion}
+                interruptGeneration={webllm.interruptGenerate}
+                ragResults={rag.lastResults}
+                isLLMReady={webllm.isReady}
               />
             ) : (
               <div className="h-full overflow-auto">
@@ -152,6 +191,8 @@ export function WorkspaceShell({
         embeddingMode={rag.embeddingMode}
         ragStatusMessage={rag.statusMessage}
         ragResultCount={rag.lastResults.length}
+        webllmState={webllm.engineState}
+        webllmProgress={webllm.progress}
       />
 
       {/* Settings Modal */}

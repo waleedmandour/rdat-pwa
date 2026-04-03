@@ -7,7 +7,7 @@ import {
   Loader2,
   Database,
 } from "lucide-react";
-import type { GPUStatus, AppMode, InferenceState } from "@/types";
+import type { GPUStatus, AppMode, InferenceState, WebLLMState, WebLLMProgress } from "@/types";
 import type { RAGState, RAGTiming } from "@/lib/rag-types";
 import { formatGPULabel, getGPUStatusDotColor } from "@/lib/gpu-utils";
 import {
@@ -15,6 +15,7 @@ import {
   GPU_STATUS_LABELS,
   INFERENCE_STATE_LABELS,
   RAG_STATE_LABELS,
+  WEBLLM_STATE_LABELS,
 } from "@/lib/constants";
 
 interface StatusBarProps {
@@ -26,6 +27,8 @@ interface StatusBarProps {
   embeddingMode: "real" | "fallback";
   ragStatusMessage: string;
   ragResultCount: number;
+  webllmState: WebLLMState;
+  webllmProgress: WebLLMProgress | null;
 }
 
 function getRAGStateColor(state: RAGState): string {
@@ -60,6 +63,36 @@ function getRAGStateDot(state: RAGState): string {
   }
 }
 
+function getWebLLMStateDot(state: WebLLMState): string {
+  switch (state) {
+    case "ready":
+      return "bg-emerald-400";
+    case "initializing":
+      return "bg-amber-400 animate-pulse";
+    case "generating":
+      return "bg-teal-400 animate-pulse";
+    case "error":
+      return "bg-red-400";
+    default:
+      return "bg-[var(--ide-text-dim)]";
+  }
+}
+
+function getWebLLMStateColor(state: WebLLMState): string {
+  switch (state) {
+    case "ready":
+      return "text-emerald-400";
+    case "initializing":
+      return "text-amber-400";
+    case "generating":
+      return "text-teal-400";
+    case "error":
+      return "text-red-400";
+    default:
+      return "text-[var(--ide-text-muted)]";
+  }
+}
+
 export function StatusBar({
   gpuStatus,
   appMode,
@@ -67,8 +100,10 @@ export function StatusBar({
   ragState,
   ragTiming,
   embeddingMode,
-  ragStatusMessage,
+  ragStatusMessage: _ragStatusMessage,
   ragResultCount,
+  webllmState,
+  webllmProgress,
 }: StatusBarProps) {
   return (
     <footer className="flex items-center justify-between h-7 px-3 border-t border-[var(--ide-border)] bg-[var(--ide-statusbar)] text-[11px] select-none">
@@ -156,6 +191,34 @@ export function StatusBar({
             </span>
           )}
         </div>
+
+        <span className="text-[var(--ide-border)]">│</span>
+
+        {/* WebLLM Status */}
+        <div className="flex items-center gap-1.5">
+          {webllmState === "generating" || webllmState === "initializing" ? (
+            <Loader2 className={`w-3 h-3 animate-spin ${webllmState === "generating" ? "text-teal-400" : "text-amber-400"}`} />
+          ) : (
+            <span className={`w-2 h-2 rounded-full ${getWebLLMStateDot(webllmState)}`} />
+          )}
+          <span className={getWebLLMStateColor(webllmState)}>
+            {WEBLLM_STATE_LABELS[webllmState]}
+          </span>
+          {/* Progress bar during initialization */}
+          {webllmState === "initializing" && webllmProgress && webllmProgress.progress < 100 && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-16 h-1.5 rounded-full bg-[var(--ide-bg-tertiary)] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-teal-400 transition-all duration-300"
+                  style={{ width: `${Math.max(webllmProgress.progress, 2)}%` }}
+                />
+              </div>
+              <span className="text-[var(--ide-text-dim)]">
+                {webllmProgress.progress.toFixed(0)}%
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Right section */}
@@ -196,7 +259,7 @@ export function StatusBar({
         <span className="text-[var(--ide-border)]">│</span>
 
         {/* Version */}
-        <span className="text-[var(--ide-text-dim)]">v0.3.0</span>
+        <span className="text-[var(--ide-text-dim)]">v0.4.0</span>
       </div>
     </footer>
   );

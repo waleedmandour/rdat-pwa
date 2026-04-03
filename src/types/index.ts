@@ -58,6 +58,20 @@ export interface AppSettings {
   cloudModelEnabled: boolean;
 }
 
+// ─── WebLLM Engine State ────────────────────────────────────────────
+export type WebLLMState =
+  | "idle"
+  | "initializing"
+  | "ready"
+  | "generating"
+  | "error";
+
+export interface WebLLMProgress {
+  progress: number;  // 0-100
+  text: string;      // Status description
+  timeElapsed: number;
+}
+
 // ─── Lint Marker ────────────────────────────────────────────────────
 export type LintSeverity = "error" | "warning" | "info";
 

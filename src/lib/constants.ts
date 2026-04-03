@@ -2,7 +2,7 @@
 
 export const APP_NAME = "RDAT Copilot";
 export const APP_SHORT_NAME = "RDAT";
-export const APP_VERSION = "0.3.0";
+export const APP_VERSION = "0.4.0";
 export const APP_DESCRIPTION =
   "Repository-Driven Adaptive Translation — AI-Powered Co-Writing IDE";
 
@@ -32,8 +32,11 @@ export const VECTOR_DB_NAME = "rdat-gtr";
 export const VECTOR_DB_VERSION = 1;
 
 // ─── Local AI (Sovereign Track) ────────────────────────────────────
-export const LOCAL_MODEL_ID = "gemma-4-2b-it-q4f16_1-MLC";
+export const LOCAL_MODEL_ID = "gemma-2b-it-q4f32_1-MLC";
 export const LOCAL_MODEL_CACHE_KEY = "rdat-local-model-cache";
+export const LOCAL_MODEL_INIT_TIMEOUT_MS = 300_000; // 5 minutes for first model download
+export const LLM_MAX_TOKENS = 50; // Ghost text should be short
+export const LLM_TEMPERATURE = 0.3; // Low temperature for predictable completions
 
 // ─── Cloud AI (Reasoning Track) ─────────────────────────────────────
 export const GEMINI_API_ENDPOINT =
@@ -67,4 +70,12 @@ export const RAG_STATE_LABELS = {
   ready: "GTR: Ready",
   searching: "GTR: Searching…",
   error: "GTR: Error",
+} as const;
+
+export const WEBLLM_STATE_LABELS = {
+  idle: "LLM: Idle",
+  initializing: "LLM: Loading…",
+  ready: "LLM: Ready",
+  generating: "LLM: Generating…",
+  error: "LLM: Error",
 } as const;

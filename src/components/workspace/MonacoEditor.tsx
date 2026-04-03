@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect } from "react";
 import Editor, { type OnMount, type BeforeMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
+import type { RAGResult } from "@/lib/rag-types";
 import { MOCK_INFERENCE_DELAY_MS } from "@/lib/constants";
 
 /**
@@ -14,7 +15,7 @@ const RDAT_LANGUAGE_ID = "rdat-translation";
 
 /**
  * Ghost text suggestions for the mock provider.
- * In Phase 4+, these will come from the real Sovereign Track (WebGPU Gemma 4).
+ * Used as fallback when the real WebLLM is not ready.
  */
 const MOCK_SUGGESTIONS = [
   " [AI Suggestion]",
@@ -52,9 +53,23 @@ function waitForDelayOrAbort(
   });
 }
 
+/**
+ * Completion config stored in a ref to avoid re-registering the provider.
+ */
+interface CompletionConfig {
+  generateCompletion?: (editorText: string, ragResults: RAGResult[]) => Promise<string | null>;
+  interruptGeneration?: () => void;
+  ragResults: RAGResult[];
+  isLLMReady: boolean;
+}
+
 interface MonacoEditorProps {
   value: string;
   onChange: (value: string) => void;
+  generateCompletion?: (editorText: string, ragResults: RAGResult[]) => Promise<string | null>;
+  interruptGeneration?: () => void;
+  ragResults?: RAGResult[];
+  isLLMReady?: boolean;
 }
 
 /**
@@ -64,15 +79,40 @@ interface MonacoEditorProps {
  * Key features:
  * - vs-dark theme, wordWrap on, minimap off, fontSize 16
  * - automaticLayout for seamless resize within WorkspaceShell
- * - Mock inlineCompletionsProvider for ghost text (Phase 2 scaffolding)
+ * - Inline completions provider: real WebLLM when ready, mock fallback
  * - Proper disposal of providers and editor on unmount
  */
-export function MonacoEditor({ value, onChange }: MonacoEditorProps) {
+export function MonacoEditor({
+  value,
+  onChange,
+  generateCompletion,
+  interruptGeneration,
+  ragResults = [],
+  isLLMReady = false,
+}: MonacoEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const inlineProviderRef = useRef<Monaco.IDisposable | null>(null);
 
+  // Store completion config in a ref so the provider callback always
+  // has the latest values without needing re-registration
+  const completionConfigRef = useRef<CompletionConfig>({
+    generateCompletion,
+    interruptGeneration,
+    ragResults,
+    isLLMReady,
+  });
+
+  useEffect(() => {
+    completionConfigRef.current = {
+      generateCompletion,
+      interruptGeneration,
+      ragResults,
+      isLLMReady,
+    };
+  }, [generateCompletion, interruptGeneration, ragResults, isLLMReady]);
+
   /**
-   * beforeMount — Register the mock inline completions provider.
+   * beforeMount — Register the inline completions provider.
    * This runs once before the editor DOM is created.
    */
   const handleBeforeMount: BeforeMount = useCallback((monaco) => {
@@ -92,41 +132,88 @@ export function MonacoEditor({ value, onChange }: MonacoEditorProps) {
             `[RDAT] Ghost text provider called at line ${position.lineNumber}, col ${position.column}`
           );
 
-          try {
-            // Simulate the inference delay — if user types during this window,
-            // Monaco's CancellationToken fires and we reject immediately.
-            await waitForDelayOrAbort(MOCK_INFERENCE_DELAY_MS, token);
+          const config = completionConfigRef.current;
 
-            const suggestion = getRandomSuggestion();
-            console.log(`[RDAT] Ghost text delivered: "${suggestion}"`);
+          // If LLM is not ready, fall back to mock (Phase 2 behavior)
+          if (!config.isLLMReady || !config.generateCompletion) {
+            try {
+              await waitForDelayOrAbort(MOCK_INFERENCE_DELAY_MS, token);
 
-            return {
-              items: [
-                {
-                  insertText: suggestion,
-                  range: {
-                    startLineNumber: position.lineNumber,
-                    startColumn: position.column,
-                    endLineNumber: position.lineNumber,
-                    endColumn: position.column,
+              const suggestion = getRandomSuggestion();
+              console.log(`[RDAT] Ghost text delivered (mock): "${suggestion}"`);
+
+              return {
+                items: [
+                  {
+                    insertText: suggestion,
+                    range: {
+                      startLineNumber: position.lineNumber,
+                      startColumn: position.column,
+                      endLineNumber: position.lineNumber,
+                      endColumn: position.column,
+                    },
                   },
-                  // Optional: add a command that fires when the user accepts
-                  // the ghost text (Tab key). Will be wired in Phase 4.
-                },
-              ],
-            };
-          } catch (err) {
-            // Token was cancelled — user typed during the 1500ms window.
-            // This is the expected "Latency Trap" behavior.
-            console.log(
-              `[RDAT] Ghost text generation cancelled — user typed during ${MOCK_INFERENCE_DELAY_MS}ms window`
-            );
+                ],
+              };
+            } catch (_err) {
+              console.log(
+                `[RDAT] Ghost text generation cancelled — user typed during ${MOCK_INFERENCE_DELAY_MS}ms window`
+              );
+              return { items: [] };
+            }
+          }
+
+          // ── Real WebLLM generation path ──
+          try {
+            if (token.isCancellationRequested) {
+              throw new Error("Already cancelled");
+            }
+
+            // Set up abort handler for the cancellation token
+            let cancelled = false;
+            const disposable = token.onCancellationRequested(() => {
+              cancelled = true;
+              config.interruptGeneration?.();
+              disposable.dispose();
+            });
+
+            // Get current editor text
+            const text = model.getValue();
+
+            // Generate completion using WebLLM + RAG context
+            const generatedText = await config.generateCompletion(text, config.ragResults);
+
+            if (cancelled) {
+              console.log("[RDAT] Ghost text cancelled after generation");
+              return { items: [] };
+            }
+
+            if (generatedText && generatedText.trim().length > 0) {
+              console.log(`[RDAT] Ghost text delivered (WebLLM): "${generatedText.substring(0, 50)}…"`);
+              return {
+                items: [
+                  {
+                    insertText: generatedText.trim(),
+                    range: {
+                      startLineNumber: position.lineNumber,
+                      startColumn: position.column,
+                      endLineNumber: position.lineNumber,
+                      endColumn: position.column,
+                    },
+                  },
+                ],
+              };
+            }
+
+            return { items: [] };
+          } catch (_err) {
+            console.log("[RDAT] Ghost text generation cancelled — user typed during inference");
             return { items: [] };
           }
         },
 
         freeInlineCompletions: () => {
-          // No-op: we don't cache completions in the mock provider.
+          // No-op: we don't cache completions.
         },
       }
     );
@@ -135,7 +222,7 @@ export function MonacoEditor({ value, onChange }: MonacoEditorProps) {
   /**
    * onMount — Capture the editor reference for imperative control.
    */
-  const handleMount: OnMount = useCallback((editor, monaco) => {
+  const handleMount: OnMount = useCallback((editor, _monaco) => {
     editorRef.current = editor;
 
     // Configure inline completions to show automatically
