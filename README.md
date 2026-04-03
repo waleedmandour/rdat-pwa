@@ -2,15 +2,24 @@
 
 # RDAT Copilot
 
-**Repository-Driven Adaptive Translation — AI-Powered Co-Writing IDE**
+**مساعد الترجمة الذكي — Repository-Driven Adaptive Translation**
 
 [![CI](https://github.com/waleedmandour/rdat-pwa/actions/workflows/ci.yml/badge.svg)](https://github.com/waleedmandour/rdat-pwa/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Deploy on Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/waleedmandour/rdat-pwa)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A Progressive Web App that runs a full-featured translation co-writing IDE entirely in the browser. Built on a **dual-track AI architecture** — a Sovereign Track that runs a local LLM via WebGPU for real-time ghost text, and a Reasoning Track that calls Google Gemini from the client for heavier rewriting tasks. All translation decisions are guided by an in-browser RAG vector database and an AMTA terminology linter.
+A Progressive Web App that provides a full-featured, AI-powered co-writing environment for English-Arabic translation — running entirely in the browser. Built on a dual-track AI architecture that combines a Sovereign Track (local WebGPU inference via Gemma) and a Reasoning Track (cloud Gemini API). All translation decisions are guided by an in-browser RAG vector database and an AMTA terminology linter.
 
 </div>
+
+---
+
+## Author & Affiliation
+
+**Dr. Waleed Mandour**
+Sultan Qaboos University (جامعة السلطان قابوس)
+
+RDAT Copilot is a research-informed translation technology tool designed for professional translators working between English and Arabic. It embodies a non-destructive editing philosophy — AI never overwrites the translator's text — and provides intelligent, context-aware suggestions that respect the translator's creative authority.
 
 ---
 
@@ -18,17 +27,16 @@ A Progressive Web App that runs a full-featured translation co-writing IDE entir
 
 - [Architecture Overview](#architecture-overview)
 - [Dual-Track AI System](#dual-track-ai-system)
-  - [Sovereign Track (Local WebGPU)](#sovereign-track-local-webgpu)
-  - [Reasoning Track (Cloud Gemini)](#reasoning-track-cloud-gemini)
-  - [How the Tracks Interact](#how-the-tracks-interact)
-- [RAG Pipeline](#rag-pipeline)
-- [AMTA Terminology Linter](#amta-terminology-linter)
-- [Installing as a PWA](#installing-as-a-pwa)
-- [Setting Up Your Gemini API Key (BYOK)](#setting-up-your-gemini-api-key-byok)
-- [Development](#development)
-- [Deployment](#deployment)
-  - [Vercel (Recommended)](#vercel-recommended)
-  - [GitHub Pages (Static Export)](#github-pages-static-export)
+  - [Sovereign Track — المسار السيادي (Local WebGPU)](#sovereign-track--المسار-السيادي-local-webgpu)
+  - [Reasoning Track — مسار الاستدلال (Cloud Gemini)](#reasoning-track--مسار-الاستدلال-cloud-gemini)
+  - [Track Comparison — مقارنة المسارين](#track-comparison--مقارنة-المسارين)
+- [RAG Pipeline — محرك البحث الدلالي](#rag-pipeline--محرك-البحث-الدلالي)
+- [AMTA Terminology Linter — فحص جودة الترجمة](#amta-terminology-linter--فحص-جودة-الترجمة)
+- [Bilingual Interface — واجهة ثنائية اللغة](#bilingual-interface--واجهة-ثنائية-اللغة)
+- [Installing as a PWA — تثبيت كتطبيق](#installing-as-a-pwa--تثبيت-كتطبيق)
+- [Setting Up Gemini (BYOK)](#setting-up-gemini-byok)
+- [Development — التطوير](#development--التطوير)
+- [Deployment — النشر](#deployment--النشر)
 - [Project Structure](#project-structure)
 - [Tech Stack](#tech-stack)
 - [License](#license)
@@ -37,21 +45,21 @@ A Progressive Web App that runs a full-featured translation co-writing IDE entir
 
 ## Architecture Overview
 
-RDAT Copilot is a client-side Progressive Web App built with Next.js, Monaco Editor, and WebGPU. The architecture follows a **non-destructive editing philosophy**: AI never overwrites the translator's text. Instead, ghost text appears as inline suggestions that the translator accepts or ignores, and heavier cloud rewrites are presented in a side panel for explicit approval.
+RDAT Copilot is a client-side Progressive Web App built with Next.js 16, Monaco Editor, and WebGPU. It runs entirely in the browser — no backend server required for core functionality. The architecture follows a **non-destructive editing philosophy**: AI never overwrites the translator's text. Ghost text appears as inline suggestions (press Tab to accept), and heavier cloud rewrites are presented in an approval panel.
 
 The system is organized into five functional layers:
 
-1. **Editor Layer** — Monaco Editor with RTL support, syntax-aware inline completions, and a custom `rdat-translation` language ID for scoping providers.
-2. **Event Loop Layer** — A debounced keystroke handler with AbortController lifecycle. Every keystroke resets a 300ms debounce timer; when the timer fires, it triggers RAG retrieval and AMTA linting in parallel. If inference is running when a new keystroke arrives, the previous inference is immediately cancelled via `interruptGenerate()`.
-3. **RAG Layer** — An Orama vector database running in a dedicated Web Worker. Embeddings are generated by Transformers.js (with a deterministic hash fallback). Semantic search retrieves the top 3 translation memory matches in under 50ms.
-4. **AI Layer** — Dual-track: the Sovereign Track uses WebLLM to run Gemma 2B locally via WebGPU for real-time ghost text; the Reasoning Track calls Google Gemini from the browser for heavier rewriting tasks.
-5. **Linting Layer** — The AMTA (American Translators Association) linter scans the editor for untranslated English legal terms from the glossary, drawing yellow squiggly markers and offering Ctrl+. quick-fix autocorrections.
+1. **Editor Layer — طبقة المحرر** — Monaco Editor with RTL support, syntax-aware inline completions, and a custom `rdat-translation` language ID.
+2. **Event Loop Layer — طبقة الأحداث** — A debounced keystroke handler with AbortController lifecycle. Every keystroke resets a 300ms debounce; when it fires, RAG retrieval and AMTA linting run in parallel. If inference is active on a new keystroke, `interruptGenerate()` cancels immediately.
+3. **RAG Layer — طبقة البحث الدلالي** — An Orama vector database in a dedicated Web Worker. Embeddings via Transformers.js (with deterministic hash fallback). Semantic search returns the top 3 translation memory matches in under 50ms.
+4. **AI Layer — طبقة الذكاء الاصطناعي** — Dual-track: Sovereign (local Gemma via WebGPU for real-time ghost text) + Reasoning (Gemini from the browser for rewriting).
+5. **Linting Layer — طبقة الفحص** — The AMTA linter scans for untranslated English legal terms, draws yellow squiggles, and offers Ctrl+. autocorrections.
 
 ---
 
 ## Dual-Track AI System
 
-### Sovereign Track (Local WebGPU)
+### Sovereign Track — المسار السيادي (Local WebGPU)
 
 The Sovereign Track runs a quantized Gemma 2B model entirely in the browser using [WebLLM](https://github.com/mlc-ai/web-llm). This provides real-time ghost text — short inline completion suggestions (3–15 words) that appear as you type.
 
@@ -59,244 +67,195 @@ The Sovereign Track runs a quantized Gemma 2B model entirely in the browser usin
 
 1. When the debounce timer fires after a keystroke, the event loop extracts the current sentence from the editor text.
 2. The sentence is truncated for embedding safety and sent to the RAG Web Worker for semantic search.
-3. The top 3 RAG results (English→Arabic translation pairs) are injected into a system prompt that constrains the LLM to output only ghost text completions.
+3. The top 3 RAG results (English→Arabic translation pairs) are injected into a system prompt constraining the LLM to output only ghost text completions.
 4. The prompt is sent to the WebLLM engine running Gemma 2B (INT4 quantized) via WebGPU.
-5. The generated text appears as a ghost text suggestion in Monaco Editor — the translator presses Tab to accept or continues typing to dismiss.
+5. Generated text appears as a ghost text suggestion — the translator presses Tab to accept or continues typing to dismiss.
 
-**Latency Trap Prevention:**
+**Latency Trap Prevention — منع اختبار الكمون:**
 
-Every keystroke while inference is running fires `engine.interruptGenerate()` through a two-layer cancellation system: Monaco's `CancellationToken` and a custom `AbortController`. This ensures that stale completions never appear and the GPU is freed immediately for the next request.
+Every keystroke while inference is running fires `engine.interruptGenerate()` through a two-layer cancellation system: Monaco's `CancellationToken` and a custom `AbortController`. Stale completions never appear and the GPU is freed immediately.
 
-**Graceful Degradation:**
+**Gemma 4 Roadmap — خارطة طريق جيما 4:**
 
-If WebGPU is not available (older browsers, mobile Safari), the app automatically switches to Cloud-Only mode. If the local model hasn't finished downloading yet, a mock ghost text provider shows placeholder suggestions until the model is ready.
+RDAT Copilot targets the [Gemma 4](https://deepmind.google/models/gemma/gemma-4/) model family by Google DeepMind for the Sovereign Track. The current release uses Gemma 2B (INT4 quantized) as the most performant model available in the WebLLM framework. Integration of Gemma 4 will be enabled as soon as WebLLM releases compatible model weights, delivering significantly enhanced translation quality for the local inference path.
 
-### Reasoning Track (Cloud Gemini)
+### Reasoning Track — مسار الاستدلال (Cloud Gemini)
 
-The Reasoning Track uses Google's Gemini API for heavier tasks that require more reasoning capacity than the local 2B model can provide. This is used for the **Rewrite/Synthesize** feature.
+The Reasoning Track uses Google's Gemini API for heavier tasks requiring more reasoning capacity than the local 2B model.
 
 **How it works:**
 
-1. The translator selects text in the editor and clicks the "Rewrite" button in the toolbar.
-2. The selected text, along with the current RAG context (top 3 translation memory matches), is sent to Gemini (`gemini-3.1-flash-lite-preview`) directly from the browser.
-3. Gemini generates a rewritten version of the text, following a system instruction to match formal legal register in Arabic.
-4. The result appears in a side panel showing the original and rewritten text side by side.
-5. The translator clicks "Accept" to replace the selection, or "Dismiss" to keep the original.
+1. The translator selects text in the editor and clicks "✨ Rewrite" (إعادة صياغة).
+2. The selected text, along with RAG context, is sent to Gemini directly from the browser.
+3. Gemini generates a rewritten version matching formal legal register in Arabic.
+4. Results appear in a side panel — the translator clicks "Accept" (قبول) or "Dismiss" (رفض).
 
-**BYOK Architecture (Bring Your Own Key):**
+**BYOK Architecture — أدخل مفتاحك الخاص:**
 
-The Gemini API key is stored in the browser's localStorage and never sent to any server other than Google's API endpoint. The user provides their own key through the Settings modal. This means:
-- No backend proxy is needed — all Gemini calls are made client-side using the `@google/generative-ai` SDK.
-- The app has zero API costs for the developer — each user uses their own Google AI Studio quota.
-- `gemini-3.1-flash-lite-preview` is the current Free Tier model, making this budget-friendly for all users.
+The Gemini API key is stored in the browser's `localStorage` and never sent to any server other than Google's. Each user provides their own key through Settings. `gemini-3.1-flash-lite-preview` is the current Free Tier model — zero cost for the developer, budget-friendly for all users.
 
-### How the Tracks Interact
+### Track Comparison — مقارنة المسارين
 
-The two tracks are complementary and designed to work together without interfering with each other:
-
-| Aspect | Sovereign Track | Reasoning Track |
+| Aspect | Sovereign Track — المسار السيادي | Reasoning Track — مسار الاستدلال |
 |--------|----------------|-----------------|
-| **Purpose** | Real-time ghost text suggestions | Heavy rewriting and synthesis |
+| **Purpose** | Ghost text suggestions | Heavy rewriting and synthesis |
 | **Model** | Gemma 2B (INT4, local) | Gemini 3.1 Flash Lite (cloud) |
-| **Trigger** | Automatic on every keystroke (debounced) | Manual: select text + click "Rewrite" |
-| **Output** | 3–15 word inline ghost text | Full rewritten passage in side panel |
-| **UI Pattern** | Non-destructive (Tab to accept) | Non-destructive (Accept/Dismiss panel) |
-| **Latency** | Target: <200ms | ~1–3s depending on network |
-| **Network** | Offline after model download | Requires internet connection |
+| **Trigger** | Automatic on keystroke (debounced) | Manual: select + click Rewrite |
+| **Output** | 3–15 word inline ghost text | Full passage in side panel |
+| **UI** | Tab to accept | Accept/Dismiss panel |
+| **Latency** | Target: <200ms | ~1–3s |
+| **Network** | Offline after model download | Requires internet |
 | **API Key** | None needed | User-provided (BYOK) |
 
 ---
 
-## RAG Pipeline
+## RAG Pipeline — محرك البحث الدلالي
 
-The Retrieval-Augmented Generation (RAG) pipeline provides translation memory context for both AI tracks. It runs entirely in a Web Worker to prevent blocking the main UI thread.
+The Retrieval-Augmented Generation pipeline provides translation memory context for both AI tracks, running entirely in a Web Worker.
 
 **Components:**
 
-- **Orama Vector Database** — In-memory vector store with 384-dimensional embeddings and cosine similarity search.
-- **Transformers.js** — Loads `paraphrase-multilingual-MiniLM-L12-v2` from Hugging Face for generating real semantic embeddings. Falls back to deterministic hash-based pseudo-embeddings if the model fails to load (network timeout, unsupported browser, etc.).
-- **Corpus** — A JSON glossary of English→Arabic legal/technical term pairs (`opus-glossary-en-ar.json`) that is fetched and indexed on app startup.
+- **Orama Vector Database** — In-memory store with 384-dimensional embeddings and cosine similarity search.
+- **Transformers.js** — `paraphrase-multilingual-MiniLM-L12-v2` for real semantic embeddings. Falls back to deterministic hash-based pseudo-embeddings on failure.
+- **Corpus** — JSON glossary of English→Arabic legal/technical term pairs (`opus-glossary-en-ar.json`).
 
 **Flow:**
 
-1. On app startup, the worker fetches the corpus JSON, generates embeddings for each entry, and indexes them in Orama.
-2. When the user types, the debounce timer fires and sends the current sentence to the worker.
-3. The worker embeds the query, runs vector search, and returns the top 3 matches with scores and timing metrics.
-4. Results are injected into the LLM prompt as "Reference Translation Memory" context.
+1. On startup, the worker fetches the corpus, generates embeddings, and indexes them in Orama.
+2. On typing (debounced), the current sentence is embedded and vector-searched.
+3. Top 3 matches with scores and timing are returned and injected into the LLM prompt.
 
-**Performance Target:** Vector search < 50ms (verified and logged to console with ✓/⚠ indicator).
+**Performance:** Vector search < 50ms (verified with ✓/⚠ console indicator).
 
 ---
 
-## AMTA Terminology Linter
+## AMTA Terminology Linter — فحص جودة الترجمة
 
-The AMTA (American Translators Association) linter is a real-time terminology checking system that scans the editor for untranslated English legal terms from the glossary corpus.
+The AMTA linter scans the editor for untranslated English legal terms from the glossary corpus.
 
 **How it works:**
 
 1. After the editor debounce settles (2-second delay), the linter scans the full editor text.
-2. For each English term in the glossary, it performs a case-insensitive search across all editor lines.
-3. If an English term is found but the corresponding Arabic translation is not present in the same line or adjacent lines, a lint issue is created.
-4. Issues are rendered as **yellow squiggly warning lines** using Monaco's `setModelMarkers` API.
-5. A **CodeActionProvider** is registered for the `rdat-translation` language, enabling **Ctrl+.** quick fixes.
-6. When the user triggers a quick fix, Monaco shows: `AMTA: Replace "Force Majeure" → "القوة القاهرة"` — clicking it performs an inline autocorrection.
-
-**Example:** If the editor contains "Force Majeure" but the Arabic term "القوة القاهرة" is not found nearby, a yellow warning appears under "Force Majeure" with a Ctrl+. suggestion to insert the correct Arabic term.
+2. For each English term in the glossary, it performs a case-insensitive search.
+3. If an English term is found but the Arabic translation is not present nearby, a lint issue is created.
+4. Issues appear as **yellow squiggly warnings** via Monaco's `setModelMarkers`.
+5. A **CodeActionProvider** enables **Ctrl+.** quick fixes: `AMTA: Replace "Force Majeure" → "القوة القاهرة"`.
 
 ---
 
-## Installing as a PWA
+## Bilingual Interface — واجهة ثنائية اللغة
 
-RDAT Copilot is a fully installable Progressive Web App. Once deployed, users can install it on their devices for an app-like experience:
+RDAT Copilot features a fully bilingual Arabic-English interface, designed for professional translators who work between English and Arabic. Following the design language of [Gemma 4](https://deepmind.google/models/gemma/gemma-4/), every UI element displays an Arabic subtitle followed by its English description:
+
+- **Header**: "مساعد الترجمة الذكي" — Intelligent Translation Assistant
+- **Sidebar**: All menu items include Arabic labels (محرر الترجمة, مسرد المصطلحات, نماذج الذكاء الاصطناعي)
+- **Status Bar**: Bilingual mode indicators (سيادي / سحابي / هجين)
+- **Settings**: Arabic section headers (عام, اللغات, مفاتيح API, نماذج الذكاء الاصطناعي)
+- **Welcome Page**: Arabic hero title "مرحبًا بك في RDAT Copilot" with Quick Start cards
+- **Ghost Text Hint**: "اضغط Tab لقبول · نص مقترح" — Press Tab to accept
+
+The IDE layout remains LTR (left-to-right) for optimal editor experience, while Arabic text spans use `dir="rtl"` for correct rendering. Arabic labels are styled in a subtle teal accent to provide visual distinction without overwhelming the interface.
+
+---
+
+## Installing as a PWA — تثبيت كتطبيق
+
+RDAT Copilot is a fully installable Progressive Web App:
 
 ### Desktop (Chrome / Edge)
-
 1. Navigate to the deployed URL.
-2. Click the **install icon** in the browser address bar (⊕ or ↓), or click the three-dot menu → "Install RDAT Copilot".
-3. The app opens in a standalone window without browser chrome, just like a native desktop application.
+2. Click the **install icon** (⊕) in the address bar, or three-dot menu → "Install RDAT Copilot".
+3. The app opens in a standalone window like a native desktop application.
 
 ### Mobile (Android)
-
-1. Open the URL in Chrome on Android.
-2. Tap the **"Add to Home Screen"** banner that appears, or use the browser menu → "Install app".
-3. The app installs with the RDAT Copilot icon and launches in full-screen standalone mode.
+1. Open the URL in Chrome.
+2. Tap **"Add to Home Screen"** banner, or menu → "Install app".
 
 ### iOS (Safari)
-
-1. Open the URL in Safari on iOS.
-2. Tap the **Share button** (square with arrow) → "Add to Home Screen".
-3. The app appears on the home screen and launches in standalone mode.
+1. Open the URL in Safari.
+2. Tap **Share** → "Add to Home Screen".
 
 ### PWA Features
-
-- **Offline-Ready:** After the first visit, the service worker caches all static assets. The Sovereign Track (local AI) works fully offline once the model is downloaded.
-- **Background Sync:** The service worker uses Workbox runtime caching for Google Fonts.
-- **Install Prompt:** The app meets Chrome's installability criteria (manifest, service worker, HTTPS).
-
----
-
-## Setting Up Your Gemini API Key (BYOK)
-
-The Reasoning Track (cloud Gemini) requires a free API key from Google AI Studio. Here's how to get and configure it:
-
-### Step 1: Get a Free API Key
-
-1. Go to [Google AI Studio](https://aistudio.google.com/apikey).
-2. Sign in with your Google account.
-3. Click **"Create API Key"**.
-4. Copy the generated key (starts with `AIza...`).
-
-> The app uses `gemini-3.1-flash-lite-preview`, which is on Google's **Free Tier**. You get generous rate limits at no cost.
-
-### Step 2: Enter the Key in RDAT Copilot
-
-1. Click the **gear icon** (⚙️) in the top-right header of the IDE.
-2. In the Settings modal, navigate to the **"API Keys"** tab.
-3. Paste your API key into the **"Google Gemini API Key"** input field.
-4. Click **"Save"**.
-
-The key is stored in your browser's `localStorage` and is never transmitted to any server other than Google's API. A masked version (e.g., `••••xYz1`) is shown for your reference.
-
-### Step 3: Use the Rewrite Feature
-
-1. Select any text in the Translation Editor.
-2. Click the **"✨ Rewrite"** button in the toolbar (it appears as a tab action).
-3. Wait for Gemini to generate the rewrite (1–3 seconds).
-4. Review the original and rewritten text in the side panel.
-5. Click **"Accept"** to replace the selection, or **"Dismiss"** to keep the original.
+- **Offline-Ready:** Service worker caches all static assets. Sovereign Track works fully offline after model download.
+- **Background Sync:** Workbox runtime caching for Google Fonts.
+- **Installable:** Meets Chrome's installability criteria (manifest, service worker, HTTPS).
 
 ---
 
-## Development
+## Setting Up Gemini (BYOK)
+
+The Reasoning Track requires a free API key from Google AI Studio:
+
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey) → **Create API Key**.
+2. In RDAT Copilot, click the **⚙️ gear icon** → **"مفاتيح API"** tab.
+3. Paste your key → **"Save"**.
+
+The key is stored in `localStorage` and never sent to any server except Google's API. `gemini-3.1-flash-lite-preview` is on the **Free Tier**.
+
+---
+
+## Development — التطوير
 
 ### Prerequisites
 
-- **Node.js** 20+ (LTS recommended)
-- **npm** 10+ (or pnpm/bun)
+- **Node.js** 20+ (LTS)
+- **npm** 10+
 
 ### Setup
 
 ```bash
-# Clone the repository
 git clone https://github.com/waleedmandour/rdat-pwa.git
 cd rdat-pwa
-
-# Install dependencies
 npm install
-
-# Start the development server (port 3000)
 npm run dev
 ```
 
-### Build for Production
+### Build
 
 ```bash
-# Standard build (for Vercel / Node.js server)
+# Standard build (Vercel / Node.js server)
 npm run build
 
 # GitHub Pages static export (with basePath)
 npm run build:ghpages
-# Equivalent to: OUTPUT=export BASE_PATH=/rdat-pwa npm run build
 ```
 
-### Lint
-
-```bash
-npm run lint
-```
-
-### Useful Commands
+### Commands
 
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start development server on port 3000 |
 | `npm run build` | Standard Next.js build (for Vercel) |
 | `npm run build:ghpages` | Static export with `/rdat-pwa` basePath |
-| `npm run start` | Start the Next.js production server |
+| `npm run start` | Start Next.js production server |
 | `npm run lint` | Run ESLint checks |
 
 ---
 
-## Deployment
+## Deployment — النشر
 
-### Vercel (Recommended)
+### Vercel (Recommended — موصى به)
 
-Vercel is the recommended deployment platform. It provides automatic builds from your Git repository, edge CDN, and native Next.js optimization — including server-side rendering and API routes if needed in the future.
+Vercel provides automatic builds from Git, edge CDN, and native Next.js optimization:
 
-**Deploy in 3 steps:**
+1. Go to [vercel.com](https://vercel.com) → Sign in with GitHub.
+2. **Add New Project** → Select `rdat-pwa` → **Deploy**.
 
-1. Go to [vercel.com](https://vercel.com) and sign in with your GitHub account.
-2. Click **"Add New Project"** → Select the `rdat-pwa` repository → Import.
-3. Vercel auto-detects Next.js and configures the build. Click **"Deploy"**.
+Vercel automatically:
+- Builds on every push to `main`
+- Serves from global edge CDN
+- Applies COOP/COEP headers for SharedArrayBuffer (WebGPU + WASM)
+- Caches `.wasm` and model shards with immutable headers
+- Handles PWA service worker correctly
 
-That's it! Vercel will automatically:
-- Build the project on every push to `main`
-- Serve it from their global edge CDN
-- Apply the COOP/COEP security headers (defined in `next.config.ts` and `vercel.json`) for SharedArrayBuffer support
-- Cache `.wasm` and model shard files (`.bin`, `.safetensors`, `.onnx`) with immutable headers so users don't redownload the LLM on every visit
-- Handle the service worker and PWA manifest correctly
-
-**Custom Domain (optional):**
-- In the Vercel project dashboard → Settings → Domains → Add your custom domain.
-
-**Environment Variables (optional):**
-- `BASE_PATH` — Set only if deploying to a sub-path. Leave empty for root domain (default).
-- `OUTPUT` — Set to `export` only for static hosting. Do NOT set this on Vercel.
-
-> **Why Vercel?** Vercel deploys Next.js natively (not as a static export), which means faster builds, automatic code splitting, and the ability to add server-side features later without architecture changes. The `next.config.ts` includes COOP/COEP headers and WASM webpack config that are essential for WebGPU and Transformers.js to work correctly in production.
+**Live:** `https://rdat-pwa.vercel.app/`
 
 ### GitHub Pages (Static Export)
 
-GitHub Pages serves static files only. To deploy there, you need the static export build:
+1. Build: `npm run build:ghpages`
+2. Deploy the `out/` directory.
 
-1. Ensure the GitHub Actions workflow is enabled (`.github/workflows/ci.yml` passes on `main`).
-2. Build the static export locally:
-   ```bash
-   npm run build:ghpages
-   ```
-3. Deploy the `out/` directory to GitHub Pages using your preferred method, or set up a separate deployment workflow.
-
-> **Note:** GitHub Pages does not support custom response headers, which means the COOP/COEP Cross-Origin Isolation headers cannot be set. WebGPU and SharedArrayBuffer may not work on GitHub Pages. Use Vercel for the full experience.
+> **Note:** GitHub Pages cannot set COOP/COEP headers, so WebGPU SharedArrayBuffer may not work there. Use Vercel for the full experience.
 
 ---
 
@@ -305,60 +264,57 @@ GitHub Pages serves static files only. To deploy there, you need the static expo
 ```
 rdat-pwa/
 ├── .github/workflows/
-│   └── ci.yml                  # CI pipeline (lint + build checks)
+│   └── ci.yml                  # CI pipeline (lint + build)
 ├── public/
-│   ├── manifest.json           # PWA manifest (relative paths for sub-path hosting)
-│   ├── opus-glossary-en-ar.json # EN-AR legal/technical glossary corpus
-│   ├── favicon.ico             # App favicon
-│   ├── logo.svg                # App logo
-│   └── icons/                  # PWA icons (72x72 to 512x512)
+│   ├── manifest.json           # PWA manifest
+│   ├── opus-glossary-en-ar.json # EN-AR legal/technical glossary
+│   ├── favicon.ico
+│   ├── logo.svg
+│   └── icons/                  # PWA icons (72–512px)
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx          # Root layout (PWA meta, dark theme, fonts)
+│   │   ├── layout.tsx          # Root layout (PWA meta, dark theme)
 │   │   ├── page.tsx            # Entry point → WorkspaceShell
-│   │   └── globals.css         # Tailwind + VS Code dark palette CSS variables
+│   │   └── globals.css         # Tailwind + VS Code dark palette
 │   ├── components/
+│   │   ├── ErrorBoundary.tsx   # Client-side error recovery UI
 │   │   ├── gpu/
-│   │   │   ├── GPUStatusIndicator.tsx  # Green/red GPU status dot
-│   │   │   └── WebGPUBanner.tsx        # Amber warning when WebGPU unsupported
+│   │   │   ├── GPUStatusIndicator.tsx
+│   │   │   └── WebGPUBanner.tsx
 │   │   ├── settings/
-│   │   │   └── SettingsModal.tsx       # BYOK UI, AI model config, 4-tab dialog
+│   │   │   └── SettingsModal.tsx    # BYOK UI, 4-tab dialog
 │   │   └── workspace/
-│   │       ├── Header.tsx              # Top bar (logo, sidebar toggle, settings)
-│   │       ├── Sidebar.tsx             # Collapsible, view switching
-│   │       ├── StatusBar.tsx           # GPU, RAG, LLM, Gemini, AMTA indicators
-│   │       ├── MonacoEditor.tsx        # Monaco with inline completions provider
-│   │       ├── WorkspaceShell.tsx      # Main IDE orchestrator
-│   │       └── EditorWelcome.tsx       # Welcome view with phase roadmap
+│   │       ├── Header.tsx           # Top bar (bilingual labels)
+│   │       ├── Sidebar.tsx          # Collapsible, translator shortcuts
+│   │       ├── StatusBar.tsx        # Bilingual indicators
+│   │       ├── MonacoEditor.tsx     # Monaco with inline completions
+│   │       ├── WorkspaceShell.tsx   # Main IDE orchestrator
+│   │       └── EditorWelcome.tsx    # Welcome page (Arabic hero)
 │   ├── hooks/
-│   │   ├── useAMTALinter.ts    # AMTA linter: markers, CodeActionProvider, debounced lint
-│   │   ├── useAppMode.ts       # Derives mode from GPU status
-│   │   ├── useEditorEventLoop.ts # Debounce → abort → inference hierarchy
-│   │   ├── useGemini.ts        # Gemini client: localStorage key, rewrite state
-│   │   ├── useRAG.ts           # RAG Worker lifecycle + search interface
-│   │   ├── useServiceWorker.ts # PWA online/offline event listeners
+│   │   ├── useAMTALinter.ts    # AMTA: markers + CodeActionProvider
+│   │   ├── useAppMode.ts       # Mode derivation from GPU
+│   │   ├── useEditorEventLoop.ts # Debounce → abort → inference
+│   │   ├── useGemini.ts        # Gemini client (localStorage BYOK)
+│   │   ├── useRAG.ts           # RAG Worker lifecycle
+│   │   ├── useServiceWorker.ts # PWA online/offline
 │   │   ├── useWebGPU.ts        # SSR-safe WebGPU detection
-│   │   └── useWebLLM.ts        # WebLLM engine lifecycle + ghost text generation
+│   │   └── useWebLLM.ts        # WebLLM engine + ghost text
 │   ├── lib/
-│   │   ├── amta-linter.ts      # Terminology scanner + CodeAction builder
-│   │   ├── asset-url.ts        # basePath-aware public asset URL resolver
-│   │   ├── constants.ts        # All config constants (models, thresholds, labels)
-│   │   ├── gemini-provider.ts  # Client-side Gemini SDK wrapper
-│   │   ├── gpu-utils.ts        # GPU adapter info extraction utilities
-│   │   ├── prompt-builder.ts   # LLM prompt construction + RAG context fusion
-│   │   ├── rag-types.ts        # TypeScript types for RAG pipeline
-│   │   ├── sentence-extractor.ts # Extract current sentence for RAG queries
-│   │   └── utils.ts            # General utilities
-│   ├── types/
-│   │   └── index.ts            # Global TypeScript type definitions
-│   └── workers/
-│       └── rag-worker.ts       # RAG Web Worker: Orama + Transformers.js + hash fallback
-├── next.config.ts              # Vercel-optimized config (COOP/COEP, WASM, PWA)
-├── vercel.json                 # Vercel routing + cache headers for .wasm/model shards
+│   │   ├── amta-linter.ts      # Terminology scanner
+│   │   ├── asset-url.ts        # basePath-aware URL resolver
+│   │   ├── constants.ts        # Config + bilingual UI labels
+│   │   ├── gemini-provider.ts  # Client-side Gemini wrapper
+│   │   ├── gpu-utils.ts        # GPU info utilities
+│   │   ├── prompt-builder.ts   # LLM prompt + RAG fusion
+│   │   ├── rag-types.ts        # RAG TypeScript types
+│   │   ├── sentence-extractor.ts
+│   │   └── utils.ts
+│   ├── types/index.ts
+│   └── workers/rag-worker.ts   # RAG Web Worker
+├── next.config.ts              # Vercel config (COOP/COEP, WASM)
+├── vercel.json                 # Routing + cache headers
 ├── package.json
-├── tsconfig.json
-├── tailwind.config.ts
-└── eslint.config.mjs
+└── tsconfig.json
 ```
 
 ---
@@ -367,17 +323,17 @@ rdat-pwa/
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Framework** | Next.js 16 | React framework, server rendering, edge optimization |
-| **Deployment** | Vercel | Automatic builds, edge CDN, native Next.js support |
-| **Language** | TypeScript 5 | Type safety across the entire codebase |
-| **Styling** | Tailwind CSS 4 | Utility-first CSS with VS Code dark palette |
-| **Editor** | Monaco Editor (`@monaco-editor/react`) | Full-featured code editor with inline completions |
-| **Local AI** | WebLLM (`@mlc-ai/web-llm`) | Runs Gemma 2B (INT4) in-browser via WebGPU |
-| **Cloud AI** | Google Generative AI (`@google/generative-ai`) | Client-side Gemini API calls |
-| **Embeddings** | Transformers.js (`@xenova/transformers`) | Browser-based sentence embeddings |
-| **Vector DB** | Orama (`@orama/orama`) | In-memory vector database for RAG |
-| **PWA** | `@ducanh2912/next-pwa` | Service worker generation + Workbox caching |
-| **CI** | GitHub Actions | Continuous integration (lint + build) |
+| **Framework** | Next.js 16 | React framework, edge optimization |
+| **Deployment** | Vercel | Auto-builds, CDN, native Next.js |
+| **Language** | TypeScript 5 | Type safety |
+| **Styling** | Tailwind CSS 4 | VS Code dark palette |
+| **Editor** | Monaco Editor | Inline completions, markers |
+| **Local AI** | WebLLM (Gemma 2B INT4) | In-browser GPU inference |
+| **Cloud AI** | Google Gemini (Flash Lite) | Client-side rewrite API |
+| **Embeddings** | Transformers.js | Browser-based embeddings |
+| **Vector DB** | Orama | In-memory RAG vector store |
+| **PWA** | `@ducanh2912/next-pwa` | Service worker + Workbox |
+| **CI** | GitHub Actions | Lint + build validation |
 
 ---
 
@@ -388,5 +344,7 @@ MIT — See [LICENSE](LICENSE) for details.
 ---
 
 <div align="center">
-Built by <strong>Waleed Mandour</strong> · Powered by WebGPU, Transformers.js, and Google Gemini
+<strong>Dr. Waleed Mandour</strong> · Sultan Qaboos University · جامعة السلطان قابوس
+
+Powered by WebGPU, Transformers.js, Orama, and Google Gemini
 </div>

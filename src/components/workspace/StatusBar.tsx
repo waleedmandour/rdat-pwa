@@ -7,16 +7,22 @@ import {
   Loader2,
   Database,
   AlertTriangle,
+  ArrowLeftRight,
 } from "lucide-react";
 import type { GPUStatus, AppMode, InferenceState, WebLLMState, WebLLMProgress, GeminiState } from "@/types";
 import type { RAGState, RAGTiming } from "@/lib/rag-types";
 import { formatGPULabel, getGPUStatusDotColor } from "@/lib/gpu-utils";
 import {
   MODE_LABELS,
+  MODE_LABELS_AR,
   GPU_STATUS_LABELS,
   INFERENCE_STATE_LABELS,
   RAG_STATE_LABELS,
+  RAG_STATE_LABELS_AR,
   WEBLLM_STATE_LABELS,
+  WEBLLM_STATE_LABELS_AR,
+  UI_LABELS,
+  APP_VERSION,
 } from "@/lib/constants";
 
 interface StatusBarProps {
@@ -165,12 +171,16 @@ export function StatusBar({
             <Cpu className="w-3 h-3 text-amber-400" />
           )}
           <span>{MODE_LABELS[appMode]}</span>
+          <span className="text-[9px] text-teal-300/50" dir="rtl">{MODE_LABELS_AR[appMode]}</span>
         </div>
 
         <span className="text-[var(--ide-border)]">│</span>
 
         {/* Language pair */}
-        <span className="text-[var(--ide-text-muted)]">EN → AR</span>
+        <div className="flex items-center gap-1 text-[var(--ide-text-muted)]">
+          <ArrowLeftRight className="w-3 h-3 text-teal-400" />
+          <span>EN ← AR</span>
+        </div>
 
         <span className="text-[var(--ide-border)]">│</span>
 
@@ -216,6 +226,7 @@ export function StatusBar({
           <span className={getRAGStateColor(ragState)}>
             {RAG_STATE_LABELS[ragState]}
           </span>
+          <span className="text-[9px] text-teal-300/50" dir="rtl">{RAG_STATE_LABELS_AR[ragState]}</span>
           {/* Embedding mode badge */}
           {ragState === "ready" && (
             <span
@@ -248,6 +259,7 @@ export function StatusBar({
           <span className={getWebLLMStateColor(webllmState)}>
             {WEBLLM_STATE_LABELS[webllmState]}
           </span>
+          <span className="text-[9px] text-teal-300/50" dir="rtl">{WEBLLM_STATE_LABELS_AR[webllmState]}</span>
           {/* Progress bar during initialization */}
           {webllmState === "initializing" && webllmProgress && webllmProgress.progress < 100 && (
             <div className="flex items-center gap-1.5">
@@ -304,8 +316,8 @@ export function StatusBar({
         )}
 
         {/* Ghost Text hint */}
-        <span className="text-[var(--ide-text-dim)] hidden md:inline">
-          Tab to accept · Ghost text active
+        <span className="text-[var(--ide-text-dim)] hidden md:inline" dir="rtl">
+          {UI_LABELS.ghostTextHint.ar}
         </span>
 
         <span className="text-[var(--ide-border)] hidden md:inline">│</span>
@@ -328,7 +340,7 @@ export function StatusBar({
         <span className="text-[var(--ide-border)]">│</span>
 
         {/* Version */}
-        <span className="text-[var(--ide-text-dim)]">v1.0.0</span>
+        <span className="text-[var(--ide-text-dim)]">v{APP_VERSION}</span>
       </div>
     </footer>
   );

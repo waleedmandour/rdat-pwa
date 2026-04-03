@@ -6,6 +6,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Moon,
+  ArrowLeftRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/constants";
@@ -22,7 +23,10 @@ export function Header({
   onOpenSettings,
 }: HeaderProps) {
   return (
-    <header className="flex items-center justify-between h-10 px-3 border-b border-[var(--ide-border)] bg-[var(--ide-titlebar)] select-none">
+    <header className="flex items-center justify-between h-10 px-3 border-b border-[var(--ide-border)] bg-[var(--ide-titlebar)] select-none relative">
+      {/* Gradient line under header */}
+      <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-teal-500/40 to-transparent" />
+
       {/* Left section */}
       <div className="flex items-center gap-2">
         <Button
@@ -44,19 +48,32 @@ export function Header({
           <div className="flex items-center justify-center w-5 h-5 rounded bg-gradient-to-br from-teal-400 to-cyan-500">
             <Languages className="w-3 h-3 text-[var(--ide-bg-primary)]" />
           </div>
-          <span className="text-[13px] font-medium text-[var(--ide-text)] tracking-tight">
-            {APP_NAME}
-          </span>
+          <div className="flex flex-col leading-none">
+            <span className="text-[13px] font-medium text-[var(--ide-text)] tracking-tight">
+              {APP_NAME}
+            </span>
+            <span className="text-[9px] text-teal-300/70 tracking-wide" dir="rtl">
+              مساعد الترجمة الذكي
+            </span>
+          </div>
         </div>
 
-        {/* Breadcrumb placeholder */}
+        {/* Breadcrumb */}
         <nav className="flex items-center gap-1 ml-4 text-[12px]">
-          <span className="text-[var(--ide-text-dim)] hover:text-[var(--ide-text-muted)] cursor-pointer transition-colors">
-            workspace
+          <span className="text-[var(--ide-text-dim)] hover:text-[var(--ide-text-muted)] cursor-pointer transition-colors" dir="rtl">
+            محرر الترجمة
           </span>
           <span className="text-[var(--ide-text-dim)]">/</span>
-          <span className="text-[var(--ide-text-muted)]">untitled-project</span>
+          <span className="text-[var(--ide-text-muted)]">مشروع جديد</span>
         </nav>
+
+        {/* Language pair indicator */}
+        <div className="flex items-center gap-1 ml-2 px-2 py-0.5 rounded bg-[var(--ide-bg-secondary)] border border-[var(--ide-border)]">
+          <ArrowLeftRight className="w-3 h-3 text-teal-400" />
+          <span className="text-[11px] text-[var(--ide-text-muted)]" dir="rtl">
+            الإنجليزية ← العربية
+          </span>
+        </div>
       </div>
 
       {/* Right section */}

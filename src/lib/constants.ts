@@ -2,7 +2,7 @@
 
 export const APP_NAME = "RDAT Copilot";
 export const APP_SHORT_NAME = "RDAT";
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "2.0.0";
 export const APP_DESCRIPTION =
   "Repository-Driven Adaptive Translation — AI-Powered Co-Writing IDE";
 
@@ -33,6 +33,8 @@ export const VECTOR_DB_VERSION = 1;
 
 // ─── Local AI (Sovereign Track) ────────────────────────────────────
 export const LOCAL_MODEL_ID = "gemma-2b-it-q4f32_1-MLC";
+export const LOCAL_MODEL_DISPLAY_NAME = "Gemma 2 (INT4 Quantized)";
+export const LOCAL_MODEL_FAMILY = "Gemma";
 export const LOCAL_MODEL_CACHE_KEY = "rdat-local-model-cache";
 export const LOCAL_MODEL_INIT_TIMEOUT_MS = 300_000; // 5 minutes for first model download
 export const LLM_MAX_TOKENS = 50; // Ghost text should be short
@@ -42,11 +44,17 @@ export const LLM_TEMPERATURE = 0.3; // Low temperature for predictable completio
 export const GEMINI_API_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
 
-// ─── UI Labels ──────────────────────────────────────────────────────
+// ─── UI Labels (Bilingual) ──────────────────────────────────────────
 export const MODE_LABELS = {
   local: "Sovereign (Local GPU)",
   cloud: "Cloud (Gemini API)",
   hybrid: "Hybrid (Local + Cloud)",
+} as const;
+
+export const MODE_LABELS_AR = {
+  local: "سيادي (معالج محلي)",
+  cloud: "سحابي (Gemini)",
+  hybrid: "هجين (محلي + سحابي)",
 } as const;
 
 export const GPU_STATUS_LABELS = {
@@ -72,12 +80,29 @@ export const RAG_STATE_LABELS = {
   error: "GTR: Error",
 } as const;
 
+export const RAG_STATE_LABELS_AR = {
+  idle: "قاموس: خامل",
+  "loading-model": "قاموس: تحميل النموذج…",
+  indexing: "قاموس: فهرسة…",
+  ready: "قاموس: جاهز",
+  searching: "قاموس: بحث…",
+  error: "قاموس: خطأ",
+} as const;
+
 export const WEBLLM_STATE_LABELS = {
   idle: "LLM: Idle",
   initializing: "LLM: Loading…",
   ready: "LLM: Ready",
   generating: "LLM: Generating…",
   error: "LLM: Error",
+} as const;
+
+export const WEBLLM_STATE_LABELS_AR = {
+  idle: "النموذج المحلي: خامل",
+  initializing: "النموذج المحلي: تحميل…",
+  ready: "النموذج المحلي: جاهز",
+  generating: "النموذج المحلي: توليد…",
+  error: "النموذج المحلي: خطأ",
 } as const;
 
 // ─── Cloud AI (Reasoning Track) ─────────────────────────────────────
@@ -89,3 +114,23 @@ export const GEMINI_REWRITE_SYSTEM_PROMPT = `You are an expert English-Arabic le
 export const AMTA_LINT_DEBOUNCE_MS = 2000; // 2 seconds after typing stops
 export const AMTA_MARKER_OWNER = "rdat-amta-linter";
 export const AMTA_MIN_TERM_LENGTH = 3; // Minimum term length to lint
+
+// ─── Bilingual UI Labels ───────────────────────────────────────────
+export const UI_LABELS = {
+  translationEditor: { ar: "محرر الترجمة", en: "Translation Editor" },
+  sovereignTrack: { ar: "المسار السيادي", en: "Sovereign Track" },
+  reasoningTrack: { ar: "مسار الاستدلال", en: "Reasoning Track" },
+  glossary: { ar: "مسرد المصطلحات", en: "Terminology Glossary" },
+  aiModels: { ar: "نماذج الذكاء الاصطناعي", en: "AI Models" },
+  settings: { ar: "الإعدادات", en: "Settings" },
+  general: { ar: "عام", en: "General" },
+  languages: { ar: "اللغات", en: "Languages" },
+  apiKeys: { ar: "مفاتيح API", en: "API Keys" },
+  welcome: { ar: "مرحبًا", en: "Welcome" },
+  rewrite: { ar: "إعادة صياغة", en: "Rewrite" },
+  accept: { ar: "قبول", en: "Accept" },
+  dismiss: { ar: "رفض", en: "Dismiss" },
+  autoSuggest: { ar: "اقتراح تلقائي للترجمة", en: "Auto-suggest Translations" },
+  amtaLinting: { ar: "فحص جودة الترجمة", en: "Translation Quality Linting" },
+  ghostTextHint: { ar: "اضغط Tab لقبول · نص مقترح", en: "Tab to accept · Ghost text active" },
+} as const;
