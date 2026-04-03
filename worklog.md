@@ -421,3 +421,33 @@ Stage Summary:
 - CI workflow catches lint/build errors before Vercel attempts to build
 - Conditional export via OUTPUT env var preserves GitHub Pages compatibility
 - route.ts confirmed deleted with zero dangling imports
+
+---
+Task ID: 8
+Agent: Super Z (Main)
+Task: Fix Vercel crash — COEP blocking Monaco CDN, defensive Monaco API guards
+
+Work Log:
+- Analyzed error screenshot: `t.languages.registerCodeActionsProvider is not a function`
+- Root cause identified: `Cross-Origin-Embedder-Policy: require-corp` blocks Monaco Editor
+  scripts from CDN (jsdelivr) because CDN responses lack Cross-Origin-Resource-Policy headers
+- Monaco loads incompletely → API surface missing → registerCodeActionsProvider undefined
+- ErrorBoundary catches the resulting TypeError → "Something went wrong" page
+- Fix 1: Changed COEP from `require-corp` to `credentialless` in both next.config.ts and
+  vercel.json — enables SharedArrayBuffer while allowing CDN resources without CORP headers
+- Fix 2: useAMTALinter.ts — wrapped registerCodeActionsProvider in try-catch with typeof guard;
+  added defensive try-catch to runLint() and clearMarkers() for setModelMarkers
+- Fix 3: MonacoEditor.tsx — wrapped handleBeforeMount in try-catch with typeof guard for
+  registerInlineCompletionsProvider; graceful degradation if Monaco API incomplete
+- Build: ✓ zero warnings, zero errors
+- ESLint: ✓ clean
+- Pushed to GitHub (main, commit d83e453)
+- Verified deployment: fetched https://rdat-pwa.vercel.app/ — app loads successfully
+  - All 11 checks pass: title, editor, Monaco, header, sidebar, status bar, settings,
+    ghost text, no error boundary, no application error, no CodeActionProvider error
+
+Stage Summary:
+- Vercel deployment SUCCESSFUL — https://rdat-pwa.vercel.app/ loads without errors
+- COEP `credentialless` is the correct setting for apps loading CDN resources (like Monaco)
+- Defensive try-catch guards prevent future crashes from Monaco API unavailability
+- The app renders with full IDE UI: Monaco Editor, sidebar, status bar, settings modal
