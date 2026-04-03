@@ -2,7 +2,7 @@
 
 export const APP_NAME = "RDAT Copilot";
 export const APP_SHORT_NAME = "RDAT";
-export const APP_VERSION = "0.5.0";
+export const APP_VERSION = "1.0.0";
 export const APP_DESCRIPTION =
   "Repository-Driven Adaptive Translation — AI-Powered Co-Writing IDE";
 

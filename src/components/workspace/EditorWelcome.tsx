@@ -100,8 +100,14 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
             {
               phase: 5,
               title: "Cloud Reasoning Track & Linting",
-              status: "active" as const,
+              status: "completed" as const,
               description: "Gemini API, AMTA linter, rewrite panel, BYOK settings",
+            },
+            {
+              phase: 6,
+              title: "Polish, Static Export & CI/CD",
+              status: "completed" as const,
+              description: "Static HTML export, GitHub Pages deploy, comprehensive docs",
             },
           ].map((item) => (
             <div

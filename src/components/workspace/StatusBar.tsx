@@ -328,7 +328,7 @@ export function StatusBar({
         <span className="text-[var(--ide-border)]">│</span>
 
         {/* Version */}
-        <span className="text-[var(--ide-text-dim)]">v0.5.0</span>
+        <span className="text-[var(--ide-text-dim)]">v1.0.0</span>
       </div>
     </footer>
   );

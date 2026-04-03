@@ -15,6 +15,7 @@ import type {
   WorkerRequest,
 } from "@/lib/rag-types";
 import { CORPUS_BOOTSTRAP_URL } from "@/lib/constants";
+import { getAssetUrl } from "@/lib/asset-url";
 
 // ─── Request ID Counter ───────────────────────────────────────────
 let requestIdCounter = 0;
@@ -135,7 +136,8 @@ export function useRAG() {
     // ─── Bootstrap the RAG pipeline immediately ──
     const bootstrapMsg: WorkerRequest = {
       type: "bootstrap",
-      corpusUrl: CORPUS_BOOTSTRAP_URL,
+      // Resolve corpus URL with basePath for sub-path deployments
+      corpusUrl: getAssetUrl(CORPUS_BOOTSTRAP_URL),
     };
     worker.postMessage(bootstrapMsg);
 

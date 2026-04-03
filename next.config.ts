@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 import withPWAInit from "@ducanh2912/next-pwa";
 
+/**
+ * Base path for deployment.
+ * - GitHub Pages: "/rdat-pwa" (set via BASE_PATH env in CI)
+ * - Vercel / root domain: "" (default)
+ */
+const basePath = process.env.BASE_PATH || "";
+
 const withPWA = withPWAInit({
   dest: "public",
   register: true,
@@ -40,13 +47,31 @@ const withPWA = withPWAInit({
 });
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Static HTML export — no Node.js server required
+  output: "export",
+
+  // Base path for sub-path deployments (GitHub Pages, etc.)
+  basePath,
+
+  // Asset prefix matches basePath for correct CDN resolution
+  assetPrefix: basePath || undefined,
+
+  // Images: disable optimization since there's no server
+  images: {
+    unoptimized: true,
+  },
+
+  // TypeScript strictness
   typescript: {
     ignoreBuildErrors: true,
   },
+
+  // Disable React strict mode to avoid double-mount in development
   reactStrictMode: false,
+
   // Allow all cross-origin preview requests (sandbox environment)
-  allowedDevOrigins: true,
+  allowedDevOrigins: ["*"],
+
   // Silence Turbopack/webpack conflict warning from @ducanh2912/next-pwa
   turbopack: {},
 };

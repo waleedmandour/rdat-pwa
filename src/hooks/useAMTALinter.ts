@@ -6,6 +6,7 @@ import type { AMTALintIssue, LintMarker } from "@/types";
 import type { CorpusEntry } from "@/lib/rag-types";
 import { AMTA_LINT_DEBOUNCE_MS, AMTA_MARKER_OWNER, CORPUS_BOOTSTRAP_URL } from "@/lib/constants";
 import { lintText, buildAMTACodeAction } from "@/lib/amta-linter";
+import { getAssetUrl } from "@/lib/asset-url";
 
 const getIsClient = () => true;
 const subscribeNoop = () => () => {};
@@ -32,7 +33,7 @@ export function useAMTALinter() {
   useEffect(() => {
     if (!isClient) return;
 
-    fetch(CORPUS_BOOTSTRAP_URL)
+    fetch(getAssetUrl(CORPUS_BOOTSTRAP_URL))
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
