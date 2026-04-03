@@ -323,3 +323,57 @@ Stage Summary:
 - Cloud Reasoning Track now uses gemini-3.1-flash-lite-preview (current Free Tier budget-friendly model)
 - All three model references updated consistently across constants, endpoint, and UI display
 - Changes pushed to https://github.com/waleedmandour/rdat-pwa
+
+---
+Task ID: 6
+Agent: Super Z (Main)
+Task: Phase 6 — Polish, Static Export, and CI/CD Deployment
+
+Work Log:
+- Updated next.config.ts for static export:
+  - output: "standalone" → output: "export"
+  - Added images: { unoptimized: true }
+  - Added configurable basePath via BASE_PATH env variable (empty for Vercel, /rdat-pwa for GitHub Pages)
+  - Added assetPrefix: basePath || undefined
+  - Fixed allowedDevOrigins: true → ["*"] for Next.js 16 compatibility
+- Updated package.json build scripts:
+  - "build": "next build" (outputs to out/, no basePath)
+  - "build:ci": "BASE_PATH=/rdat-pwa next build" (GitHub Pages deployment)
+  - "start": "npx serve out -l 3000" (serve static export locally)
+- Asset path verification for sub-path hosting:
+  - Created src/lib/asset-url.ts: getAssetUrl() reads basePath from __NEXT_DATA__ at runtime
+  - Updated useRAG.ts: corpus URL resolved with getAssetUrl() before passing to worker
+  - Updated useAMTALinter.ts: glossary fetch uses getAssetUrl() for correct resolution
+  - Updated manifest.json: absolute paths → relative paths (start_url, scope, icon srcs)
+  - Removed redundant apple-touch-icon link from layout.tsx (already in metadata.icons)
+- Removed src/app/api/route.ts (incompatible with static export)
+- Created .github/workflows/deploy.yml:
+  - Triggers on push to main + manual workflow_dispatch
+  - Node.js 20, npm ci, BASE_PATH env from repo name
+  - actions/upload-pages-artifact@v3 + actions/deploy-pages@v4
+  - Concurrency group to prevent parallel deployments
+- Created .nojekyll file for GitHub Pages
+- Generated comprehensive README.md (~400 lines):
+  - Architecture overview, dual-track AI system deep-dive
+  - Sovereign Track vs Reasoning Track comparison table
+  - RAG pipeline and AMTA linter explanations
+  - PWA installation instructions (Desktop, Android, iOS)
+  - BYOK Gemini API key setup guide (step by step)
+  - Development setup and build commands
+  - Deployment guides for GitHub Pages (CI/CD) and Vercel
+  - Full project structure tree and tech stack table
+- Updated EditorWelcome.tsx: All 6 phases marked as "completed"
+- Updated StatusBar.tsx: version display v1.0.0
+- Updated constants.ts: APP_VERSION → "1.0.0"
+- Build verification: npm run build succeeds, out/ directory contains index.html, manifest.json, glossary, icons, JS/CSS chunks, and rag-worker bundle
+- ESLint: zero errors
+- Pushed to GitHub (main, commit 17dab19)
+
+Stage Summary:
+- Phase 6 complete: RDAT Copilot v1.0.0 is fully production-ready
+- Static HTML export to out/ directory — deployable to any static hosting platform
+- GitHub Pages CI/CD pipeline auto-deploys on push to main
+- All public assets (manifest, glossary, icons, worker) verified for sub-path hosting
+- Comprehensive README.md documentation covering the entire dual-track architecture
+- All 6 phases completed across 3 development sessions
+- Final repository: https://github.com/waleedmandour/rdat-pwa
