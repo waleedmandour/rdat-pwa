@@ -306,3 +306,20 @@ Stage Summary:
 - Dual-track architecture fully operational: Sovereign (WebLLM) + Reasoning (Gemini)
 - Console output: [RDAT-Gemini] and [RDAT-AMTA] prefixed logs
 - All resources (CodeActionProviders, timers, disposables) properly cleaned up
+
+---
+Task ID: 5-refine
+Agent: Super Z (Main)
+Task: Refine UI trigger model to gemini-3.1-flash-lite-preview
+
+Work Log:
+- Updated GEMINI_MODEL_ID in src/lib/constants.ts: "gemini-2.0-flash" → "gemini-3.1-flash-lite-preview"
+- Updated GEMINI_API_ENDPOINT URL in src/lib/constants.ts to reference gemini-3.1-flash-lite-preview
+- Updated model display label in src/components/settings/SettingsModal.tsx (AI Models section)
+- ESLint: zero errors
+- Committed and pushed to GitHub (main, commit 9532861)
+
+Stage Summary:
+- Cloud Reasoning Track now uses gemini-3.1-flash-lite-preview (current Free Tier budget-friendly model)
+- All three model references updated consistently across constants, endpoint, and UI display
+- Changes pushed to https://github.com/waleedmandour/rdat-pwa
