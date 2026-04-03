@@ -359,7 +359,7 @@ export function SettingsModal({
                       </span>
                     </div>
                     <p className="text-[11px] text-[var(--ide-text-muted)]">
-                      Model: gemini-2.0-flash
+                      Model: gemini-3.1-flash-lite-preview
                     </p>
                     <p className="text-[10px] text-[var(--ide-text-dim)] mt-0.5">
                       Via Gemini API · Heavy tasks: register rewriting, context

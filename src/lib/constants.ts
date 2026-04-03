@@ -40,7 +40,7 @@ export const LLM_TEMPERATURE = 0.3; // Low temperature for predictable completio
 
 // ─── Cloud AI (Reasoning Track) ─────────────────────────────────────
 export const GEMINI_API_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
 
 // ─── UI Labels ──────────────────────────────────────────────────────
 export const MODE_LABELS = {
@@ -81,7 +81,7 @@ export const WEBLLM_STATE_LABELS = {
 } as const;
 
 // ─── Cloud AI (Reasoning Track) ─────────────────────────────────────
-export const GEMINI_MODEL_ID = "gemini-2.0-flash";
+export const GEMINI_MODEL_ID = "gemini-3.1-flash-lite-preview";
 export const GEMINI_API_KEY_STORAGE = "rdat-gemini-api-key";
 export const GEMINI_REWRITE_SYSTEM_PROMPT = `You are an expert English-Arabic legal translator. When the user provides text, rewrite it according to the instruction given. If no instruction is given, rewrite to match a formal legal register in Arabic. Output ONLY the rewritten text, no commentary or explanation.`;
 
