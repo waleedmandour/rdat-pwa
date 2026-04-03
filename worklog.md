@@ -87,3 +87,64 @@ Stage Summary:
 - StatusBar shows real-time inference state (Ready → Generating → Aborted/Done → Ready)
 - All resources (timers, controllers, providers, editor instances) properly cleaned up on unmount
 - Ready for Phase 3: Client-Side Vector DB & RAG
+
+---
+Task ID: 3
+Agent: Super Z (Main)
+Task: Phase 3 — Client-Side Vector DB & RAG Pipeline
+
+Work Log:
+- Installed @orama/orama (v3.1.18) and @xenova/transformers (v2.17.2)
+- Created mock corpus (public/opus-glossary-en-ar.json) with 10 realistic EN-AR legal/technical entries
+- Created RAG type definitions (src/lib/rag-types.ts):
+  - CorpusEntry, RAGResult, RAGTiming, WorkerRequest/WorkerResponse, RAGState
+  - Full typed message protocol for Main Thread ↔ Web Worker communication
+- Created sentence extractor utility (src/lib/sentence-extractor.ts):
+  - extractCurrentSentence(): extracts the in-progress sentence from editor text
+  - truncateForEmbedding(): truncates to safe length for embedding models
+- Built RAG Web Worker (src/workers/rag-worker.ts):
+  - Runs entirely off main thread (no Monaco stuttering)
+  - Orama v3 in-memory vector database with vector[384] schema
+  - Dynamic import of @xenova/transformers for embedding model loading
+  - Primary: Xenova/paraphrase-multilingual-MiniLM-L12-v2 (384d, real embeddings)
+  - Fallback: deterministic hash-based pseudo-embeddings (character + word level)
+  - Model load timeout (60s) with progress reporting
+  - Bootstrap flow: fetch corpus → load model → generate embeddings → index in Orama
+  - Search flow: embed query → Orama vector search → return top-K with timing metrics
+  - Console logging: [RAG] embed=Xms | vectorSearch=Yms | total=Zms
+  - Sub-50ms verification: logs ✓ or ⚠ based on vector search latency target
+- Built useRAG hook (src/hooks/useRAG.ts):
+  - Web Worker lifecycle management via new Worker(new URL('./rag-worker.ts', import.meta.url))
+  - Hydration-safe via useSyncExternalStore for client detection
+  - Automatic bootstrap on mount (fetches corpus, loads model, indexes)
+  - search(text) async function with Promise-based result resolution
+  - Tracks: ragState, lastResults, lastTiming, embeddingMode, statusMessage
+  - Proper cleanup: worker.terminate() + pending requests cleared on unmount
+- Updated useEditorEventLoop to accept onDebounced callback:
+  - Fires RAG search after debounce settles (same cycle as mock inference)
+  - Ref-based callback pattern (useEffect for assignment, avoids re-creating inference)
+- Updated WorkspaceShell:
+  - useRAG() initialized alongside useEditorEventLoop
+  - onDebounced callback extracts current sentence → truncateForEmbedding → rag.search()
+  - RAG search runs in Web Worker (off main thread, non-blocking)
+  - Pre-loaded editor content with legal/contract text (matches corpus domain)
+- Updated StatusBar with RAG state indicator:
+  - RAG state dot: emerald (ready), amber pulsing (loading/indexing), teal pulsing (searching)
+  - Embedding mode badge: ML (real) or HASH (fallback)
+  - Search timing display in status bar
+  - Match count indicator when results available
+  - Version bumped to v0.3.0
+- Updated EditorWelcome: Phase 2 marked DONE, Phase 3 marked IN PROGRESS
+- All ESLint checks pass with zero errors
+
+Stage Summary:
+- Phase 3 is fully complete
+- Web Worker runs off-main-thread (no Monaco editor stuttering during indexing)
+- Orama vector database with 384-dimensional vectors and cosine similarity search
+- Transformers.js model loading with 60s timeout and progress reporting
+- Fallback hash-based embeddings ensure the pipeline always works even if model download fails
+- Sub-50ms vector search verification logged to console (✓/⚠ indicator)
+- Top 3 semantic matches logged with scores on every RAG search
+- StatusBar shows real-time RAG pipeline state and embedding mode
+- Console output: [RAG] Search: embed=Xms | vectorSearch=Yms | total=Zms (real/hash embeddings)
+- Ready for Phase 4: Local Sovereign Track (Gemma 4 via WebGPU)

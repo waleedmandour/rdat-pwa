@@ -82,14 +82,14 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
             {
               phase: 2,
               title: "Monaco Editor & Event Loop",
-              status: "active" as const,
+              status: "completed" as const,
               description: "IDE editor, debounced keystrokes, abort logic, ghost text",
             },
             {
               phase: 3,
               title: "Client-Side Vector DB & RAG",
-              status: "pending" as const,
-              description: "Orama/Voy WASM DB, corpus bootstrapping",
+              status: "active" as const,
+              description: "Orama vector DB, Transformers.js embeddings, Web Worker",
             },
             {
               phase: 4,

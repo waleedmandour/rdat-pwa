@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { InferenceState } from "@/types";
 import {
   DEBOUNCE_DELAY_MS,
@@ -17,11 +17,18 @@ import {
  *   2. If inference is running → abort it immediately (AbortController)
  *   3. Start new debounce countdown (300ms)
  *   4. On debounce fire → begin mock inference (1500ms simulated delay)
+ *      AND trigger any registered onDebounced callbacks (e.g., RAG search)
  *   5. If user types during step 4 → goto step 2
  *
  * All timers, AbortControllers, and listeners are cleaned up on unmount.
  */
-export function useEditorEventLoop() {
+
+interface UseEditorEventLoopOptions {
+  /** Called once when the debounce settles (before mock inference starts) */
+  onDebounced?: (text: string) => void;
+}
+
+export function useEditorEventLoop(options?: UseEditorEventLoopOptions) {
   const [inferenceState, setInferenceState] =
     useState<InferenceState>("idle");
 
@@ -30,12 +37,21 @@ export function useEditorEventLoop() {
   const inferenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const completionResetRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Store callback in a ref to avoid recreating runMockInference on every render
+  const onDebouncedRef = useRef(options?.onDebounced);
+  useEffect(() => {
+    onDebouncedRef.current = options?.onDebounced;
+  });
+
   /**
    * Internal: runs the mock inference after the debounce settles.
    * Creates a new AbortController for this inference cycle.
    */
   const runMockInference = useCallback(
     (text: string) => {
+      // ── Notify listeners (RAG search, etc.) ──
+      onDebouncedRef.current?.(text);
+
       const controller = new AbortController();
       abortRef.current = controller;
       const signal = controller.signal;

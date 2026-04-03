@@ -1,0 +1,62 @@
+[
+  {
+    "id": "1",
+    "en": "Force Majeure",
+    "ar": "القوة القاهرة",
+    "context": "Legal contract clause excusing performance due to unforeseeable circumstances beyond control"
+  },
+  {
+    "id": "2",
+    "en": "Intellectual Property Rights",
+    "ar": "حقوق الملكية الفكرية",
+    "context": "Legal protections for patents, trademarks, copyrights, and trade secrets"
+  },
+  {
+    "id": "3",
+    "en": "Breach of Contract",
+    "ar": "خرق العقد",
+    "context": "Failure to perform obligations specified in a binding agreement"
+  },
+  {
+    "id": "4",
+    "en": "Jurisdiction",
+    "ar": "الاختصاص القضائي",
+    "context": "The legal authority of a court to hear and decide a particular case"
+  },
+  {
+    "id": "5",
+    "en": "Liability",
+    "ar": "المسؤولية",
+    "context": "Legal responsibility for one's acts or omissions under the law"
+  },
+  {
+    "id": "6",
+    "en": "Arbitration",
+    "ar": "التحكيم",
+    "context": "Alternative dispute resolution method where parties submit to a neutral third party"
+  },
+  {
+    "id": "7",
+    "en": "Confidentiality Agreement",
+    "ar": "اتفاقية سرية",
+    "context": "Legally binding contract establishing a confidential relationship between parties"
+  },
+  {
+    "id": "8",
+    "en": "Statute of Limitations",
+    "ar": "التقادم",
+    "context": "Time limit within which legal proceedings must be initiated"
+  },
+  {
+    "id": "9",
+    "en": "Indemnification",
+    "ar": "التعويض",
+    "context": "Obligation to compensate for losses or damages incurred by another party"
+  },
+  {
+    "id": "10",
+    "en": "Good Faith",
+    "ar": "حسن النية",
+    "context": "Requirement that parties act honestly and fairly in legal and business dealings"
+  }
+]

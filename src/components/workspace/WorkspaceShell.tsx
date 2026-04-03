@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import type { GPUStatus, AppMode } from "@/types";
+import { useState, useEffect, useCallback, useRef } from "react";
+import type { GPUStatus, AppMode, InferenceState } from "@/types";
+import type { RAGState, RAGResult, RAGTiming } from "@/lib/rag-types";
 import { Header } from "./Header";
 import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
@@ -10,7 +11,9 @@ import { SettingsModal } from "@/components/settings/SettingsModal";
 import { EditorWelcome } from "./EditorWelcome";
 import { MonacoEditor } from "./MonacoEditor";
 import { useEditorEventLoop } from "@/hooks/useEditorEventLoop";
-import { FileText, BookOpen, X } from "lucide-react";
+import { useRAG } from "@/hooks/useRAG";
+import { extractCurrentSentence, truncateForEmbedding } from "@/lib/sentence-extractor";
+import { FileText, BookOpen } from "lucide-react";
 
 /**
  * Available editor views — the user can switch between them.
@@ -28,11 +31,34 @@ export function WorkspaceShell({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeView, setActiveView] = useState<EditorView>("editor");
   const [sourceText, setSourceText] = useState(
-    "The quick brown fox jumps over the lazy dog.\n\nTranslation is the communication of the meaning of a source-language text by means of an equivalent target-language text."
+    "Force Majeure. Neither party shall be held liable for failure to perform obligations under this agreement due to events beyond reasonable control.\n\nIntellectual Property Rights. All patents, trademarks, copyrights, and trade secrets developed during the term of this agreement shall remain the exclusive property of the originating party."
   );
 
+  // ─── RAG Pipeline ──────────────────────────────────────────────
+  const rag = useRAG();
+
+  // ─── Editor Event Loop (with RAG callback) ────────────────────
+  const ragSearchRef = useRef(rag.search);
+  useEffect(() => {
+    ragSearchRef.current = rag.search;
+  });
+
   const { inferenceState, handleEditorChange, cleanup } =
-    useEditorEventLoop();
+    useEditorEventLoop({
+      onDebounced: (text: string) => {
+        // Extract the current sentence for RAG query
+        const sentence = extractCurrentSentence(text);
+        if (!sentence || sentence.trim().length < 3) return;
+
+        const query = truncateForEmbedding(sentence);
+        console.log(
+          `[RDAT] RAG query triggered — sentence: "${sentence.substring(0, 80)}${sentence.length > 80 ? "…" : ""}"`
+        );
+
+        // Fire RAG search in the Web Worker (off main thread)
+        ragSearchRef.current(query);
+      },
+    });
 
   // Cleanup event loop on unmount
   useEffect(() => {
@@ -95,7 +121,7 @@ export function WorkspaceShell({
             >
               <FileText className="w-3.5 h-3.5 flex-shrink-0" />
               <span className="truncate">Translation Editor</span>
-              {/* Dirty indicator (always dirty in Phase 2 for visual) */}
+              {/* Dirty indicator */}
               <span className="w-2 h-2 rounded-full bg-teal-400 ml-1 flex-shrink-0" />
             </button>
           </div>
@@ -121,6 +147,11 @@ export function WorkspaceShell({
         gpuStatus={gpuStatus}
         appMode={appMode}
         inferenceState={inferenceState}
+        ragState={rag.ragState}
+        ragTiming={rag.lastTiming}
+        embeddingMode={rag.embeddingMode}
+        ragStatusMessage={rag.statusMessage}
+        ragResultCount={rag.lastResults.length}
       />
 
       {/* Settings Modal */}
