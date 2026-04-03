@@ -96,6 +96,12 @@ const nextConfig: NextConfig = {
   //   • WebLLM — fast weight transfer to GPU
   //   • Transformers.js — multi-threaded WASM inference
   // Browsers only expose SharedArrayBuffer when COEP+COOP headers are set.
+  //
+  // IMPORTANT: We use "credentialless" instead of "require-corp" because
+  // Monaco Editor loads from CDN (jsdelivr). The strict "require-corp" blocks
+  // cross-origin scripts that lack Cross-Origin-Resource-Policy headers,
+  // causing Monaco to load incompletely and crash. "credentialless" enables
+  // SharedArrayBuffer while allowing CDN resources without CORP headers.
   async headers() {
     return [
       {
@@ -103,7 +109,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Cross-Origin-Embedder-Policy",
-            value: "require-corp",
+            value: "credentialless",
           },
           {
             key: "Cross-Origin-Opener-Policy",

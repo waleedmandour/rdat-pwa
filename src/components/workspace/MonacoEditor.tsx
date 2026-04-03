@@ -118,107 +118,122 @@ export function MonacoEditor({
    * This runs once before the editor DOM is created.
    */
   const handleBeforeMount: BeforeMount = useCallback((monaco) => {
-    // Register a custom language so the provider is scoped cleanly
-    monaco.languages.register({ id: RDAT_LANGUAGE_ID });
-
-    inlineProviderRef.current = monaco.languages.registerInlineCompletionsProvider(
-      RDAT_LANGUAGE_ID,
-      {
-        provideInlineCompletions: async (
-          model: Monaco.editor.ITextModel,
-          position: Monaco.Position,
-          _context: Monaco.InlineCompletionContext,
-          token: Monaco.CancellationToken
-        ): Promise<Monaco.languages.InlineCompletions<Monaco.languages.InlineCompletion>> => {
-          console.log(
-            `[RDAT] Ghost text provider called at line ${position.lineNumber}, col ${position.column}`
-          );
-
-          const config = completionConfigRef.current;
-
-          // If LLM is not ready, fall back to mock (Phase 2 behavior)
-          if (!config.isLLMReady || !config.generateCompletion) {
-            try {
-              await waitForDelayOrAbort(MOCK_INFERENCE_DELAY_MS, token);
-
-              const suggestion = getRandomSuggestion();
-              console.log(`[RDAT] Ghost text delivered (mock): "${suggestion}"`);
-
-              return {
-                items: [
-                  {
-                    insertText: suggestion,
-                    range: {
-                      startLineNumber: position.lineNumber,
-                      startColumn: position.column,
-                      endLineNumber: position.lineNumber,
-                      endColumn: position.column,
-                    },
-                  },
-                ],
-              };
-            } catch (_err) {
-              console.log(
-                `[RDAT] Ghost text generation cancelled — user typed during ${MOCK_INFERENCE_DELAY_MS}ms window`
-              );
-              return { items: [] };
-            }
-          }
-
-          // ── Real WebLLM generation path ──
-          try {
-            if (token.isCancellationRequested) {
-              throw new Error("Already cancelled");
-            }
-
-            // Set up abort handler for the cancellation token
-            let cancelled = false;
-            const disposable = token.onCancellationRequested(() => {
-              cancelled = true;
-              config.interruptGeneration?.();
-              disposable.dispose();
-            });
-
-            // Get current editor text
-            const text = model.getValue();
-
-            // Generate completion using WebLLM + RAG context
-            const generatedText = await config.generateCompletion(text, config.ragResults);
-
-            if (cancelled) {
-              console.log("[RDAT] Ghost text cancelled after generation");
-              return { items: [] };
-            }
-
-            if (generatedText && generatedText.trim().length > 0) {
-              console.log(`[RDAT] Ghost text delivered (WebLLM): "${generatedText.substring(0, 50)}…"`);
-              return {
-                items: [
-                  {
-                    insertText: generatedText.trim(),
-                    range: {
-                      startLineNumber: position.lineNumber,
-                      startColumn: position.column,
-                      endLineNumber: position.lineNumber,
-                      endColumn: position.column,
-                    },
-                  },
-                ],
-              };
-            }
-
-            return { items: [] };
-          } catch (_err) {
-            console.log("[RDAT] Ghost text generation cancelled — user typed during inference");
-            return { items: [] };
-          }
-        },
-
-        freeInlineCompletions: () => {
-          // No-op: we don't cache completions.
-        },
+    try {
+      // Register a custom language so the provider is scoped cleanly
+      if (monaco?.languages?.register) {
+        monaco.languages.register({ id: RDAT_LANGUAGE_ID });
       }
-    );
+
+      // Guard: ensure Monaco API is fully loaded before registering providers
+      if (
+        !monaco?.languages ||
+        typeof monaco.languages.registerInlineCompletionsProvider !== "function"
+      ) {
+        console.warn("[RDAT] Monaco inline completions API not available — ghost text disabled");
+        return;
+      }
+
+      inlineProviderRef.current = monaco.languages.registerInlineCompletionsProvider(
+        RDAT_LANGUAGE_ID,
+        {
+          provideInlineCompletions: async (
+            model: Monaco.editor.ITextModel,
+            position: Monaco.Position,
+            _context: Monaco.InlineCompletionContext,
+            token: Monaco.CancellationToken
+          ): Promise<Monaco.languages.InlineCompletions<Monaco.languages.InlineCompletion>> => {
+            console.log(
+              `[RDAT] Ghost text provider called at line ${position.lineNumber}, col ${position.column}`
+            );
+
+            const config = completionConfigRef.current;
+
+            // If LLM is not ready, fall back to mock (Phase 2 behavior)
+            if (!config.isLLMReady || !config.generateCompletion) {
+              try {
+                await waitForDelayOrAbort(MOCK_INFERENCE_DELAY_MS, token);
+
+                const suggestion = getRandomSuggestion();
+                console.log(`[RDAT] Ghost text delivered (mock): "${suggestion}"`);
+
+                return {
+                  items: [
+                    {
+                      insertText: suggestion,
+                      range: {
+                        startLineNumber: position.lineNumber,
+                        startColumn: position.column,
+                        endLineNumber: position.lineNumber,
+                        endColumn: position.column,
+                      },
+                    },
+                  ],
+                };
+              } catch (_err) {
+                console.log(
+                  `[RDAT] Ghost text generation cancelled — user typed during ${MOCK_INFERENCE_DELAY_MS}ms window`
+                );
+                return { items: [] };
+              }
+            }
+
+            // ── Real WebLLM generation path ──
+            try {
+              if (token.isCancellationRequested) {
+                throw new Error("Already cancelled");
+              }
+
+              // Set up abort handler for the cancellation token
+              let cancelled = false;
+              const disposable = token.onCancellationRequested(() => {
+                cancelled = true;
+                config.interruptGeneration?.();
+                disposable.dispose();
+              });
+
+              // Get current editor text
+              const text = model.getValue();
+
+              // Generate completion using WebLLM + RAG context
+              const generatedText = await config.generateCompletion(text, config.ragResults);
+
+              if (cancelled) {
+                console.log("[RDAT] Ghost text cancelled after generation");
+                return { items: [] };
+              }
+
+              if (generatedText && generatedText.trim().length > 0) {
+                console.log(`[RDAT] Ghost text delivered (WebLLM): "${generatedText.substring(0, 50)}…"`);
+                return {
+                  items: [
+                    {
+                      insertText: generatedText.trim(),
+                      range: {
+                        startLineNumber: position.lineNumber,
+                        startColumn: position.column,
+                        endLineNumber: position.lineNumber,
+                        endColumn: position.column,
+                      },
+                    },
+                  ],
+                };
+              }
+
+              return { items: [] };
+            } catch (_err) {
+              console.log("[RDAT] Ghost text generation cancelled — user typed during inference");
+              return { items: [] };
+            }
+          },
+
+          freeInlineCompletions: () => {
+            // No-op: we don't cache completions.
+          },
+        }
+      );
+    } catch (err) {
+      console.warn("[RDAT] Failed to register inline completions provider:", err);
+    }
   }, []);
 
   /**

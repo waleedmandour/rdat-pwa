@@ -57,41 +57,60 @@ export function useAMTALinter() {
       monacoRef.current = monaco;
 
       // Register CodeActionProvider for AMTA quick fixes
-      if (codeActionProviderRef.current) {
-        codeActionProviderRef.current.dispose();
-      }
-
-      codeActionProviderRef.current = monaco.languages.registerCodeActionsProvider(
-        "rdat-translation",
-        {
-          provideCodeActions: (model, _range, _context, _token) => {
-            const currentIssues = issuesRef.current;
-            if (currentIssues.length === 0) return { actions: [] };
-
-            const actions: Monaco.CodeAction[] = currentIssues.map((issue) => {
-              const { title, edit } = buildAMTACodeAction(issue);
-              return {
-                title,
-                kind: "quickfix" as Monaco.CodeActionKind,
-                edit: {
-                  edits: [
-                    {
-                      resource: model.uri,
-                      edit,
-                    },
-                  ],
-                },
-                diagnostics: [],
-                isPreferred: true,
-              };
-            });
-
-            return { actions };
-          },
+      // Defensive: Monaco may not have registerCodeActionsProvider if CDN loading
+      // was partially blocked (e.g., by strict COEP headers).
+      try {
+        if (codeActionProviderRef.current) {
+          codeActionProviderRef.current.dispose();
+          codeActionProviderRef.current = null;
         }
-      );
 
-      console.log("[RDAT-AMTA] CodeActionProvider registered");
+        // Guard: ensure monaco.languages and the method exist
+        if (
+          monaco?.languages &&
+          typeof monaco.languages.registerCodeActionsProvider === "function"
+        ) {
+          codeActionProviderRef.current = monaco.languages.registerCodeActionsProvider(
+            "rdat-translation",
+            {
+              provideCodeActions: (model, _range, _context, _token) => {
+                const currentIssues = issuesRef.current;
+                if (currentIssues.length === 0) return { actions: [] };
+
+                const actions: Monaco.CodeAction[] = currentIssues.map((issue) => {
+                  const { title, edit } = buildAMTACodeAction(issue);
+                  return {
+                    title,
+                    kind: "quickfix" as Monaco.CodeActionKind,
+                    edit: {
+                      edits: [
+                        {
+                          resource: model.uri,
+                          edit,
+                        },
+                      ],
+                    },
+                    diagnostics: [],
+                    isPreferred: true,
+                  };
+                });
+
+                return { actions };
+              },
+            }
+          );
+
+          console.log("[RDAT-AMTA] CodeActionProvider registered");
+        } else {
+          console.warn(
+            "[RDAT-AMTA] registerCodeActionsProvider not available — Ctrl+. quick fixes disabled. " +
+            "Markers (squiggles) will still work."
+          );
+        }
+      } catch (err) {
+        console.warn("[RDAT-AMTA] Failed to register CodeActionProvider:", err);
+        // Non-fatal: yellow squiggly markers still work via setModelMarkers
+      }
     },
     []
   );
@@ -108,27 +127,31 @@ export function useAMTALinter() {
       setLintCount(newIssues.length);
 
       // Apply Monaco markers (yellow squiggly warnings)
-      const model = editorRef.current.getModel();
-      if (!model) return;
+      try {
+        const model = editorRef.current?.getModel();
+        if (!model || !monacoRef.current?.editor?.setModelMarkers) return;
 
-      const markers: LintMarker[] = newIssues.map((issue) => ({
-        startLineNumber: issue.startLineNumber,
-        startColumn: issue.startColumn,
-        endLineNumber: issue.endLineNumber,
-        endColumn: issue.endColumn,
-        message: issue.message,
-        severity: "warning" as const,
-        source: "AMTA Linter",
-      }));
+        const markers: LintMarker[] = newIssues.map((issue) => ({
+          startLineNumber: issue.startLineNumber,
+          startColumn: issue.startColumn,
+          endLineNumber: issue.endLineNumber,
+          endColumn: issue.endColumn,
+          message: issue.message,
+          severity: "warning" as const,
+          source: "AMTA Linter",
+        }));
 
-      monacoRef.current.editor.setModelMarkers(
-        model,
-        AMTA_MARKER_OWNER,
-        markers
-      );
+        monacoRef.current.editor.setModelMarkers(
+          model,
+          AMTA_MARKER_OWNER,
+          markers
+        );
 
-      if (newIssues.length > 0) {
-        console.log(`[RDAT-AMTA] Applied ${newIssues.length} markers to editor`);
+        if (newIssues.length > 0) {
+          console.log(`[RDAT-AMTA] Applied ${newIssues.length} markers to editor`);
+        }
+      } catch (err) {
+        console.warn("[RDAT-AMTA] Failed to apply markers:", err);
       }
     },
     [glossary]
@@ -155,12 +178,16 @@ export function useAMTALinter() {
    * clearMarkers — Remove all AMTA markers from the editor.
    */
   const clearMarkers = useCallback(() => {
-    if (!editorRef.current || !monacoRef.current) return;
+    try {
+      if (!editorRef.current || !monacoRef.current) return;
 
-    const model = editorRef.current.getModel();
-    if (!model) return;
+      const model = editorRef.current.getModel();
+      if (!model || !monacoRef.current.editor?.setModelMarkers) return;
 
-    monacoRef.current.editor.setModelMarkers(model, AMTA_MARKER_OWNER, []);
+      monacoRef.current.editor.setModelMarkers(model, AMTA_MARKER_OWNER, []);
+    } catch (err) {
+      console.warn("[RDAT-AMTA] Failed to clear markers:", err);
+    }
     setIssues([]);
     setLintCount(0);
   }, []);
