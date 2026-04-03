@@ -4,8 +4,9 @@
 
 **Repository-Driven Adaptive Translation — AI-Powered Co-Writing IDE**
 
-[![Deploy to GitHub Pages](https://github.com/waleedmandour/rdat-pwa/actions/workflows/deploy.yml/badge.svg)](https://github.com/waleedmandour/rdat-pwa/actions/workflows/deploy.yml)
+[![CI](https://github.com/waleedmandour/rdat-pwa/actions/workflows/ci.yml/badge.svg)](https://github.com/waleedmandour/rdat-pwa/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Deploy on Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/waleedmandour/rdat-pwa)
 
 A Progressive Web App that runs a full-featured translation co-writing IDE entirely in the browser. Built on a **dual-track AI architecture** — a Sovereign Track that runs a local LLM via WebGPU for real-time ghost text, and a Reasoning Track that calls Google Gemini from the client for heavier rewriting tasks. All translation decisions are guided by an in-browser RAG vector database and an AMTA terminology linter.
 
@@ -26,8 +27,8 @@ A Progressive Web App that runs a full-featured translation co-writing IDE entir
 - [Setting Up Your Gemini API Key (BYOK)](#setting-up-your-gemini-api-key-byok)
 - [Development](#development)
 - [Deployment](#deployment)
-  - [GitHub Pages (Automatic CI/CD)](#github-pages-automatic-cicd)
-  - [Vercel](#vercel)
+  - [Vercel (Recommended)](#vercel-recommended)
+  - [GitHub Pages (Static Export)](#github-pages-static-export)
 - [Project Structure](#project-structure)
 - [Tech Stack](#tech-stack)
 - [License](#license)
@@ -36,7 +37,7 @@ A Progressive Web App that runs a full-featured translation co-writing IDE entir
 
 ## Architecture Overview
 
-RDAT Copilot is a client-side Progressive Web App built with Next.js (static export), Monaco Editor, and WebGPU. It runs entirely in the browser — no backend server required for core functionality. The architecture follows a **non-destructive editing philosophy**: AI never overwrites the translator's text. Instead, ghost text appears as inline suggestions that the translator accepts or ignores, and heavier cloud rewrites are presented in a side panel for explicit approval.
+RDAT Copilot is a client-side Progressive Web App built with Next.js, Monaco Editor, and WebGPU. The architecture follows a **non-destructive editing philosophy**: AI never overwrites the translator's text. Instead, ghost text appears as inline suggestions that the translator accepts or ignores, and heavier cloud rewrites are presented in a side panel for explicit approval.
 
 The system is organized into five functional layers:
 
@@ -150,7 +151,7 @@ RDAT Copilot is a fully installable Progressive Web App. Once deployed, users ca
 
 ### Desktop (Chrome / Edge)
 
-1. Navigate to the deployed URL (e.g., `https://waleedmandour.github.io/rdat-pwa/`).
+1. Navigate to the deployed URL.
 2. Click the **install icon** in the browser address bar (⊕ or ↓), or click the three-dot menu → "Install RDAT Copilot".
 3. The app opens in a standalone window without browser chrome, just like a native desktop application.
 
@@ -230,15 +231,13 @@ npm run dev
 ### Build for Production
 
 ```bash
-# Build for root deployment (Vercel, custom domain)
+# Standard build (for Vercel / Node.js server)
 npm run build
 
-# Build for GitHub Pages sub-path deployment
-npm run build:ci
-# Equivalent to: BASE_PATH=/rdat-pwa npm run build
+# GitHub Pages static export (with basePath)
+npm run build:ghpages
+# Equivalent to: OUTPUT=export BASE_PATH=/rdat-pwa npm run build
 ```
-
-The static export is output to the `out/` directory, ready for deployment to any static hosting platform.
 
 ### Lint
 
@@ -251,43 +250,53 @@ npm run lint
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start development server on port 3000 |
-| `npm run build` | Static export to `out/` (no basePath) |
-| `npm run build:ci` | Static export with `/rdat-pwa` basePath |
-| `npm run start` | Serve the `out/` directory locally (via `npx serve`) |
+| `npm run build` | Standard Next.js build (for Vercel) |
+| `npm run build:ghpages` | Static export with `/rdat-pwa` basePath |
+| `npm run start` | Start the Next.js production server |
 | `npm run lint` | Run ESLint checks |
 
 ---
 
 ## Deployment
 
-### GitHub Pages (Automatic CI/CD)
+### Vercel (Recommended)
 
-The repository includes a GitHub Actions workflow (`.github/workflows/deploy.yml`) that automatically builds and deploys the app on every push to the `main` branch.
+Vercel is the recommended deployment platform. It provides automatic builds from your Git repository, edge CDN, and native Next.js optimization — including server-side rendering and API routes if needed in the future.
 
-**Setup steps:**
+**Deploy in 3 steps:**
 
-1. Go to the repository **Settings → Pages**.
-2. Under **Source**, select **"GitHub Actions"**.
-3. Push to `main` — the workflow will automatically build and deploy.
+1. Go to [vercel.com](https://vercel.com) and sign in with your GitHub account.
+2. Click **"Add New Project"** → Select the `rdat-pwa` repository → Import.
+3. Vercel auto-detects Next.js and configures the build. Click **"Deploy"**.
 
-The workflow:
-- Uses Node.js 20 with `npm ci` for clean dependency installation.
-- Builds with `BASE_PATH=/rdat-pwa` for correct sub-path asset resolution.
-- Creates a `.nojekyll` file to prevent GitHub Pages from processing with Jekyll.
-- Deploys using `actions/deploy-pages@v4`.
+That's it! Vercel will automatically:
+- Build the project on every push to `main`
+- Serve it from their global edge CDN
+- Apply the COOP/COEP security headers (defined in `next.config.ts` and `vercel.json`) for SharedArrayBuffer support
+- Cache `.wasm` and model shard files (`.bin`, `.safetensors`, `.onnx`) with immutable headers so users don't redownload the LLM on every visit
+- Handle the service worker and PWA manifest correctly
 
-**Live URL:** `https://waleedmandour.github.io/rdat-pwa/`
+**Custom Domain (optional):**
+- In the Vercel project dashboard → Settings → Domains → Add your custom domain.
 
-### Vercel
+**Environment Variables (optional):**
+- `BASE_PATH` — Set only if deploying to a sub-path. Leave empty for root domain (default).
+- `OUTPUT` — Set to `export` only for static hosting. Do NOT set this on Vercel.
 
-RDAT Copilot is a standard Next.js app and deploys seamlessly to Vercel:
+> **Why Vercel?** Vercel deploys Next.js natively (not as a static export), which means faster builds, automatic code splitting, and the ability to add server-side features later without architecture changes. The `next.config.ts` includes COOP/COEP headers and WASM webpack config that are essential for WebGPU and Transformers.js to work correctly in production.
 
-1. Import the repository in [Vercel](https://vercel.com/new).
-2. Vercel auto-detects Next.js and configures the build.
-3. Set the **Output Directory** to `out` (for static export mode).
-4. The `basePath` will be empty (root deployment), so assets resolve correctly automatically.
+### GitHub Pages (Static Export)
 
-> **Note:** For Vercel, you may want to use the default `npm run build` (without `BASE_PATH`) since Vercel deploys to a root domain or custom domain.
+GitHub Pages serves static files only. To deploy there, you need the static export build:
+
+1. Ensure the GitHub Actions workflow is enabled (`.github/workflows/ci.yml` passes on `main`).
+2. Build the static export locally:
+   ```bash
+   npm run build:ghpages
+   ```
+3. Deploy the `out/` directory to GitHub Pages using your preferred method, or set up a separate deployment workflow.
+
+> **Note:** GitHub Pages does not support custom response headers, which means the COOP/COEP Cross-Origin Isolation headers cannot be set. WebGPU and SharedArrayBuffer may not work on GitHub Pages. Use Vercel for the full experience.
 
 ---
 
@@ -296,13 +305,12 @@ RDAT Copilot is a standard Next.js app and deploys seamlessly to Vercel:
 ```
 rdat-pwa/
 ├── .github/workflows/
-│   └── deploy.yml              # GitHub Pages CI/CD pipeline
+│   └── ci.yml                  # CI pipeline (lint + build checks)
 ├── public/
 │   ├── manifest.json           # PWA manifest (relative paths for sub-path hosting)
 │   ├── opus-glossary-en-ar.json # EN-AR legal/technical glossary corpus
 │   ├── favicon.ico             # App favicon
 │   ├── logo.svg                # App logo
-│   ├── .nojekyll               # Prevent Jekyll processing on GitHub Pages
 │   └── icons/                  # PWA icons (72x72 to 512x512)
 ├── src/
 │   ├── app/
@@ -345,7 +353,8 @@ rdat-pwa/
 │   │   └── index.ts            # Global TypeScript type definitions
 │   └── workers/
 │       └── rag-worker.ts       # RAG Web Worker: Orama + Transformers.js + hash fallback
-├── next.config.ts              # Static export + basePath + PWA config
+├── next.config.ts              # Vercel-optimized config (COOP/COEP, WASM, PWA)
+├── vercel.json                 # Vercel routing + cache headers for .wasm/model shards
 ├── package.json
 ├── tsconfig.json
 ├── tailwind.config.ts
@@ -358,7 +367,8 @@ rdat-pwa/
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Framework** | Next.js 16 (Static Export) | React framework, static HTML generation |
+| **Framework** | Next.js 16 | React framework, server rendering, edge optimization |
+| **Deployment** | Vercel | Automatic builds, edge CDN, native Next.js support |
 | **Language** | TypeScript 5 | Type safety across the entire codebase |
 | **Styling** | Tailwind CSS 4 | Utility-first CSS with VS Code dark palette |
 | **Editor** | Monaco Editor (`@monaco-editor/react`) | Full-featured code editor with inline completions |
@@ -367,8 +377,7 @@ rdat-pwa/
 | **Embeddings** | Transformers.js (`@xenova/transformers`) | Browser-based sentence embeddings |
 | **Vector DB** | Orama (`@orama/orama`) | In-memory vector database for RAG |
 | **PWA** | `@ducanh2912/next-pwa` | Service worker generation + Workbox caching |
-| **CI/CD** | GitHub Actions | Automatic build + deploy to GitHub Pages |
-| **Icons** | Lucide React | Consistent icon set across the IDE |
+| **CI** | GitHub Actions | Continuous integration (lint + build) |
 
 ---
 
