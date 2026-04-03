@@ -377,3 +377,47 @@ Stage Summary:
 - Comprehensive README.md documentation covering the entire dual-track architecture
 - All 6 phases completed across 3 development sessions
 - Final repository: https://github.com/waleedmandour/rdat-pwa
+
+---
+Task ID: 7
+Agent: Super Z (Main)
+Task: Fix Vercel deployment — remove static export, add COOP/COEP headers, WASM config
+
+Work Log:
+- Investigated current project state: route.ts already deleted, no dangling imports found
+- Identified root cause: `output: 'export'` in next.config.ts conflicts with Vercel's native Next.js build
+- Removed `output: 'export'` (made conditional via `OUTPUT=export` env var for GitHub Pages only)
+- Added `headers()` function for Cross-Origin-Embedder-Policy + Cross-Origin-Opener-Policy
+  - Required for SharedArrayBuffer (WebLLM fast weight transfer + Transformers.js multi-threaded WASM)
+- Added webpack `experiments: { asyncWebAssembly: true, layers: true }` for WASM support
+- Added webpack rule for `.wasm` files as `asset/resource`
+- Updated vercel.json:
+  - Removed `outputDirectory: "out"` (Vercel builds natively, not static export)
+  - Added COOP/COEP security headers
+  - Added immutable cache (1 year) for .wasm, .bin, .safetensors, .onnx files
+- Replaced .github/workflows/deploy.yml with ci.yml (lint + build checks only)
+  - Vercel handles deployment automatically on every push to main
+- Updated package.json scripts:
+  - `build:ghpages` replaces `build:ci` (uses OUTPUT=export BASE_PATH=/rdat-pwa)
+  - `start` → `next start` (standard Next.js production server)
+- Removed deprecated `swcMinify: true` (enabled by default in Next.js 16+)
+- Updated README.md:
+  - Added "Deploy on Vercel" badge and CI badge
+  - Vercel deployment section promoted to "Recommended"
+  - Added 3-step Vercel deployment instructions
+  - Noted GitHub Pages limitation (no COOP/COEP headers possible)
+  - Updated project structure to show ci.yml and vercel.json
+  - Updated tech stack table (Next.js → Vercel deployment)
+- Build verification: ✓ zero warnings, zero errors
+- ESLint: ✓ clean
+- Pushed to GitHub (main, commit 46fda04)
+
+Stage Summary:
+- All Vercel deployment fixes applied and pushed successfully
+- Vercel will auto-deploy from this push using native Next.js build (not static export)
+- COOP/COEP headers enable SharedArrayBuffer for WebLLM and Transformers.js
+- WASM webpack config ensures Transformers.js and Orama load correctly
+- .wasm and model shard files cached with immutable headers (no re-download on revisit)
+- CI workflow catches lint/build errors before Vercel attempts to build
+- Conditional export via OUTPUT env var preserves GitHub Pages compatibility
+- route.ts confirmed deleted with zero dangling imports
