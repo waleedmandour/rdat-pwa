@@ -138,15 +138,15 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
             <div className="flex items-center gap-2 h-7 pl-6 pr-3 text-[12px] text-[var(--ide-text-dim)]">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Sovereign Track</span>
-              <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400">
-                Phase 4
+              <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                Active
               </span>
             </div>
             <div className="flex items-center gap-2 h-7 pl-6 pr-3 text-[12px] text-[var(--ide-text-dim)]">
               <Sparkles className="w-3.5 h-3.5" />
               <span>Reasoning Track</span>
-              <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full bg-amber-900/40 text-amber-400">
-                Phase 5
+              <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                Active
               </span>
             </div>
           </div>
@@ -156,9 +156,9 @@ export function Sidebar({ activeView, onViewChange }: SidebarProps) {
       {/* Bottom info */}
       <div className="mt-auto p-3 border-t border-[var(--ide-border)]">
         <p className="text-[10px] text-[var(--ide-text-dim)] leading-relaxed">
-          Phase 4 active: WebLLM local inference with ghost text completions.
-          Gemma 2B runs on WebGPU. Type in the editor for real-time AI suggestions.
-          Check the browser console for detailed logs.
+          Phase 5 active: Gemini Cloud Reasoning Track with AMTA terminology
+          linter and rewrite panel. BYOK API key in Settings. Select text
+          and click Rewrite for cloud-powered rewrites.
         </p>
       </div>
     </aside>

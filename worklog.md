@@ -209,3 +209,100 @@ Stage Summary:
 - Graceful fallback to Phase 2 mock behavior when LLM is not ready
 - Console output: [RDAT-LLM] Initializing, Progress, Generated, Interrupted logs
 - Ready for Phase 5: Cloud Reasoning Track & Linting (Gemini API)
+
+---
+## Task ID: 3
+### Work Task
+Phase 5 — Cloud Reasoning Track (Gemini) + AMTA Terminology Linter
+
+### Work Summary
+- Updated `src/lib/constants.ts`:
+  - APP_VERSION → "0.5.0"
+  - Added GEMINI_MODEL_ID ("gemini-2.0-flash"), GEMINI_API_KEY_STORAGE, GEMINI_REWRITE_SYSTEM_PROMPT
+  - Added AMTA_LINT_DEBOUNCE_MS (2000ms), AMTA_MARKER_OWNER, AMTA_MIN_TERM_LENGTH (3)
+- Updated `src/types/index.ts`:
+  - Added GeminiState type union (idle | ready | generating | error)
+  - Added AMTALintIssue interface (id, enTerm, arTerm, context, line/column positions, message)
+  - Added RewriteResult interface (original, rewritten, timestamp)
+- Created `src/lib/gemini-provider.ts`:
+  - Client-side Gemini service using @google/generative-ai SDK
+  - initGemini(apiKey), disposeGemini(), isGeminiReady(), getGeminiApiKey()
+  - rewriteText(text, ragResults, instruction) with RAG context injection via formatRAGContext
+  - temperature=0.3, maxOutputTokens=2048, system instruction for legal translation
+  - Console logging: [RDAT-Gemini] prefix
+- Created `src/lib/amta-linter.ts`:
+  - lintText(text, glossary) scans editor text for untranslated English legal terms
+  - Case-insensitive search per line with nearby-line Arabic translation check
+  - Returns AMTALintIssue[] with Monaco-compatible 1-based line/column positions
+  - buildAMTACodeAction() for Ctrl+ quick fix ("AMTA: Replace 'X' → 'Y'")
+  - Console logging: [RDAT-AMTA] prefix
+- Created `src/hooks/useGemini.ts`:
+  - useSyncExternalStore for localStorage API key (avoids setState-in-effect lint rule)
+  - Module-level storageListeners Set for same-window localStorage change notification
+  - Derived geminiState from hasApiKey, isRewriting, hasError (no override pattern needed)
+  - setApiKey() writes localStorage + calls initGemini + notifyStorageChange
+  - getMaskedKey() returns "••••" + last 4 chars for secure display
+  - rewrite() manages isRewriting state and calls rewriteText
+  - SSR-safe with getServerSnapshot fallback
+- Created `src/hooks/useAMTALinter.ts`:
+  - Loads glossary from CORPUS_BOOTSTRAP_URL on mount
+  - attachEditor(editor, monaco) registers Monaco CodeActionProvider for "rdat-translation"
+  - debouncedLint(text) with AMTA_LINT_DEBOUNCE_MS (2s) debounce
+  - runLint(text) applies yellow warning markers via editor.setModelMarkers
+  - clearMarkers() removes all AMTA markers
+  - Proper cleanup: CodeActionProvider dispose + debounce timer clear on unmount
+- Updated `src/components/settings/SettingsModal.tsx`:
+  - New props: geminiMaskedKey, geminiHasApiKey, onSetGeminiApiKey
+  - BYOK UI: controlled password input + Save button + Remove Key button
+  - Save shows checkmark feedback for 2 seconds
+  - Configured badge when key is set
+  - Link to https://aistudio.google.com/apikey for key acquisition
+  - AI Models section: Phase 4 → "Active" (emerald), Phase 5 → "Active" (emerald)
+  - Model names updated: "Gemma 2B (INT4 Quantized)" and "gemini-2.0-flash"
+  - General section: Auto-suggest and AMTA Linting both show "Active" badge
+  - Section change handler syncs local key input (avoids setState-in-effect)
+- Updated `src/components/workspace/MonacoEditor.tsx`:
+  - New prop: onEditorDidMount(editor, monaco)
+  - Called in handleMount after editor configuration
+  - Enables parent components to access editor instance for linting, selection tracking
+- Updated `src/components/workspace/WorkspaceShell.tsx`:
+  - Integrated useGemini() and useAMTALinter() hooks
+  - handleEditorDidMount: stores editor ref, attaches AMTA linter, tracks cursor selection changes
+  - Selection state tracked via onDidChangeCursorSelection for Rewrite button disable logic
+  - onDebounced callback also fires amta.debouncedLint(text) for background linting
+  - Rewrite button in tab bar: disabled when no selection or no API key, shows spinner while rewriting
+  - Gemini Rewrite side panel (420px, bottom-right, max 50% height):
+    - Shows loading spinner while Gemini generates
+    - Displays original and rewritten text side by side
+    - Error display when Gemini fails
+    - Accept button replaces editor selection via executeEdits
+    - Dismiss button closes panel
+  - Passes geminiMaskedKey, geminiHasApiKey, onSetGeminiApiKey to SettingsModal
+  - Passes geminiState, amtaLintCount to StatusBar
+  - Resource cleanup: selectionDisposable disposed on unmount
+- Updated `src/components/workspace/StatusBar.tsx`:
+  - New props: geminiState (GeminiState), amtaLintCount (number)
+  - Gemini Cloud status section: dot + "Gemini: Ready/Generating…/Error/No Key"
+  - AMTA lint count in right section: amber AlertTriangle icon + count
+  - Version bumped to v0.5.0
+- Updated `src/components/workspace/EditorWelcome.tsx`:
+  - Phase 4 status → "completed"
+  - Phase 5 status → "active", description → "Gemini API, AMTA linter, rewrite panel, BYOK settings"
+- Updated `src/components/workspace/Sidebar.tsx`:
+  - Sovereign Track badge: "Phase 4" (amber) → "Active" (emerald)
+  - Reasoning Track badge: "Phase 5" (amber) → "Active" (emerald)
+  - Bottom info text updated for Phase 5: Gemini Cloud, AMTA linter, BYOK
+- ESLint: zero errors, zero warnings
+
+Stage Summary:
+- Phase 5 complete: Cloud Reasoning Track (Gemini 2.0 Flash) + AMTA Terminology Linter
+- BYOK (Bring Your Own Key) architecture: API key stored in localStorage, never sent to any server except Google's API
+- Gemini Rewrite panel: select text → click Rewrite → view diff → Accept or Dismiss
+- AMTA linter: scans editor text for untranslated English legal terms from glossary
+  - Yellow squiggly markers (warning severity) via Monaco setModelMarkers
+  - Ctrl+. quick fix: "AMTA: Replace 'Force Majeure' → 'القوة القاهرة'"
+  - 2-second debounce after typing stops
+- StatusBar shows real-time Gemini state and AMTA lint issue count
+- Dual-track architecture fully operational: Sovereign (WebLLM) + Reasoning (Gemini)
+- Console output: [RDAT-Gemini] and [RDAT-AMTA] prefixed logs
+- All resources (CodeActionProviders, timers, disposables) properly cleaned up

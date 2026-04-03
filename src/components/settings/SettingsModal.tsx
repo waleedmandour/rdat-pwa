@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -11,11 +11,16 @@ import {
   Sparkles,
   Cpu,
   Cloud,
+  Check,
+  Trash2,
 } from "lucide-react";
 
 interface SettingsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  geminiMaskedKey?: string;
+  geminiHasApiKey?: boolean;
+  onSetGeminiApiKey?: (key: string) => void;
 }
 
 // SSR-safe client detection via useSyncExternalStore
@@ -28,17 +33,33 @@ function subscribeToClientMount(callback: () => void) {
 }
 
 /**
- * SettingsModal — Placeholder settings dialog.
- * Will be fully implemented in Phase 5 (BYOK Gemini key, model config, etc.)
+ * SettingsModal — Settings dialog with BYOK Gemini key management.
  */
-export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
+export function SettingsModal({
+  open,
+  onOpenChange,
+  geminiMaskedKey,
+  geminiHasApiKey,
+  onSetGeminiApiKey,
+}: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState("general");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [localKeyInput, setLocalKeyInput] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const isClient = useSyncExternalStore(
     subscribeToClientMount,
     getIsClient,
     () => false
   );
+
+  // Handle section change — reset local key input when navigating to api-keys
+  const handleSectionChange = useCallback((sectionId: string) => {
+    setActiveSection(sectionId);
+    if (sectionId === "api-keys") {
+      setLocalKeyInput(geminiMaskedKey || "");
+      setSaveSuccess(false);
+    }
+  }, [geminiMaskedKey]);
 
   // Trap focus and handle escape
   useEffect(() => {
@@ -51,6 +72,19 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onOpenChange]);
+
+  const handleSaveKey = () => {
+    if (!onSetGeminiApiKey) return;
+    onSetGeminiApiKey(localKeyInput);
+    setSaveSuccess(true);
+    setTimeout(() => setSaveSuccess(false), 2000);
+  };
+
+  const handleRemoveKey = () => {
+    if (!onSetGeminiApiKey) return;
+    setLocalKeyInput("");
+    onSetGeminiApiKey("");
+  };
 
   if (!open || !isClient) return null;
 
@@ -95,7 +129,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               return (
                 <button
                   key={section.id}
-                  onClick={() => setActiveSection(section.id)}
+                  onClick={() => handleSectionChange(section.id)}
                   className={`flex items-center gap-2 w-full px-3 py-1.5 rounded text-[12px] transition-colors ${
                     isActive
                       ? "bg-[var(--ide-active)] text-[var(--ide-text)]"
@@ -134,8 +168,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                         Show ghost text suggestions as you type
                       </p>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-teal-500/20 text-teal-400 font-medium">
-                      Phase 2
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">
+                      Active
                     </span>
                   </div>
 
@@ -148,8 +182,8 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                         Real-time translation quality markers
                       </p>
                     </div>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">
-                      Phase 5
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">
+                      Active
                     </span>
                   </div>
 
@@ -224,24 +258,61 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                     <label className="flex items-center gap-1.5 text-xs font-medium text-[var(--ide-text)] mb-1.5">
                       <Key className="w-3 h-3" />
                       Google Gemini API Key
+                      {geminiHasApiKey && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+                          Configured
+                        </span>
+                      )}
                     </label>
-                    <input
-                      ref={inputRef}
-                      type="password"
-                      placeholder="Enter your Gemini API key..."
-                      className="w-full px-3 py-2 rounded border border-[var(--ide-border)] bg-[var(--ide-bg-secondary)] text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-dim)] focus:outline-none focus:ring-1 focus:ring-teal-500/50 focus:border-teal-500/50 transition-colors"
-                    />
-                    <p className="text-[10px] text-[var(--ide-text-dim)] mt-1.5">
-                      Get your free key from{" "}
-                      <a
-                        href="https://aistudio.google.com/apikey"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-teal-400 hover:text-teal-300 underline underline-offset-2"
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={inputRef}
+                        type="password"
+                        value={localKeyInput}
+                        onChange={(e) => {
+                          setLocalKeyInput(e.target.value);
+                          setSaveSuccess(false);
+                        }}
+                        placeholder="Enter your Gemini API key..."
+                        className="flex-1 px-3 py-2 rounded border border-[var(--ide-border)] bg-[var(--ide-bg-secondary)] text-xs text-[var(--ide-text)] placeholder:text-[var(--ide-text-dim)] focus:outline-none focus:ring-1 focus:ring-sky-500/50 focus:border-sky-500/50 transition-colors"
+                      />
+                      <button
+                        onClick={handleSaveKey}
+                        disabled={!localKeyInput || localKeyInput.startsWith("••••")}
+                        className="flex items-center gap-1 px-3 py-2 rounded border border-[var(--ide-border)] bg-[var(--ide-bg-secondary)] text-xs text-[var(--ide-text)] hover:bg-[var(--ide-hover)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        Google AI Studio
-                      </a>
-                    </p>
+                        {saveSuccess ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="text-emerald-400">Saved</span>
+                          </>
+                        ) : (
+                          "Save"
+                        )}
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between mt-1.5">
+                      <p className="text-[10px] text-[var(--ide-text-dim)]">
+                        Get your free key from{" "}
+                        <a
+                          href="https://aistudio.google.com/apikey"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sky-400 hover:text-sky-300 underline underline-offset-2"
+                        >
+                          Google AI Studio
+                        </a>
+                      </p>
+                      {geminiHasApiKey && (
+                        <button
+                          onClick={handleRemoveKey}
+                          className="flex items-center gap-1 text-[10px] text-red-400/70 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Remove Key
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -269,14 +340,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                       </span>
                     </div>
                     <p className="text-[11px] text-[var(--ide-text-muted)]">
-                      Model: Gemma 4 (INT4 Quantized)
+                      Model: Gemma 2B (INT4 Quantized)
                     </p>
                     <p className="text-[10px] text-[var(--ide-text-dim)] mt-0.5">
                       Runs via WebGPU in the browser · Target: &lt;200ms
                       latency
                     </p>
-                    <span className="inline-block mt-2 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">
-                      Phase 4
+                    <span className="inline-block mt-2 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+                      Active
                     </span>
                   </div>
 
@@ -288,14 +359,14 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
                       </span>
                     </div>
                     <p className="text-[11px] text-[var(--ide-text-muted)]">
-                      Model: Google Gemini 2.0 Flash
+                      Model: gemini-2.0-flash
                     </p>
                     <p className="text-[10px] text-[var(--ide-text-dim)] mt-0.5">
                       Via Gemini API · Heavy tasks: register rewriting, context
                       analysis
                     </p>
-                    <span className="inline-block mt-2 text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">
-                      Phase 5
+                    <span className="inline-block mt-2 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">
+                      Active
                     </span>
                   </div>
                 </div>

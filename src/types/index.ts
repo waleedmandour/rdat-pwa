@@ -84,3 +84,25 @@ export interface LintMarker {
   severity: LintSeverity;
   source: string;
 }
+
+// ─── Gemini Cloud State ───────────────────────────────────────────
+export type GeminiState = "idle" | "ready" | "generating" | "error";
+
+// ─── AMTA Linter ───────────────────────────────────────────────────
+export interface AMTALintIssue {
+  id: string;
+  enTerm: string;
+  arTerm: string;
+  context: string;
+  startLineNumber: number;
+  endLineNumber: number;
+  startColumn: number;
+  endColumn: number;
+  message: string;
+}
+
+export interface RewriteResult {
+  original: string;
+  rewritten: string;
+  timestamp: number;
+}

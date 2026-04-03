@@ -2,7 +2,7 @@
 
 export const APP_NAME = "RDAT Copilot";
 export const APP_SHORT_NAME = "RDAT";
-export const APP_VERSION = "0.4.0";
+export const APP_VERSION = "0.5.0";
 export const APP_DESCRIPTION =
   "Repository-Driven Adaptive Translation — AI-Powered Co-Writing IDE";
 
@@ -79,3 +79,13 @@ export const WEBLLM_STATE_LABELS = {
   generating: "LLM: Generating…",
   error: "LLM: Error",
 } as const;
+
+// ─── Cloud AI (Reasoning Track) ─────────────────────────────────────
+export const GEMINI_MODEL_ID = "gemini-2.0-flash";
+export const GEMINI_API_KEY_STORAGE = "rdat-gemini-api-key";
+export const GEMINI_REWRITE_SYSTEM_PROMPT = `You are an expert English-Arabic legal translator. When the user provides text, rewrite it according to the instruction given. If no instruction is given, rewrite to match a formal legal register in Arabic. Output ONLY the rewritten text, no commentary or explanation.`;
+
+// ─── AMTA Linter ───────────────────────────────────────────────────
+export const AMTA_LINT_DEBOUNCE_MS = 2000; // 2 seconds after typing stops
+export const AMTA_MARKER_OWNER = "rdat-amta-linter";
+export const AMTA_MIN_TERM_LENGTH = 3; // Minimum term length to lint

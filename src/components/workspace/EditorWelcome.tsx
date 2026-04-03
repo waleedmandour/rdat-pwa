@@ -94,14 +94,14 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
             {
               phase: 4,
               title: "Local Sovereign Track (Gemma 2B)",
-              status: "active" as const,
+              status: "completed" as const,
               description: "WebLLM inference, ghost text, interrupt on keystroke",
             },
             {
               phase: 5,
               title: "Cloud Reasoning Track & Linting",
-              status: "pending" as const,
-              description: "Gemini API, AMTA linter, settings UI",
+              status: "active" as const,
+              description: "Gemini API, AMTA linter, rewrite panel, BYOK settings",
             },
           ].map((item) => (
             <div

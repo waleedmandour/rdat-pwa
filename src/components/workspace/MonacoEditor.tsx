@@ -70,6 +70,7 @@ interface MonacoEditorProps {
   interruptGeneration?: () => void;
   ragResults?: RAGResult[];
   isLLMReady?: boolean;
+  onEditorDidMount?: (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => void;
 }
 
 /**
@@ -89,6 +90,7 @@ export function MonacoEditor({
   interruptGeneration,
   ragResults = [],
   isLLMReady = false,
+  onEditorDidMount,
 }: MonacoEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const inlineProviderRef = useRef<Monaco.IDisposable | null>(null);
@@ -222,7 +224,7 @@ export function MonacoEditor({
   /**
    * onMount — Capture the editor reference for imperative control.
    */
-  const handleMount: OnMount = useCallback((editor, _monaco) => {
+  const handleMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
 
     // Configure inline completions to show automatically
@@ -233,7 +235,8 @@ export function MonacoEditor({
     });
 
     console.log("[RDAT] Monaco editor mounted — inline completions provider active");
-  }, []);
+    onEditorDidMount?.(editor, monaco);
+  }, [onEditorDidMount]);
 
   /**
    * Cleanup: Dispose of the inline provider and editor instance on unmount.

@@ -6,8 +6,9 @@ import {
   Zap,
   Loader2,
   Database,
+  AlertTriangle,
 } from "lucide-react";
-import type { GPUStatus, AppMode, InferenceState, WebLLMState, WebLLMProgress } from "@/types";
+import type { GPUStatus, AppMode, InferenceState, WebLLMState, WebLLMProgress, GeminiState } from "@/types";
 import type { RAGState, RAGTiming } from "@/lib/rag-types";
 import { formatGPULabel, getGPUStatusDotColor } from "@/lib/gpu-utils";
 import {
@@ -29,6 +30,8 @@ interface StatusBarProps {
   ragResultCount: number;
   webllmState: WebLLMState;
   webllmProgress: WebLLMProgress | null;
+  geminiState: GeminiState;
+  amtaLintCount: number;
 }
 
 function getRAGStateColor(state: RAGState): string {
@@ -93,6 +96,45 @@ function getWebLLMStateColor(state: WebLLMState): string {
   }
 }
 
+function getGeminiStateLabel(state: GeminiState): string {
+  switch (state) {
+    case "ready":
+      return "Ready";
+    case "generating":
+      return "Generating…";
+    case "error":
+      return "Error";
+    default:
+      return "No Key";
+  }
+}
+
+function getGeminiStateColor(state: GeminiState): string {
+  switch (state) {
+    case "ready":
+      return "text-sky-400";
+    case "generating":
+      return "text-sky-400";
+    case "error":
+      return "text-red-400";
+    default:
+      return "text-[var(--ide-text-muted)]";
+  }
+}
+
+function getGeminiStateDot(state: GeminiState): string {
+  switch (state) {
+    case "ready":
+      return "bg-sky-400";
+    case "generating":
+      return "bg-sky-400";
+    case "error":
+      return "bg-red-400";
+    default:
+      return "bg-[var(--ide-text-dim)]";
+  }
+}
+
 export function StatusBar({
   gpuStatus,
   appMode,
@@ -104,6 +146,8 @@ export function StatusBar({
   ragResultCount,
   webllmState,
   webllmProgress,
+  geminiState,
+  amtaLintCount,
 }: StatusBarProps) {
   return (
     <footer className="flex items-center justify-between h-7 px-3 border-t border-[var(--ide-border)] bg-[var(--ide-statusbar)] text-[11px] select-none">
@@ -219,10 +263,35 @@ export function StatusBar({
             </div>
           )}
         </div>
+
+        <span className="text-[var(--ide-border)]">│</span>
+
+        {/* Gemini Cloud Status */}
+        <div className="flex items-center gap-1.5">
+          {geminiState === "generating" ? (
+            <Loader2 className="w-3 h-3 text-sky-400 animate-spin" />
+          ) : (
+            <span className={`w-2 h-2 rounded-full ${getGeminiStateDot(geminiState)}`} />
+          )}
+          <span className={getGeminiStateColor(geminiState)}>
+            Gemini: {getGeminiStateLabel(geminiState)}
+          </span>
+        </div>
       </div>
 
       {/* Right section */}
       <div className="flex items-center gap-3">
+        {/* AMTA Lint Count */}
+        {amtaLintCount > 0 && (
+          <>
+            <div className="flex items-center gap-1 text-amber-400">
+              <AlertTriangle className="w-3 h-3" />
+              <span>{amtaLintCount} AMTA</span>
+            </div>
+            <span className="text-[var(--ide-border)]">│</span>
+          </>
+        )}
+
         {/* RAG Results count */}
         {ragResultCount > 0 && ragState === "ready" && (
           <>
@@ -259,7 +328,7 @@ export function StatusBar({
         <span className="text-[var(--ide-border)]">│</span>
 
         {/* Version */}
-        <span className="text-[var(--ide-text-dim)]">v0.4.0</span>
+        <span className="text-[var(--ide-text-dim)]">v0.5.0</span>
       </div>
     </footer>
   );
