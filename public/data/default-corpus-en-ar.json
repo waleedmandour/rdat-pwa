@@ -1,1372 +1,492 @@
 [
   {
-    "id": "ds-gov-001",
-    "en": "government",
-    "ar": "حكومة",
-    "context": "Political system — executive branch",
+    "id": "qed-law-001",
+    "en": "Intellectual Property Rights",
+    "ar": "حقوق الملكية الفكرية",
+    "context": "Legal protections for patents, trademarks, copyrights, and trade secrets",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-gov-002",
-    "en": "politics",
-    "ar": "السياسة",
-    "context": "Political system — general",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-gov-003",
-    "en": "political",
-    "ar": "سياسي",
-    "context": "Political system — adjective",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-004",
-    "en": "party",
-    "ar": "حزب",
-    "context": "Political system — political parties",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-gov-005",
-    "en": "political party",
-    "ar": "حزب سياسي",
-    "context": "Political system — organizations",
+    "id": "qed-law-002",
+    "en": "Breach of Contract",
+    "ar": "خرق العقد",
+    "context": "Failure to perform obligations specified in a binding agreement",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-gov-006",
-    "en": "movement",
-    "ar": "حركة",
-    "context": "Political system — political movements",
-    "type": "terminology"
+    "id": "qed-law-003",
+    "en": "Jurisdiction",
+    "ar": "الاختصاص القضائي",
+    "context": "The legal authority of a court to hear and decide a particular case",
+    "type": "terminology",
+    "amta_enforcement": "strict"
   },
   {
-    "id": "ds-gov-007",
-    "en": "faction",
-    "ar": "فصيلة",
-    "context": "Political system — sub-groups",
-    "type": "terminology"
+    "id": "qed-law-004",
+    "en": "Liability",
+    "ar": "المسؤولية",
+    "context": "Legal responsibility for one's acts or omissions under the law",
+    "type": "terminology",
+    "amta_enforcement": "strict"
   },
   {
-    "id": "ds-gov-008",
-    "en": "bloc",
-    "ar": "كتلة",
-    "context": "Political system — voting alliances",
+    "id": "qed-law-005",
+    "en": "Arbitration",
+    "ar": "التحكيم",
+    "context": "Alternative dispute resolution method where parties submit to a neutral third party",
     "type": "terminology",
     "amta_enforcement": "suggested"
   },
   {
-    "id": "ds-gov-009",
-    "en": "liberal",
-    "ar": "ليبرالي",
-    "context": "Political ideology",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-010",
-    "en": "conservative",
-    "ar": "محافظ",
-    "context": "Political ideology",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-011",
-    "en": "neo-conservative",
-    "ar": "محافظ جديد",
-    "context": "Political ideology",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-012",
-    "en": "country",
-    "ar": "دولة",
-    "context": "Sovereignty — nation states",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-013",
-    "en": "nation",
-    "ar": "وطن",
-    "context": "Sovereignty — nation states",
+    "id": "qed-law-006",
+    "en": "Statute of Limitations",
+    "ar": "التقادم",
+    "context": "Time limit within which legal proceedings must be initiated",
     "type": "terminology",
     "amta_enforcement": "suggested"
   },
   {
-    "id": "ds-gov-014",
-    "en": "citizen",
-    "ar": "مواطن",
-    "context": "Political system — citizenship",
+    "id": "qed-law-007",
+    "en": "Indemnification",
+    "ar": "التعويض",
+    "context": "Obligation to compensate for losses or damages incurred by another party",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-gov-015",
-    "en": "democracy",
-    "ar": "ديمقراطية",
-    "context": "Political systems — governance",
+    "id": "qed-law-008",
+    "en": "Confidentiality Agreement",
+    "ar": "اتفاقية سرية",
+    "context": "Legally binding contract establishing a confidential relationship between parties",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-gov-016",
-    "en": "republic",
-    "ar": "جمهورية",
-    "context": "Political systems — governance",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-017",
-    "en": "kingdom",
-    "ar": "مملكة",
-    "context": "Political systems — monarchy",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-018",
-    "en": "empire",
-    "ar": "امبراطورية",
-    "context": "Political systems — historical",
+    "id": "qed-law-009",
+    "en": "Good Faith",
+    "ar": "حسن النية",
+    "context": "Requirement that parties act honestly and fairly in legal and business dealings",
     "type": "terminology",
     "amta_enforcement": "suggested"
   },
   {
-    "id": "ds-gov-019",
-    "en": "mandate",
-    "ar": "انتداب",
-    "context": "Political systems — territorial administration",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-020",
-    "en": "colony",
-    "ar": "مستعمرة",
-    "context": "Political systems — territorial administration",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-021",
-    "en": "dictatorship",
-    "ar": "ديكتاتورية",
-    "context": "Political systems — authoritarian",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-gov-022",
-    "en": "totalitarianism",
-    "ar": "شمولية",
-    "context": "Political ideology — authoritarian",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-023",
-    "en": "federal government",
-    "ar": "حكومة اتحادية",
-    "context": "Political systems — governance",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-024",
-    "en": "coalition government",
-    "ar": "حكومة ائتلافية",
-    "context": "Political systems — governance",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-025",
-    "en": "authority",
-    "ar": "سلطة",
-    "context": "Political system — governance",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-gov-026",
-    "en": "legislative",
-    "ar": "تشريعي",
-    "context": "Government branches",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-027",
-    "en": "executive",
-    "ar": "تنفيذي",
-    "context": "Government branches",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-028",
-    "en": "judicial",
-    "ar": "قضائي",
-    "context": "Government branches",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-029",
-    "en": "constitution",
-    "ar": "دستور",
-    "context": "Law — constitutional law",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-030",
-    "en": "amendment",
-    "ar": "تعديل",
-    "context": "Law — constitutional law",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-gov-031",
-    "en": "veto",
-    "ar": "نقض",
-    "context": "Political procedure — legislative",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-032",
-    "en": "president",
-    "ar": "رئيس",
-    "context": "Government positions — head of state",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-033",
-    "en": "prime minister",
-    "ar": "رئيس الوزراء",
-    "context": "Government positions — head of government",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-034",
-    "en": "governor",
-    "ar": "حاكم",
-    "context": "Government positions — regional",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-gov-035",
-    "en": "ambassador",
-    "ar": "سفير",
-    "context": "Diplomacy — diplomatic positions",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-036",
-    "en": "minister",
-    "ar": "وزير",
-    "context": "Government positions — cabinet",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-037",
-    "en": "deputy",
-    "ar": "نائب",
-    "context": "Government positions — legislative",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-038",
-    "en": "spokesman",
-    "ar": "متحدث باسم",
-    "context": "Government positions — communications",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-039",
-    "en": "delegate",
-    "ar": "مبعوث",
-    "context": "Diplomacy — representatives",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-040",
-    "en": "councillor",
-    "ar": "مستشار",
-    "context": "Government positions — advisory",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-gov-041",
-    "en": "secretary general",
-    "ar": "الأمين العام",
-    "context": "Government positions — international organizations",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-gov-042",
-    "en": "leader",
-    "ar": "زعيم",
-    "context": "Government positions — leadership",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-dip-001",
-    "en": "embassy",
-    "ar": "سفارة",
-    "context": "Diplomacy — missions",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-002",
-    "en": "committee",
-    "ar": "لجنة",
-    "context": "Diplomacy — organizational structure",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-dip-003",
-    "en": "delegation",
-    "ar": "وفد",
-    "context": "Diplomacy — missions",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-dip-004",
-    "en": "council",
-    "ar": "مجلس",
-    "context": "Diplomacy — organizational structure",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-dip-005",
-    "en": "parliament",
-    "ar": "برلمان",
-    "context": "Legislature — national assemblies",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-006",
-    "en": "the United Nations",
-    "ar": "الأمم المتحدة",
-    "context": "International organizations",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-007",
-    "en": "General Assembly",
-    "ar": "الجمعية العامة",
-    "context": "UN — principal organs",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-008",
-    "en": "Security Council",
-    "ar": "مجلس الأمن",
-    "context": "UN — principal organs",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-009",
-    "en": "resolution",
-    "ar": "قرار",
-    "context": "UN — legislative output",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-010",
-    "en": "session",
-    "ar": "جلسة",
-    "context": "UN — proceedings",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-dip-011",
-    "en": "the European Union",
-    "ar": "الاتحاد الأوروبي",
-    "context": "International organizations — regional",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-012",
-    "en": "World Health Organization",
-    "ar": "منظمة الصحة العالمية",
-    "context": "UN — specialized agencies",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-013",
-    "en": "International Monetary Fund",
-    "ar": "صندوق النقد الدولي",
-    "context": "International organizations — financial",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-014",
-    "en": "World Bank",
-    "ar": "البنك الدولي",
-    "context": "International organizations — financial",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-015",
-    "en": "World Trade Organization",
-    "ar": "منظمة التجارة العالمية",
-    "context": "International organizations — trade",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-016",
-    "en": "the Arab League",
-    "ar": "جامعة الدول العربية",
-    "context": "International organizations — regional",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-017",
-    "en": "Gulf Cooperation Council",
-    "ar": "مجلس التعاون لدول الخليج العربية",
-    "context": "International organizations — regional",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-018",
-    "en": "OPEC",
-    "ar": "منظمة الدول المصدرة للنفط",
-    "context": "International organizations — energy",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-019",
-    "en": "Human Rights Watch",
-    "ar": "مراقبة حقوق الإنسان",
-    "context": "International organizations — NGOs",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-dip-020",
-    "en": "Amnesty International",
-    "ar": "منظمة العفو الدولية",
-    "context": "International organizations — NGOs",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-dip-021",
-    "en": "ministry of defense",
-    "ar": "وزارة الدفاع",
-    "context": "Government — ministries",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-022",
-    "en": "ministry of foreign affairs",
-    "ar": "وزارة الخارجية",
-    "context": "Government — ministries",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-023",
-    "en": "ministry of the interior",
-    "ar": "وزارة الداخلية",
-    "context": "Government — ministries",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-024",
-    "en": "ministry of justice",
-    "ar": "وزارة العدل",
-    "context": "Government — ministries",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-dip-025",
-    "en": "intelligence",
-    "ar": "مخابرات",
-    "context": "Security — intelligence agencies",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-el-001",
-    "en": "election",
-    "ar": "انتخاب",
-    "context": "Elections — process",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-el-002",
-    "en": "campaign",
-    "ar": "حملة",
-    "context": "Elections — process",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-el-003",
-    "en": "candidate",
-    "ar": "مرشح",
-    "context": "Elections — participants",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-el-004",
-    "en": "voter turnout",
-    "ar": "نسبة المشاركة",
-    "context": "Elections — statistics",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-el-005",
-    "en": "referendum",
-    "ar": "استفتاء",
-    "context": "Elections — direct democracy",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-el-006",
-    "en": "transparency",
-    "ar": "شفافية",
-    "context": "Governance — accountability",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-el-007",
-    "en": "election rigging",
-    "ar": "تزوير الانتخابات",
-    "context": "Elections — fraud",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-el-008",
-    "en": "propaganda",
-    "ar": "دعاية",
-    "context": "Political communication",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-el-009",
-    "en": "the right to vote",
-    "ar": "حق التصويت",
-    "context": "Human rights — political rights",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-law-001",
-    "en": "law",
-    "ar": "قانون",
-    "context": "Law — general",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-law-002",
-    "en": "policy",
-    "ar": "سياسة",
-    "context": "Law — governance",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-law-003",
-    "en": "reform",
-    "ar": "اصلاح",
-    "context": "Law — legislative change",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-law-004",
-    "en": "corruption",
-    "ar": "فساد",
-    "context": "Law — criminal",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-law-005",
-    "en": "bribery",
-    "ar": "رشوة",
-    "context": "Law — criminal",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-law-006",
-    "en": "embezzlement",
-    "ar": "اختلاس",
-    "context": "Law — financial crime",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-law-007",
-    "en": "fraud",
-    "ar": "احتيال",
-    "context": "Law — criminal",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-law-008",
-    "en": "blackmail",
-    "ar": "ابتزاز",
-    "context": "Law — criminal",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-law-009",
-    "en": "nepotism",
-    "ar": "محسوبية",
-    "context": "Law — governance misconduct",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-law-010",
-    "en": "sanctions",
-    "ar": "عقوبات",
-    "context": "International law — enforcement",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-law-011",
-    "en": "sovereignty",
-    "ar": "سيادة",
-    "context": "International law — statehood",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-law-012",
-    "en": "independence",
-    "ar": "استقلال",
-    "context": "Sovereignty — self-determination",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-law-013",
-    "en": "jurisdiction",
-    "ar": "اختصاص قضائي",
-    "context": "Law — courts",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-law-014",
-    "en": "legislation",
-    "ar": "تشريع",
-    "context": "Law — legislative process",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-001",
-    "en": "security",
-    "ar": "أمن",
-    "context": "Security — general",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-hr-002",
-    "en": "peace",
-    "ar": "سلام",
-    "context": "Security — conflict resolution",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-003",
-    "en": "stability",
-    "ar": "استقرار",
-    "context": "Security — regional stability",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-hr-004",
-    "en": "protection",
-    "ar": "حماية",
-    "context": "Security — civilian protection",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-005",
-    "en": "unity",
-    "ar": "وحدة",
-    "context": "National unity",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-006",
-    "en": "equality",
-    "ar": "مساواة",
-    "context": "Human rights — fundamental rights",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-007",
-    "en": "justice",
-    "ar": "عدالة",
-    "context": "Human rights — fundamental rights",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-008",
-    "en": "tolerance",
-    "ar": "تسامح",
-    "context": "Human rights — social values",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-009",
-    "en": "coexistence",
-    "ar": "تعايش",
-    "context": "Human rights — intercommunal relations",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-010",
-    "en": "pluralism",
-    "ar": "تعددية",
-    "context": "Human rights — political systems",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-011",
-    "en": "diversity",
-    "ar": "تنوع",
-    "context": "Human rights — social values",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-012",
-    "en": "freedom",
-    "ar": "حرية",
-    "context": "Human rights — fundamental rights",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-013",
-    "en": "dignity",
-    "ar": "كرامة",
-    "context": "Human rights — fundamental rights",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-014",
-    "en": "human rights",
-    "ar": "حقوق الإنسان",
-    "context": "Human rights — framework",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-015",
-    "en": "women's rights",
-    "ar": "حقوق المرأة",
-    "context": "Human rights — specific groups",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-016",
-    "en": "minority rights",
-    "ar": "حقوق الأقلية",
-    "context": "Human rights — specific groups",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-017",
-    "en": "freedom of expression",
-    "ar": "حرية التعبير",
-    "context": "Human rights — civil liberties",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-018",
-    "en": "freedom of the press",
-    "ar": "حرية الصحافة",
-    "context": "Human rights — civil liberties",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-019",
-    "en": "freedom of religion",
-    "ar": "حرية الأديان",
-    "context": "Human rights — civil liberties",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-020",
-    "en": "the right to a fair trial",
-    "ar": "حق المحاكمة العادلة",
-    "context": "Human rights — due process",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-021",
-    "en": "oppression",
-    "ar": "ظلم",
-    "context": "Human rights violations",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-022",
-    "en": "persecution",
-    "ar": "اضطهاد",
-    "context": "Human rights violations",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-hr-023",
-    "en": "repression",
-    "ar": "قمع",
-    "context": "Human rights violations",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-024",
-    "en": "tyranny",
-    "ar": "استبداد",
-    "context": "Human rights violations",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-hr-025",
-    "en": "discrimination",
-    "ar": "تمييز",
-    "context": "Human rights violations",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-026",
-    "en": "racism",
-    "ar": "عنصرية",
-    "context": "Human rights violations",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-027",
-    "en": "torture",
-    "ar": "تعذيب",
-    "context": "Human rights violations — prohibited acts",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-028",
-    "en": "massacre",
-    "ar": "مذبحة",
-    "context": "Human rights violations — armed conflict",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-029",
-    "en": "genocide",
-    "ar": "ابادة جماعية",
-    "context": "Human rights violations — international crimes",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-hr-030",
-    "en": "ethnic cleansing",
-    "ar": "تطهير عرقي",
-    "context": "Human rights violations — international crimes",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-001",
-    "en": "nationalism",
-    "ar": "قومية",
-    "context": "Political ideology",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-002",
-    "en": "pan-Arab nationalism",
-    "ar": "القومية العربية",
-    "context": "Political ideology — regional",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-id-003",
-    "en": "patriotism",
-    "ar": "وطنية",
-    "context": "Political ideology",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-004",
-    "en": "fascism",
-    "ar": "فاشية",
-    "context": "Political ideology — extreme",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-005",
-    "en": "communism",
-    "ar": "شيوعية",
-    "context": "Political ideology",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-006",
-    "en": "socialism",
-    "ar": "اشتراكية",
-    "context": "Political ideology",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-007",
-    "en": "capitalism",
-    "ar": "رأسمالية",
-    "context": "Political ideology — economic",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-008",
-    "en": "anarchism",
-    "ar": "فوضوية",
-    "context": "Political ideology",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-009",
-    "en": "Islamism",
-    "ar": "الإسلام السياسي",
-    "context": "Political ideology — religious",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-id-010",
-    "en": "the Muslim Brotherhood",
-    "ar": "الاخوان المسلمين",
-    "context": "Political organizations — Islamist",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-011",
-    "en": "ceasefire",
-    "ar": "وقف إطلاق النار",
-    "context": "Conflict resolution — armed conflict",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-012",
-    "en": "diplomatic relations",
-    "ar": "علاقات دبلوماسية",
-    "context": "Diplomacy — bilateral relations",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-013",
-    "en": "arms embargo",
-    "ar": "حظر تسليح",
-    "context": "International law — sanctions",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-014",
-    "en": "refugee",
-    "ar": "لاجئ",
-    "context": "Humanitarian — displacement",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-015",
-    "en": "asylum",
-    "ar": "لجوء",
-    "context": "Humanitarian — displacement",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-016",
-    "en": "occupation",
-    "ar": "احتلال",
-    "context": "International law — territorial disputes",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-017",
-    "en": "annexation",
-    "ar": "ضم",
-    "context": "International law — territorial disputes",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-018",
-    "en": "autonomy",
-    "ar": "حكم ذاتي",
-    "context": "Political systems — territorial governance",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-id-019",
-    "en": "blockade",
-    "ar": "حصار",
-    "context": "Security — coercive measures",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-020",
-    "en": "reconnaissance",
-    "ar": "استطلاع",
-    "context": "Military — intelligence operations",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-021",
-    "en": "negotiations",
-    "ar": "مفاوضات",
-    "context": "Diplomacy — conflict resolution",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-id-022",
-    "en": "treaty",
-    "ar": "معاهدة",
-    "context": "International law — agreements",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-023",
-    "en": "accord",
-    "ar": "اتفاق",
-    "context": "International law — agreements",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-024",
-    "en": "peacekeeping",
-    "ar": "حفظ السلام",
-    "context": "Security — UN operations",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-025",
-    "en": "military aircraft",
-    "ar": "طائرة عسكرية",
-    "context": "Military — aviation",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-026",
-    "en": "nuclear program",
-    "ar": "برنامج نووي",
-    "context": "Security — non-proliferation",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-027",
-    "en": "weapons of mass destruction",
-    "ar": "أسلحة الدمار الشامل",
-    "context": "Security — non-proliferation",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-028",
-    "en": "disputed border",
-    "ar": "حدود متنازع عليها",
-    "context": "Territorial disputes",
-    "type": "terminology",
-    "amta_enforcement": "suggested"
-  },
-  {
-    "id": "ds-id-029",
-    "en": "force majeure",
+    "id": "qed-law-010",
+    "en": "Force Majeure",
     "ar": "القوة القاهرة",
-    "context": "Legal — contract law",
+    "context": "Legal contract clause excusing performance due to unforeseeable circumstances beyond control",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-id-030",
-    "en": "governing law",
-    "ar": "القانون الحاكم",
-    "context": "Legal — contract law",
+    "id": "qed-gov-001",
+    "en": "Constitution",
+    "ar": "دستور",
+    "context": "The fundamental law establishing the framework of government",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-id-031",
-    "en": "intellectual property",
-    "ar": "الملكية الفكرية",
-    "context": "Legal — IP law",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-032",
-    "en": "sovereign state",
-    "ar": "دولة ذات سيادة",
-    "context": "International law — statehood",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-033",
-    "en": "head of state",
-    "ar": "رئيس الدولة",
-    "context": "Government positions",
-    "type": "terminology",
-    "amta_enforcement": "strict"
-  },
-  {
-    "id": "ds-id-034",
-    "en": "bilateral relations",
-    "ar": "علاقات ثنائية",
-    "context": "Diplomacy — bilateral",
+    "id": "qed-gov-002",
+    "en": "Legislation",
+    "ar": "تشريع",
+    "context": "The process of making or enacting laws",
     "type": "terminology",
     "amta_enforcement": "suggested"
   },
   {
-    "id": "ds-id-035",
-    "en": "multilateral",
-    "ar": "متعدد الأطراف",
-    "context": "Diplomacy — multilateral",
-    "type": "terminology"
-  },
-  {
-    "id": "ds-id-036",
-    "en": "non-proliferation",
-    "ar": "عدم انتشار",
-    "context": "Security — disarmament",
+    "id": "qed-gov-003",
+    "en": "Sovereignty",
+    "ar": "سيادة",
+    "context": "Full authority and control over a state's territory and affairs",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-id-037",
-    "en": "economic sanctions",
-    "ar": "عقوبات اقتصادية",
-    "context": "International law — sanctions",
+    "id": "qed-gov-004",
+    "en": "Sanctions",
+    "ar": "عقوبات",
+    "context": "Measures taken by countries to enforce international law or change behavior",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-id-038",
-    "en": "veto power",
-    "ar": "حق النقض",
-    "context": "UN — Security Council procedure",
+    "id": "qed-gov-005",
+    "en": "Democracy",
+    "ar": "ديمقراطية",
+    "context": "System of government by the whole population through elected representatives",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-id-039",
-    "en": "no-fly zone",
-    "ar": "منطقة حظر جوي",
-    "context": "Security — military operations",
+    "id": "qed-gov-006",
+    "en": "Transparency",
+    "ar": "شفافية",
+    "context": "Openness and accountability in government and institutional operations",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-gov-007",
+    "en": "Human Rights",
+    "ar": "حقوق الإنسان",
+    "context": "Fundamental rights and freedoms to which all people are entitled",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "ds-id-040",
-    "en": "fighter jet",
-    "ar": "مقاتلة نفاثة",
-    "context": "Military — aviation",
+    "id": "qed-gov-008",
+    "en": "Freedom of Expression",
+    "ar": "حرية التعبير",
+    "context": "The right to express one's ideas and opinions freely through speech, writing, or other media",
     "type": "terminology",
     "amta_enforcement": "strict"
   },
   {
-    "id": "tm-001",
+    "id": "qed-gov-009",
+    "en": "Election",
+    "ar": "انتخاب",
+    "context": "Formal process of choosing a person for public office by vote",
+    "type": "terminology",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "qed-gov-010",
+    "en": "Referendum",
+    "ar": "استفتاء",
+    "context": "Direct vote by the electorate on a specific political question",
+    "type": "terminology",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "qed-edu-001",
+    "en": "Critical Thinking",
+    "ar": "التفكير النقدي",
+    "context": "The objective analysis and evaluation of information to form a judgment",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-edu-002",
+    "en": "Curriculum",
+    "ar": "مناهج دراسية",
+    "context": "The subjects and content taught in an educational program",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-edu-003",
+    "en": "Research Methodology",
+    "ar": "منهجية البحث",
+    "context": "Systematic methods used to conduct academic and scientific research",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-edu-004",
+    "en": "Peer Review",
+    "ar": "التحكيم العلمي",
+    "context": "Evaluation of academic work by others in the same field before publication",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-edu-005",
+    "en": "Plagiarism",
+    "ar": "انتحال",
+    "context": "Presenting someone else's work or ideas as one's own without attribution",
+    "type": "terminology",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "qed-edu-006",
+    "en": "Scholarship",
+    "ar": "منحة دراسية",
+    "context": "Financial aid awarded to students to support their education",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-edu-007",
+    "en": "Dissertation",
+    "ar": "أطروحة",
+    "context": "A substantial piece of academic writing based on original research",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-edu-008",
+    "en": "Literacy Rate",
+    "ar": "معدل المعرفة بالقراءة والكتابة",
+    "context": "The percentage of people who can read and write in a given population",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-edu-009",
+    "en": "Higher Education",
+    "ar": "التعليم العالي",
+    "context": "Education at universities and colleges beyond secondary school level",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-edu-010",
+    "en": "Academic Integrity",
+    "ar": "النزاهة الأكاديمية",
+    "context": "Ethical principles and standards governing academic work and research",
+    "type": "terminology",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "qed-sci-001",
+    "en": "Biodiversity",
+    "ar": "التنوع البيولوجي",
+    "context": "The variety of plant and animal life in a habitat or ecosystem",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-sci-002",
+    "en": "Climate Change",
+    "ar": "تغير المناخ",
+    "context": "Long-term shifts in global temperatures and weather patterns",
+    "type": "terminology",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "qed-sci-003",
+    "en": "Sustainability",
+    "ar": "استدامة",
+    "context": "Meeting present needs without compromising the ability of future generations to meet theirs",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "qed-sci-004",
+    "en": "Renewable Energy",
+    "ar": "الطاقة المتجددة",
+    "context": "Energy from sources that are naturally replenished such as solar and wind",
+    "type": "terminology",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "qed-sci-005",
+    "en": "Carbon Emissions",
+    "ar": "انبعاثات الكربون",
+    "context": "Greenhouse gases released into the atmosphere from burning fossil fuels",
+    "type": "terminology",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "qed-tm-001",
+    "en": "The significant problems we face today cannot be solved at the same level of thinking that we were at when we created them.",
+    "ar": "لا يمكننا حل المشاكل الخطيرة التي نواجهها اليوم بنفس مستوى التفكير الذي كان لدينا عندما سببناها.",
+    "context": "Philosophy — problem solving and paradigm shifts",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-002",
+    "en": "Education is the most powerful weapon which you can use to change the world.",
+    "ar": "التعليم هو أقوى سلاح يمكنك استخدامه لتغيير العالم.",
+    "context": "Education — the transformative power of learning",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-003",
     "en": "Neither party shall be held liable for failure to perform obligations under this agreement due to events beyond reasonable control.",
     "ar": "لا يتحمل أي من الطرفين مسؤولية الإخلال بالتزاماته بموجب هذا الاتفاق في حالة حدوث قوة قاهرة.",
     "context": "Legal — force majeure clause",
     "type": "translation_memory"
   },
   {
-    "id": "tm-002",
-    "en": "American military aircraft conducted reconnaissance operations near the disputed border region.",
-    "ar": "أجرت الطائرات العسكرية الأمريكية عمليات استطلاع بالقرب من منطقة الحدود المتنازع عليها.",
-    "context": "Military — reconnaissance",
-    "type": "translation_memory"
-  },
-  {
-    "id": "tm-003",
-    "en": "The United States imposed new sanctions on Iran over its nuclear program.",
-    "ar": "فرضت الولايات المتحدة عقوبات جديدة على إيران بسبب برنامجها النووي.",
-    "context": "International relations — sanctions",
-    "type": "translation_memory"
-  },
-  {
-    "id": "tm-004",
-    "en": "The Security Council convened an emergency session to discuss the ceasefire agreement.",
-    "ar": "عقد مجلس الأمن جلسة طارئة لمناقشة اتفاق وقف إطلاق النار.",
-    "context": "UN — Security Council proceedings",
-    "type": "translation_memory"
-  },
-  {
-    "id": "tm-005",
-    "en": "The two nations agreed to restore diplomatic relations after years of tensions.",
-    "ar": "اتفقت الدولتان على استعادة العلاقات الدبلوماسية بعد سنوات من التوترات.",
-    "context": "Diplomacy — bilateral relations",
-    "type": "translation_memory"
-  },
-  {
-    "id": "tm-006",
+    "id": "qed-tm-004",
     "en": "This agreement shall be governed by and construed in accordance with the laws of the jurisdiction in which the originating party is domiciled.",
     "ar": "يخضع هذا الاتفاق ويُفسّر وفقًا لقوانين الاختصاص القضائي الذي يقع فيه مقر الطرف الأصلي.",
     "context": "Legal — governing law clause",
     "type": "translation_memory"
   },
   {
-    "id": "tm-007",
-    "en": "The United Nations Security Council condemned the human rights violations in the region.",
-    "ar": "أدان مجلس الأمن التابع للأمم المتحدة انتهاكات حقوق الإنسان في المنطقة.",
-    "context": "UN — Security Council resolutions",
+    "id": "qed-tm-005",
+    "en": "The Security Council convened an emergency session to discuss the ceasefire agreement and the protection of civilians.",
+    "ar": "عقد مجلس الأمن جلسة طارئة لمناقشة اتفاق وقف إطلاق النار وحماية المدنيين.",
+    "context": "International relations — UN Security Council proceedings",
     "type": "translation_memory"
   },
   {
-    "id": "tm-008",
+    "id": "qed-tm-006",
     "en": "All intellectual property rights including patents, trademarks and copyrights remain with the originating party.",
     "ar": "تظل جميع حقوق الملكية الفكرية بما في ذلك براءات الاختراع والعلامات التجارية وحقوق النشر للطرف الأصلي.",
-    "context": "Legal — intellectual property",
+    "context": "Legal — intellectual property rights clause",
     "type": "translation_memory"
   },
   {
-    "id": "tm-009",
-    "en": "The minister of foreign affairs called for an immediate ceasefire and the resumption of peace negotiations.",
-    "ar": "دعا وزير الخارجية إلى وقف فوري لإطلاق النار واستئناف مفاوضات السلام.",
-    "context": "Diplomacy — peace process",
+    "id": "qed-tm-007",
+    "en": "The constitution guarantees freedom of expression, freedom of the press, and the right to a fair trial for all citizens.",
+    "ar": "يضمن الدستور حرية التعبير وحرية الصحافة وحق المحاكمة العادلة لجميع المواطنين.",
+    "context": "Government — constitutional rights",
     "type": "translation_memory"
   },
   {
-    "id": "tm-010",
-    "en": "The General Assembly adopted a resolution calling for the protection of civilian populations during armed conflicts.",
-    "ar": "اعتمدت الجمعية العامة قرارًا يدعو إلى حماية السكان المدنيين أثناء النزاعات المسلحة.",
-    "context": "UN — General Assembly resolution",
+    "id": "qed-tm-008",
+    "en": "Founders sometimes naively believe that they can protect their technology from investors by making them sign a non-disclosure agreement.",
+    "ar": "يعتقد المؤسسون أحيانًا بسذاجة أنهم يستطيعون حماية أفكارهم من المستثمرين من خلال إبرام اتفاقيات عدم إفصاح معهم.",
+    "context": "Business — startup intellectual property protection",
     "type": "translation_memory"
   },
   {
-    "id": "tm-011",
-    "en": "The coalition government faces growing opposition from both liberal and conservative factions in parliament.",
-    "ar": "تواجه الحكومة الائتلافية معارضة متزايدة من كل من الفصائل الليبرالية والمحافظة في البرلمان.",
-    "context": "Domestic politics — government formation",
+    "id": "qed-tm-009",
+    "en": "The doctors told me this was almost certainly a type of cancer that is incurable, and that I should expect to live no longer than three to six months.",
+    "ar": "أخبرني فريق الأطباء أن مرضي عضال لا شفاء منه، وأن أمامي من ثلاثة إلى ستة أشهر لأعيشها.",
+    "context": "Medicine — delivering a terminal diagnosis",
     "type": "translation_memory"
   },
   {
-    "id": "tm-012",
-    "en": "The European Union imposed economic sanctions on the regime for its continued human rights abuses.",
-    "ar": "فرض الاتحاد الأوروبي عقوبات اقتصادية على النظام بسبب استمراره في انتهاكات حقوق الإنسان.",
-    "context": "International relations — EU sanctions",
+    "id": "qed-tm-010",
+    "en": "To figure out the elegant recipes that would take the small subset of the periodic table and create miracle materials is the task of green chemistry.",
+    "ar": "اكتشاف الوصفات الراقية التي تستخدم الجزء الصغير من الجدول الدوري وإنشاء مواد معجزة هي مهمة الكيمياء الصديقة للبيئة.",
+    "context": "Science — green chemistry and materials innovation",
     "type": "translation_memory"
   },
   {
-    "id": "tm-013",
-    "en": "The referendum on constitutional amendments saw a record voter turnout across all provinces.",
-    "ar": "شهد الاستفتاء على التعديلات الدستورية نسبة مشاركة قياسية في جميع المقاطعات.",
-    "context": "Elections — constitutional referendum",
+    "id": "qed-tm-011",
+    "en": "The opposition leader called for free and transparent elections under international supervision to ensure democratic transition.",
+    "ar": "دعا زعيم المعارضة إلى إجراء انتخابات حرة وشفافة تحت إشراف دولي لضمان الانتقال الديمقراطي.",
+    "context": "Politics — election monitoring and democratic reform",
     "type": "translation_memory"
   },
   {
-    "id": "tm-014",
-    "en": "The World Bank and the International Monetary Fund issued a joint statement on the economic reforms.",
-    "ar": "أصدر البنك الدولي وصندوق النقد الدولي بيانًا مشتركًا بشأن الإصلاحات الاقتصادية.",
-    "context": "International organizations — financial institutions",
+    "id": "qed-tm-012",
+    "en": "The university has established a new research center dedicated to artificial intelligence and its applications in natural language processing.",
+    "ar": "أنشأت الجامعة مركزًا بحثيًا جديدًا مخصصًا للذكاء الاصطناعي وتطبيقاته في معالجة اللغات الطبيعية.",
+    "context": "Education — university AI research center",
     "type": "translation_memory"
   },
   {
-    "id": "tm-015",
-    "en": "The president signed the amended legislation into law, granting greater autonomy to the southern provinces.",
-    "ar": "وقّع الرئيس التشريع المعدّل ليصبح قانونًا، مما يمنح حكمًا ذاتيًا أوسع للمقاطعات الجنوبية.",
-    "context": "Domestic politics — legislation signing",
+    "id": "qed-tm-013",
+    "en": "Climate change represents one of the greatest challenges facing humanity, requiring immediate and coordinated international action.",
+    "ar": "يُمثّل تغير المناخ أحد أكبر التحديات التي تواجه البشرية، مما يتطلب عملًا دوليًا فوريًا ومنسقًا.",
+    "context": "Environment — climate change policy",
     "type": "translation_memory"
   },
   {
-    "id": "tm-016",
-    "en": "The Arab League Secretary-General called for an emergency summit to discuss the escalating tensions.",
-    "ar": "دعا أمين عام جامعة الدول العربية إلى قمة طارئة لمناقشة التصعيد المتزايد في التوترات.",
-    "context": "Regional organizations — Arab League",
+    "id": "qed-tm-014",
+    "en": "The study found that students who engaged in critical thinking exercises showed a significant improvement in academic performance.",
+    "ar": "وجدت الدراسة أن الطلاب الذين مارسوا تمارين التفكير النقدي أظهروا تحسنًا ملحوظًا في الأداء الأكاديمي.",
+    "context": "Education — critical thinking and academic outcomes",
     "type": "translation_memory"
   },
   {
-    "id": "tm-017",
-    "en": "Intelligence reports confirmed that military aircraft had violated the no-fly zone established by the Security Council.",
-    "ar": "أكدت تقارير المخابرات أن الطائرات العسكرية قد انتهكت منطقة حظر الطيران التي أنشأها مجلس الأمن.",
-    "context": "Security — no-fly zone violation",
+    "id": "qed-tm-015",
+    "en": "The World Health Organization warned that carbon emissions are accelerating the spread of infectious diseases in vulnerable regions.",
+    "ar": "حذرت منظمة الصحة العالمية من أن انبعاثات الكربون تُسرّع انتشار الأمراض المعدية في المناطق المعرضة للخطر.",
+    "context": "Health — climate change and disease spread",
     "type": "translation_memory"
   },
   {
-    "id": "tm-018",
-    "en": "The human rights organization documented widespread torture and arbitrary detention in the occupied territories.",
-    "ar": "وثّقت منظمة حقوق الإنسان حالات واسعة من التعذيب والاحتجاز التعسفي في الأراضي المحتلة.",
-    "context": "Human rights — documentation of violations",
+    "id": "qed-tm-016",
+    "en": "Renewable energy sources such as solar and wind power are becoming increasingly cost-effective compared to fossil fuels.",
+    "ar": "أصبحت مصادر الطاقة المتجددة مثل الطاقة الشمسية وطاقة الرياح أكثر فعالية من حيث التكلفة مقارنة بالوقود الأحفوري.",
+    "context": "Energy — renewable energy economics",
     "type": "translation_memory"
   },
   {
-    "id": "tm-019",
-    "en": "The opposition leader called for free and transparent elections under international supervision.",
-    "ar": "دعا زعيم المعارضة إلى انتخابات حرة وشفافة تحت إشراف دولي.",
-    "context": "Elections — opposition demands",
+    "id": "qed-tm-017",
+    "en": "The research methodology employed in this study combines quantitative data analysis with qualitative field interviews.",
+    "ar": "تجمع منهجية البحث المستخدمة في هذه الدراسة بين تحليل البيانات الكمية والمقابلات الميدانية النوعية.",
+    "context": "Academic research — mixed methods methodology",
     "type": "translation_memory"
   },
   {
-    "id": "tm-020",
-    "en": "The defense ministry announced the deployment of fighter jets along the disputed border region.",
-    "ar": "أعلنت وزارة الدفاع نشر مقاتلات نفاثة على طول منطقة الحدود المتنازع عليها.",
-    "context": "Military — border deployment",
+    "id": "qed-tm-018",
+    "en": "Biodiversity loss threatens the stability of ecosystems and undermines the natural services upon which human well-being depends.",
+    "ar": "يهدد فقدان التنوع البيولوجي استقرار النظم البيئية ويقوض الخدمات الطبيعية التي يعتمد عليها رفاه الإنسان.",
+    "context": "Environment — biodiversity and ecosystem stability",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-019",
+    "en": "All intellectual property developed under this collaboration shall be jointly owned by both parties unless otherwise agreed in writing.",
+    "ar": "تكون جميع حقوق الملكية الفكرية المُطوّرة بموجب هذا التعاون مملوكة بشكل مشترك لكلا الطرفين ما لم يُتفق على خلاف ذلك كتابيًا.",
+    "context": "Legal — joint IP ownership clause",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-020",
+    "en": "The dissertation examines the impact of social media on political participation among young people in Arab countries.",
+    "ar": "تُفحص الأطروحة تأثير وسائل التواصل الاجتماعي على المشاركة السياسية بين الشباب في الدول العربية.",
+    "context": "Academic research — social media and political engagement",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-021",
+    "en": "Sustainability requires a fundamental shift in how we produce and consume energy, moving away from fossil fuels toward clean alternatives.",
+    "ar": "تتطلب الاستدامة تحولاً جوهريًا في كيفية إنتاجنا واستهلاكنا للطاقة، والتحول من الوقود الأحفوري نحو البدائل النظيفة.",
+    "context": "Environment — sustainable energy transition",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-022",
+    "en": "The peer review process ensures that published research meets rigorous standards of academic integrity and scientific validity.",
+    "ar": "يضمن عملية التحكيم العلمي أن البحث المنشور يلبي معايير صارمة للنزاهة الأكاديمية والصلاحية العلمية.",
+    "context": "Academic publishing — peer review standards",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-023",
+    "en": "The government announced a comprehensive reform package aimed at improving transparency and combating corruption in public institutions.",
+    "ar": "أعلنت الحكومة عن حزمة إصلاح شاملة تهدف إلى تحسين الشفافية ومكافحة الفساد في المؤسسات العامة.",
+    "context": "Government — anti-corruption reform",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-024",
+    "en": "Plagiarism is considered a serious violation of academic integrity and may result in suspension or expulsion from the university.",
+    "ar": "يُعتبر الانتحال انتهاكًا خطيرًا للنزاهة الأكاديمية وقد يؤدي إلى إيقاف أو فصل من الجامعة.",
+    "context": "Education — academic integrity violations",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-025",
+    "en": "The curriculum has been redesigned to incorporate critical thinking, digital literacy, and sustainability as core competencies.",
+    "ar": "تم إعادة تصميم المناهج الدراسية لتضمين التفكير النقدي والمعرفة الرقمية والاستدامة ككفاءات أساسية.",
+    "context": "Education — curriculum modernization",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-026",
+    "en": "International sanctions were imposed on the regime for its continued violation of human rights and suppression of democratic freedoms.",
+    "ar": "فُرضت عقوبات دولية على النظام بسبب استمراره في انتهاك حقوق الإنسان وقمع الحريات الديمقراطية.",
+    "context": "International law — human rights sanctions",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-027",
+    "en": "The literacy rate in the region has improved significantly over the past decade due to investments in higher education and teacher training.",
+    "ar": "تحسن معدل المعرفة بالقراءة والكتابة في المنطقة بشكل ملحوظ خلال العقد الماضي بفضل الاستثمارات في التعليم العالي وتدريب المعلمين.",
+    "context": "Education — literacy improvement programs",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-028",
+    "en": "The referendum on constitutional amendments saw a record voter turnout, reflecting growing public engagement in the democratic process.",
+    "ar": "شهد الاستفتاء على التعديلات الدستورية نسبة مشاركة قياسية في التصويت، مما يعكس تزايد المشاركة العامة في العملية الديمقراطية.",
+    "context": "Politics — constitutional referendum turnout",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-029",
+    "en": "The scholarship program provides financial support to outstanding students from underprivileged backgrounds to pursue higher education abroad.",
+    "ar": "يقدم برنامج المنح الدراسية دعمًا ماليًا للطلاب المتفوقين من الخلفيات المحرومة لمتابعة التعليم العالي في الخارج.",
+    "context": "Education — international scholarship programs",
+    "type": "translation_memory"
+  },
+  {
+    "id": "qed-tm-030",
+    "en": "The arbitration tribunal ruled that the breach of contract resulted in substantial financial damages and ordered compensation.",
+    "ar": "حكمت هيئة التحكيم أن خرق العقد أدى إلى أضرار مالية كبيرة وأمرت بالتعويض.",
+    "context": "Legal — arbitration ruling on breach of contract",
     "type": "translation_memory"
   }
 ]
