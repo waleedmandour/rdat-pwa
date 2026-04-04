@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://opus.nlpl.eu",
+    "name": "OPUS - Corpora",
+    "snippet": "26.47 ; NLLB, 22.7B · 22.09 ; CCMatrix, 17.1B · 16.61 ; ParaCrawl, 4.6B · 4.50. Missing: AR | Show results with: AR",
+    "host_name": "opus.nlpl.eu",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.researchgate.net/publication/326124266_Arabic-English_Parallel_Corpus_A_New_Resource_for_Translation_Training_and_Language_Teaching",
+    "name": "Arabic-English Parallel Corpus: A New Resource for Translation",
+    "snippet": "This study presents and experiments a new English-Arabic corpus of food shows subtitles. It describes the data selection and extraction ...",
+    "host_name": "www.researchgate.net",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.sketchengine.eu/opus-parallel-corpora",
+    "name": "OPUS parallel corpora | Sketch Engine",
+    "snippet": "The OPUS parallel corpora is a set of text corpora with aligned sentences which allow searching and analysing translations between all the languages. Missing: AR download",
+    "host_name": "www.sketchengine.eu",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://opus.nlpl.eu/datasets/OpenSubtitles",
+    "name": "OpenSubtitles - OPUS - Corpora",
+    "snippet": "OPUS is a growing collection of translated texts from the web. In the OPUS project we try to convert and align free online data, to add linguistic ... Missing: English UN",
+    "host_name": "opus.nlpl.eu",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.un.org/dgacm/en/content/uncorpus/download",
+    "name": "Download the UN Parallel Corpus - the United Nations",
+    "snippet": "Download the UN Parallel Corpus XML files. All documents are organized into folders by language, publication year, and publication symbols. Missing: OPUS subtitle",
+    "host_name": "www.un.org",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://github.com/EdinburghNLP/opus-100-corpus",
+    "name": "EdinburghNLP/opus-100-corpus - GitHub",
+    "snippet": "The corpus covers 100 languages (including English). We selected the languages based on the volume of parallel data available in OPUS. The OPUS collection is ... Missing: AR UN",
+    "host_name": "github.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dl.acm.org/doi/full/10.1145/3606031",
+    "name": "A New English/Arabic Parallel Corpus for Phishing Emails",
+    "snippet": "This article presents the development of a new English-Arabic parallel phishing email corpus that has been developed from the anti-phishing share task text.",
+    "host_name": "dl.acm.org",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "http://www.google.com/url?esrc=s&q=&rct=j&sa=U&url=http://metashare.ilsp.gr:8080/repository/browse/opus-subtitles-corpus/3ab57658c59e11e585cc005056be118e1acfff87a326495ca2f39f94729f93ce/&ved=2ahUKEwiyycLw-NOTAxVUl2oFHZ3OJpMQFnoECAQQAg&usg=AOvVaw2TKZJpFA1-wOGNfGfEF_Gf",
+    "name": "Opus Subtitles Corpus – META-SHARE",
+    "snippet": "The corpus, containing the OpenSubtitles sub-corpora of the Opus open parallel corpus (http://opus.lingfil.uu.se/), will be made available ... Missing: AR UN",
+    "host_name": "www.google.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://cris.fbk.eu/retrieve/ddb241a5-4118-ba8a-e053-3a05fe0afd55/final20161001.pdf",
+    "name": "[PDF] An Arabic-Hebrew parallel corpus of TED talks",
+    "snippet": "The benchmark consists of about 2,000 talks, whose subtitles in Arabic and Hebrew have been accurately aligned and rearranged in sen- tences, for a total of ...",
+    "host_name": "cris.fbk.eu",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.researchgate.net/publication/320140356_Arabic-English_Parallel_Corpus_A_New_Resource_for_Translation_Training_and_Language_Teaching",
+    "name": "Arabic-English Parallel Corpus: A New Resource for Translation",
+    "snippet": "Parallel corpora, defined as collections of original texts in one language along with their translations, are essential resources for research in ...",
+    "host_name": "www.researchgate.net",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]
