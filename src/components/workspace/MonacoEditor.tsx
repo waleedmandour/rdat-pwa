@@ -288,27 +288,31 @@ export function MonacoEditor({
               });
 
               // ── Ghost-Text Autocorrect: Compute word range for prefix replacement ──
-              // Get the current word boundary at the cursor position
+              // Get the current word boundary at the cursor position.
+              // SAFE: getWordUntilPosition returns { word: "", startColumn, endColumn }
+              // when the cursor is on whitespace/punctuation — we must guard against this.
               const wordUntil = model.getWordUntilPosition(position);
-              const lineContent = model.getLineContent(position.lineNumber);
-              const lineTextUntilCursor = lineContent.substring(0, position.column - 1);
+              const currentWord = wordUntil.word;
+              const hasActiveWord = currentWord && currentWord.length > 0;
 
-              // Build a range spanning from the start of the current word to the cursor
-              // This enables prefix replacement: if the user types "الهرم الأكبـ",
-              // the LLM generates "الأكبر" and Monaco replaces the incomplete prefix.
-              const wordStartColumn = Math.max(1, position.column - wordUntil.word.length);
-              const wordRange: Monaco.IRange = {
-                startLineNumber: position.lineNumber,
-                startColumn: wordStartColumn,
-                endLineNumber: position.lineNumber,
-                endColumn: position.column,
-              };
+              // Build a word range ONLY if the cursor is actively inside a word.
+              // When the user hits spacebar or is on whitespace, wordUntil.word is
+              // empty and wordStartColumn === position.column, producing an invalid
+              // zero-width range that causes Monaco to silently reject the completion.
+              let wordRange: Monaco.IRange | null = null;
+              if (hasActiveWord) {
+                wordRange = {
+                  startLineNumber: position.lineNumber,
+                  startColumn: wordUntil.startColumn,
+                  endLineNumber: position.lineNumber,
+                  endColumn: position.column,
+                };
+              }
 
               // Detect if the current word is incomplete or potentially misspelled
               // (ends with partial Arabic diacritic, is very short, or has trailing partial chars)
-              const currentWord = wordUntil.word;
               const isIncompleteOrPartial =
-                currentWord.length > 0 && (
+                hasActiveWord && (
                   currentWord.length <= 2 ||                          // Very short word likely incomplete
                   /[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FFa-zA-Z\s]$/.test(currentWord) || // Trailing non-letter char
                   /[\u064B-\u065F\u0670]$/.test(currentWord)            // Trailing Arabic diacritic (tashkeel)
@@ -316,7 +320,8 @@ export function MonacoEditor({
 
               console.log(
                 `[RDAT] Ghost text autocorrect — word: "${currentWord}" (${currentWord.length} chars), ` +
-                `isPartial: ${isIncompleteOrPartial}, range: col ${wordStartColumn}→${position.column}`
+                `hasActiveWord: ${hasActiveWord}, isPartial: ${isIncompleteOrPartial}, ` +
+                `wordRange: ${wordRange ? `col ${wordRange.startColumn}→${wordRange.endColumn}` : "none (cursor append)"}`
               );
 
               // Get current editor text
@@ -337,28 +342,31 @@ export function MonacoEditor({
 
               if (generatedText && generatedText.trim().length > 0) {
                 const trimmed = generatedText.trim();
-                console.log(`[RDAT] Ghost text delivered (AI): "${trimmed.substring(0, 50)}…" [mode: ${hasRAGResults ? "GTR" : "Zero-Shot"}]`);
 
-                // Ghost-Text Autocorrect: If the current word is incomplete/misspelled,
-                // use the word range so the LLM output replaces the partial prefix.
-                // Otherwise, use the standard cursor-position range (append after cursor).
-                const shouldUseWordRange = isIncompleteOrPartial && currentWord.length > 0;
-
-                return {
-                  items: [
-                    {
-                      insertText: trimmed,
-                      range: shouldUseWordRange
-                        ? wordRange
-                        : {
-                            startLineNumber: position.lineNumber,
-                            startColumn: position.column,
-                            endLineNumber: position.lineNumber,
-                            endColumn: position.column,
-                          },
-                    },
-                  ],
+                // Build the completion item with safe range logic:
+                // - If inside an incomplete/misspelled word AND wordRange is valid → replace prefix
+                // - Otherwise → standard cursor-position append (always safe)
+                const shouldUseWordRange = isIncompleteOrPartial && wordRange !== null;
+                const completionItem: Monaco.languages.InlineCompletion = {
+                  insertText: trimmed,
+                  range: shouldUseWordRange
+                    ? wordRange
+                    : {
+                        startLineNumber: position.lineNumber,
+                        startColumn: position.column,
+                        endLineNumber: position.lineNumber,
+                        endColumn: position.column,
+                      },
                 };
+
+                console.log(
+                  `[RDAT] Providing Ghost Text: "${trimmed.substring(0, 60)}${trimmed.length > 60 ? "…" : ""}"`,
+                  `\n  mode: ${hasRAGResults ? "GTR" : "Zero-Shot"}`,
+                  `\n  range: col ${completionItem.range!.startColumn}→${completionItem.range!.endColumn}`,
+                  `\n  autocorrect: ${shouldUseWordRange ? "yes (prefix replacement)" : "no (cursor append)"}`
+                );
+
+                return { items: [completionItem] };
               }
 
               return { items: [] };
