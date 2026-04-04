@@ -50,5 +50,23 @@ test
 prompt
 
 server.log
+
 # Skills directory
 /skills/
+
+# Research temp files
+search_*.json
+*_govt.json
+*_tatoeba.json
+*_glossary.json
+*_corpus.json
+*_country.json
+
+# Deployment artifacts
+Caddyfile
+
+# Upload screenshots
+/upload/
+
+# Download temp files
+/download/*.json

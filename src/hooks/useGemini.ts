@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useRef, useSyncExternalStore } from "
 import type { GeminiState, LanguageDirection } from "@/types";
 import type { RAGResult } from "@/lib/rag-types";
 import { GEMINI_API_KEY_STORAGE } from "@/lib/constants";
-import { initGemini, disposeGemini, isGeminiReady, rewriteText } from "@/lib/gemini-provider";
+import { initGemini, disposeGemini, isGeminiReady, rewriteText, completeGhostText } from "@/lib/gemini-provider";
 
 const getIsClient = () => true;
 const subscribeNoop = () => () => {};
@@ -138,6 +138,20 @@ export function useGemini() {
     []
   );
 
+  /**
+   * ghostText — Uses Gemini for ghost text completions (cloud fallback).
+   * Called when the local WebLLM engine is not ready.
+   */
+  const ghostText = useCallback(
+    async (sourceSentence: string, targetDraft: string, ragResults: RAGResult[] = [], direction: LanguageDirection = "en-ar"): Promise<string | null> => {
+      if (!isGeminiReady()) {
+        return null;
+      }
+      return completeGhostText(sourceSentence, targetDraft, ragResults, direction);
+    },
+    []
+  );
+
   return {
     geminiState,
     hasApiKey,
@@ -145,5 +159,6 @@ export function useGemini() {
     setApiKey,
     getMaskedKey,
     rewrite,
+    ghostText,
   };
 }

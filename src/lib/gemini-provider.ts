@@ -116,6 +116,76 @@ export async function rewriteText(
 }
 
 /**
+ * completeGhostText — Uses Gemini for ghost text inline completions.
+ *
+ * This is the cloud fallback when the local WebLLM engine is not available.
+ * It sends the same structured prompt (source sentence + RAG context + target draft)
+ * and returns a short completion suitable for ghost text display.
+ *
+ * @param sourceSentence The active source sentence from the source pane
+ * @param targetDraft The user's current target text draft
+ * @param ragResults Top RAG matches for terminology context
+ * @param direction The current language direction
+ * @returns Short completion text (3-15 words), or null on failure
+ */
+export async function completeGhostText(
+  sourceSentence: string,
+  targetDraft: string,
+  ragResults: RAGResult[] = [],
+  direction: LanguageDirection = "en-ar"
+): Promise<string | null> {
+  if (!genAI) {
+    console.warn("[RDAT-Gemini] Ghost text: not initialized");
+    return null;
+  }
+
+  const systemPrompt = GEMINI_SYSTEM_PROMPTS[direction];
+  const ragContext = formatRAGContext(ragResults, direction);
+
+  // Build the user message (same structure as WebLLM ghost text prompt)
+  let userMessage = "";
+  if (sourceSentence && sourceSentence.trim().length > 0) {
+    userMessage += `Source Sentence:\n${sourceSentence.trim()}\n\n`;
+  }
+  if (ragContext) {
+    userMessage += `${ragContext}\n\n`;
+  }
+  userMessage += `Current Target Draft:\n${targetDraft.trim()}\n\n`;
+  userMessage += `Instruction: Provide only the next few words to complete the target draft. Output 3-15 words maximum. Do not repeat what has already been written.`;
+
+  try {
+    console.log(
+      `[RDAT-Gemini] Ghost text request (${targetDraft.length} chars target, ${sourceSentence.length} chars source)`
+    );
+
+    const result = await genAI.getGenerativeModel({ model: GEMINI_MODEL_ID }).generateContent({
+      contents: [
+        { role: "user", parts: [{ text: userMessage }] },
+      ],
+      systemInstruction: { role: "model", parts: [{ text: systemPrompt }] },
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 50,
+      },
+    });
+
+    const text = result.response.text();
+    if (text && text.trim().length > 0) {
+      // Truncate to ghost-text length (3-15 words)
+      const words = text.trim().split(/\s+/);
+      const truncated = words.slice(0, 15).join(" ");
+      console.log(`[RDAT-Gemini] Ghost text delivered (${truncated.length} chars): "${truncated.substring(0, 60)}…"`);
+      return truncated;
+    }
+    return null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[RDAT-Gemini] Ghost text failed: ${msg}`);
+    return null;
+  }
+}
+
+/**
  * Dispose the Gemini client (on key change or logout).
  */
 export function disposeGemini(): void {

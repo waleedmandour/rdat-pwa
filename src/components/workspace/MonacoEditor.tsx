@@ -63,6 +63,7 @@ interface CompletionConfig {
   interruptGeneration?: () => void;
   ragResults: RAGResult[];
   isLLMReady: boolean;
+  isGeminiReady: boolean;
 }
 
 /**
@@ -81,6 +82,7 @@ interface MonacoEditorProps {
   interruptGeneration?: () => void;
   ragResults?: RAGResult[];
   isLLMReady?: boolean;
+  isGeminiReady?: boolean;
   onEditorDidMount?: (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => void;
   /** Whether the editor is read-only (used for source pane) */
   readOnly?: boolean;
@@ -132,6 +134,7 @@ export function MonacoEditor({
   interruptGeneration,
   ragResults = [],
   isLLMReady = false,
+  isGeminiReady = false,
   onEditorDidMount,
   readOnly = false,
   enableCompletions = true,
@@ -161,6 +164,7 @@ export function MonacoEditor({
     interruptGeneration,
     ragResults,
     isLLMReady,
+    isGeminiReady,
   });
 
   useEffect(() => {
@@ -169,8 +173,9 @@ export function MonacoEditor({
       interruptGeneration,
       ragResults,
       isLLMReady,
+      isGeminiReady,
     };
-  }, [generateCompletion, interruptGeneration, ragResults, isLLMReady]);
+  }, [generateCompletion, interruptGeneration, ragResults, isLLMReady, isGeminiReady]);
 
   // Store cursor callback in a ref
   const onCursorChangeRef = useRef(onCursorPositionChange);
@@ -220,8 +225,10 @@ export function MonacoEditor({
 
             const config = completionConfigRef.current;
 
-            // If LLM is not ready, fall back to mock
-            if (!config.isLLMReady || !config.generateCompletion) {
+            const hasAnyAI = config.isLLMReady || config.isGeminiReady;
+
+            // If no AI engine is available, fall back to mock
+            if (!hasAnyAI || !config.generateCompletion) {
               try {
                 await waitForDelayOrAbort(MOCK_INFERENCE_DELAY_MS, token);
 
@@ -266,7 +273,7 @@ export function MonacoEditor({
               // Get current editor text
               const text = model.getValue();
 
-              // Generate completion using WebLLM + RAG context
+              // Generate completion using AI (WebLLM or Gemini) + RAG context
               const generatedText = await config.generateCompletion(text, config.ragResults);
 
               if (cancelled) {

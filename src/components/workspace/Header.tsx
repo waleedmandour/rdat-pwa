@@ -7,6 +7,7 @@ import {
   PanelLeftOpen,
   Moon,
   ArrowLeftRight,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/constants";
@@ -16,6 +17,7 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
   onOpenSettings: () => void;
+  onOpenAbout: () => void;
   langDirection: LanguageDirection;
   langPair: LanguagePair;
   onSwapDirection: () => void;
@@ -25,6 +27,7 @@ export function Header({
   onToggleSidebar,
   sidebarOpen,
   onOpenSettings,
+  onOpenAbout,
   langDirection,
   langPair,
   onSwapDirection,
@@ -89,6 +92,15 @@ export function Header({
 
       {/* Right section */}
       <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-hover)]"
+          aria-label="About RDAT Copilot"
+          onClick={onOpenAbout}
+        >
+          <Info className="w-3.5 h-3.5" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

@@ -6,6 +6,7 @@ import type { GPUStatus, AppMode, RewriteResult, LanguageDirection } from "@/typ
 import type { RAGResult } from "@/lib/rag-types";
 import type * as Monaco from "monaco-editor";
 import { Header } from "./Header";
+import { AboutDialog } from "./AboutDialog";
 import { Sidebar } from "./Sidebar";
 import { StatusBar } from "./StatusBar";
 import { WebGPUBanner } from "@/components/gpu/WebGPUBanner";
@@ -145,6 +146,9 @@ export function WorkspaceShell({
   // Store the source sentence at rewrite time (avoid ref-during-render)
   const [rewriteSourceSentence, setRewriteSourceSentence] = useState("");
 
+  // ─── About Dialog ────────────────────────────────────────────────
+  const [aboutOpen, setAboutOpen] = useState(false);
+
   // ─── Editor instance ref for imperative operations ──────────────
   const editorInstanceRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const selectionDisposableRef = useRef<Monaco.IDisposable | null>(null);
@@ -193,14 +197,16 @@ export function WorkspaceShell({
   }, [cleanup]);
 
   /**
-   * generateCompletion — Orchestrates SOURCE-DRIVEN RAG + WebLLM for ghost text.
+   * generateCompletion — Orchestrates SOURCE-DRIVEN RAG + AI for ghost text.
    * Called from MonacoEditor's inline completions provider (target pane only).
    *
-   * Pipeline:
+   * Pipeline (dual-track ghost text):
    *   1. Extract the active source sentence (from source pane, line-matched)
    *   2. RAG search on source sentence (if not cached from debounce)
    *   3. Build messages: source sentence + RAG context + target draft
-   *   4. Generate via WebLLM (Gemma 2B local)
+   *   4a. Generate via WebLLM (Gemma 2B local) — PRIMARY
+   *   4b. Fall back to Gemini (cloud) if WebLLM not ready — SECONDARY
+   *   4c. Fall back to mock suggestions if neither available
    */
   const generateCompletion = useCallback(
     async (editorText: string, ragResults: RAGResult[]): Promise<string | null> => {
@@ -220,10 +226,22 @@ export function WorkspaceShell({
       // Step 3: Build messages with source sentence + RAG context + target draft
       const messages = buildMessages(editorText, results, langDirection, sourceSentence);
 
-      // Step 4: Generate via WebLLM
-      return webllm.generate(messages);
+      // Step 4a: Try WebLLM first (Sovereign Track — local GPU)
+      if (webllm.isReady) {
+        return webllm.generate(messages);
+      }
+
+      // Step 4b: Fall back to Gemini (Reasoning Track — cloud)
+      if (gemini.hasApiKey) {
+        console.log("[RDAT] Ghost text: WebLLM not ready, falling back to Gemini cloud");
+        return gemini.ghostText(sourceSentence, editorText, results, langDirection);
+      }
+
+      // Step 4c: Neither available — return null (MonacoEditor will use mock)
+      console.log("[RDAT] Ghost text: No AI engine available");
+      return null;
     },
-    [rag, webllm, langDirection]
+    [rag, webllm, gemini, langDirection]
   );
 
   /**
@@ -349,6 +367,7 @@ export function WorkspaceShell({
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         sidebarOpen={sidebarOpen}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenAbout={() => setAboutOpen(true)}
         langDirection={langDirection}
         langPair={langPair}
         onSwapDirection={swapLanguageDirection}
@@ -558,6 +577,7 @@ export function WorkspaceShell({
                         interruptGeneration={webllm.interruptGenerate}
                         ragResults={rag.lastResults}
                         isLLMReady={webllm.isReady}
+                        isGeminiReady={gemini.hasApiKey}
                         onEditorDidMount={handleEditorDidMount}
                         enableCompletions
                         languageId="rdat-target"
@@ -669,6 +689,9 @@ export function WorkspaceShell({
         langPair={langPair}
         onSwapDirection={swapLanguageDirection}
       />
+
+      {/* About Dialog */}
+      <AboutDialog open={aboutOpen} onOpenChange={setAboutOpen} />
 
       {/* Settings Modal */}
       <SettingsModal

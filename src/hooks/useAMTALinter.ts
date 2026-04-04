@@ -71,7 +71,7 @@ export function useAMTALinter() {
           typeof monaco.languages.registerCodeActionsProvider === "function"
         ) {
           codeActionProviderRef.current = monaco.languages.registerCodeActionsProvider(
-            "rdat-translation",
+            "rdat-target",
             {
               provideCodeActions: (model, _range, _context, _token) => {
                 const currentIssues = issuesRef.current;
