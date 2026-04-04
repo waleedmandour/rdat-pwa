@@ -28,7 +28,7 @@ export const MODEL_LOAD_TIMEOUT_MS = 60_000; // 60s timeout for model download
 export const DEFAULT_CORPUS_URL = "/data/default-corpus-en-ar.json";
 export const CORPUS_BOOTSTRAP_URL = DEFAULT_CORPUS_URL; // Legacy alias
 export const CORPUS_CACHE_KEY = "rdat-gtr-corpus-cache";
-export const CORPUS_CACHE_VERSION = "v3";
+export const CORPUS_CACHE_VERSION = "v4";
 export const RAG_SEARCH_LIMIT = 5; // Top K results (increased for richer terminology display)
 export const RAG_SEARCH_TARGET_MS = 50; // Target: vector search < 50ms
 

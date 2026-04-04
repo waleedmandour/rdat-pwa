@@ -488,5 +488,141 @@
     "ar": "حكمت هيئة التحكيم أن خرق العقد أدى إلى أضرار مالية كبيرة وأمرت بالتعويض.",
     "context": "Legal — arbitration ruling on breach of contract",
     "type": "translation_memory"
+  },
+  {
+    "id": "wm-arch-001",
+    "en": "Pyramid",
+    "ar": "هرم",
+    "context": "Ancient monumental stone structure with a square base and triangular sides",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-002",
+    "en": "Pharaoh",
+    "ar": "فرعون",
+    "context": "Title of ancient Egyptian rulers who were considered divine kings",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-003",
+    "en": "Archaeological excavation",
+    "ar": "تنقيب أثري",
+    "context": "Scientific digging at archaeological sites to uncover ancient artifacts and structures",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-004",
+    "en": "Limestone",
+    "ar": "حجر جيري",
+    "context": "Sedimentary rock commonly used in ancient Egyptian construction",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-005",
+    "en": "Sarcophagus",
+    "ar": "تابوت حجري",
+    "context": "Stone coffin used for burial, especially in ancient Egyptian tombs",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-006",
+    "en": "Granite",
+    "ar": "جرانيت",
+    "context": "Hard igneous rock used in pyramid inner chambers and royal sarcophagi",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-007",
+    "en": "Dynasty",
+    "ar": "أسرة",
+    "context": "Sequence of rulers from the same family who ruled ancient Egypt over a period",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-008",
+    "en": "Monumental structure",
+    "ar": "بنية ضخمة",
+    "context": "Large-scale architectural construction of historical or cultural significance",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-009",
+    "en": "Bedrock",
+    "ar": "صخر أساسي",
+    "context": "Solid rock underlying surface soil, often used as a foundation for large structures",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-010",
+    "en": "Funerary complex",
+    "ar": "مجمع جنائزي",
+    "context": "Group of buildings and structures associated with ancient burial practices",
+    "type": "terminology",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "wm-arch-011",
+    "en": "The Great Pyramid of Giza is the oldest and largest of the three pyramids in the Giza pyramid complex.",
+    "ar": "هرم الجيزة الأكبر هو أقدم وأكبر الأهرامات الثلاثة في مجموعة أهرامات الجيزة.",
+    "context": "Archaeology — Great Pyramid introduction",
+    "type": "translation_memory"
+  },
+  {
+    "id": "wm-arch-012",
+    "en": "It was built as a tomb for the Fourth Dynasty pharaoh Khufu and was constructed over a twenty-year period.",
+    "ar": "بُني كمقبرة للفرعون خوفو من الأسرة الرابعة واستغرق بناؤه عشرين عامًا.",
+    "context": "Archaeology — pyramid construction timeline",
+    "type": "translation_memory"
+  },
+  {
+    "id": "wm-arch-013",
+    "en": "The pyramid originally stood at 146.6 metres, making it the tallest man-made structure in the world for over 3,800 years.",
+    "ar": "كان ارتفاع الهرم الأصلي 146.6 مترًا، مما جعله أطول بناء من صنع الإنسان في العالم لأكثر من 3800 عام.",
+    "context": "Archaeology — pyramid dimensions and records",
+    "type": "translation_memory"
+  },
+  {
+    "id": "wm-arch-014",
+    "en": "The interior contains three known chambers: the King's Chamber, the Queen's Chamber, and a subterranean chamber.",
+    "ar": "يتكون الجزء الداخلي من ثلاث غرف معروفة: غرفة الملك وغرفة الملكة وغرفة تحت أرضية.",
+    "context": "Archaeology — pyramid internal structure",
+    "type": "translation_memory"
+  },
+  {
+    "id": "wm-arch-015",
+    "en": "The pyramid was constructed using an estimated 2.3 million limestone blocks, each weighing an average of 2.5 tons.",
+    "ar": "بُني الهرم باستخدام حوالي 2.3 مليون كتلة حجرية من الحجر الجيري، يبلغ متوسط وزن كل منها 2.5 طن.",
+    "context": "Archaeology — construction materials and methods",
+    "type": "translation_memory"
+  },
+  {
+    "id": "wm-arch-016",
+    "en": "The precision of the construction is remarkable, with the base being level to within just 2.1 centimetres across its entire length.",
+    "ar": "يتميز البناء بدقة مذهلة، فالقاعدة مستوية بتفاوت لا يتجاوز 2.1 سنتيمترًا على طولها بالكامل.",
+    "context": "Archaeology — construction precision engineering",
+    "type": "translation_memory"
+  },
+  {
+    "id": "wm-arch-017",
+    "en": "It is the only one of the Seven Wonders of the Ancient World that survives substantially intact.",
+    "ar": "إنه العجابة الوحيدة من عجائب الدنيا السبع القديمة التي لا تزال قائمة إلى حد كبير.",
+    "context": "Archaeology — Seven Wonders of the Ancient World",
+    "type": "translation_memory"
+  },
+  {
+    "id": "wm-arch-018",
+    "en": "Modern research using muon tomography has revealed previously unknown voids within the structure.",
+    "ar": "كشف البحث الحديث باستخدام توموغرافيا الميونات عن فراغات غير معروفة سابقًا داخل البناء.",
+    "context": "Science — muon tomography in archaeology",
+    "type": "translation_memory"
   }
 ]

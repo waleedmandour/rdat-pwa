@@ -231,6 +231,8 @@ async function bootstrap(corpusUrl: string, preloadedData?: CorpusEntry[]): Prom
         ar: "string",
         context: "string",
         embedding: `vector[${EMBEDDING_DIMENSIONS}]`,
+        type: "string",
+        amta_enforcement: "boolean",
       },
     } as any); // Orama's create accepts this shape
     log("info", "Orama database created");
@@ -307,10 +309,10 @@ async function searchQuery(
   const searchStart = performance.now();
 
   const results = await search(db as any, {
-    mode: "vector",
     vector: {
       value: queryEmbedding,
       property: "embedding",
+      similarity: 0.3,
     },
     limit: RAG_SEARCH_LIMIT,
   });
