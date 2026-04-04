@@ -147,7 +147,7 @@ The key architectural innovation is **source-driven retrieval**:
 4. The top 3 Translation Memory matches (based on source meaning) are injected into the LLM prompt.
 5. This ensures terminology suggestions are semantically grounded in the **original source**, not the translator's draft.
 
-### Ghost Text Sources Confirmed — مصادر اقتراحات النص الشبحي
+### Ghost Text Sources Confirmed — مصادر اقتراحات النص المخفي
 
 Ghost text suggestions are generated from the following sources, in order of priority:
 
@@ -1003,7 +1003,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
 
     <subsection>
       <heading>
-        <ar>كيف يعمل النص الشبحي (Ghost Text)</ar>
+        <ar>كيف يعمل النص المخفي (Ghost Text)</ar>
         <en>How Ghost Text Works</en>
       </heading>
       <paragraph>
@@ -1046,7 +1046,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
           <en>Use terminology from the available glossary — RAG performs semantic searches to guide the model.</en>
         </tip>
         <tip priority="medium">
-          <ar>لا تتردد في تعديل النص المقترح بعد قبوله — النص الشبحي هو نقطة بداية فقط.</ar>
+          <ar>لا تتردد في تعديل النص المقترح بعد قبوله — النص المخفي هو نقطة بداية فقط.</ar>
           <en>Don't hesitate to edit the suggested text after accepting — ghost text is just a starting point.</en>
         </tip>
         <tip priority="medium">
@@ -1300,7 +1300,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
         <shortcut>
           <keys>Tab</keys>
           <action>
-            <ar>قبول النص الشبحي المقترح</ar>
+            <ar>قبول النص المخفي المقترح</ar>
             <en>Accept the suggested ghost text</en>
           </action>
         </shortcut>
@@ -1314,7 +1314,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
         <shortcut>
           <keys>Escape</keys>
           <action>
-            <ar>إلغاء النص الشبحي الحالي</ar>
+            <ar>إلغاء النص المخفي الحالي</ar>
             <en>Dismiss current ghost text</en>
           </action>
         </shortcut>
@@ -1526,7 +1526,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
 
       <issue id="no-ghost-text">
         <problem>
-          <ar>لا تظهر اقتراحات النص الشبحي</ar>
+          <ar>لا تظهر اقتراحات النص المخفي</ar>
           <en>No ghost text suggestions appearing</en>
         </problem>
         <cause>
@@ -1733,9 +1733,9 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
 
 | Shortcut | Action | العمل |
 |----------|--------|-------|
-| `Tab` | Accept ghost text suggestion | قبول النص الشبحي المقترح |
+| `Tab` | Accept ghost text suggestion | قبول النص المخفي المقترح |
 | `Ctrl+.` | Open AMTA quick fix menu | فتح قائمة التصحيحات السريعة |
-| `Escape` | Dismiss current ghost text | إلغاء النص الشبحي الحالي |
+| `Escape` | Dismiss current ghost text | إلغاء النص المخفي الحالي |
 | `Ctrl+B` | Toggle sidebar | فتح/إغلاق الشريط الجانبي |
 | `Ctrl+,` | Open Settings | فتح الإعدادات |
 | `Ctrl+Z` | Undo | تراجع |
