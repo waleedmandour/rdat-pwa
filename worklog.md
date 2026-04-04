@@ -451,3 +451,29 @@ Stage Summary:
 - COEP `credentialless` is the correct setting for apps loading CDN resources (like Monaco)
 - Defensive try-catch guards prevent future crashes from Monaco API unavailability
 - The app renders with full IDE UI: Monaco Editor, sidebar, status bar, settings modal
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Create workflow diagram + EN↔AR translation direction switch
+
+Work Log:
+- Read and analyzed all source files for language direction implementation
+- Added LanguageDirection type ("en-ar" | "ar-en") and LanguagePair interface to types/index.ts
+- Added LANGUAGE_PAIRS, SYSTEM_PROMPTS, GEMINI_SYSTEM_PROMPTS, DEFAULT_REWRITE_INSTRUCTION to constants.ts
+- Parameterized prompt-builder.ts: getSystemPrompt(), formatRAGContext(), buildMessages() now accept direction
+- Updated gemini-provider.ts: rewriteText() accepts direction for dynamic prompts
+- Made amta-linter.ts direction-aware: lintText() and buildAMTACodeAction() search source language terms
+- Added langDirection state to WorkspaceShell with localStorage persistence
+- Updated Header.tsx: clickable language pair badge with animated swap icon
+- Updated StatusBar.tsx: clickable language indicator that swaps on click
+- Updated SettingsModal.tsx: dynamic language display + swap button in Languages tab
+- Updated useGemini.ts hook to accept direction in rewrite() call
+- Created professional Mermaid.js workflow diagram in README.md
+- All changes pass: TypeScript type check (0 errors in modified files), ESLint (0 errors), Next.js build (success)
+
+Stage Summary:
+- 11 files modified, 322 insertions, 71 deletions
+- Translation direction swap fully implemented across all layers
+- Workflow diagram renders natively on GitHub with Mermaid.js
+- Pushed to GitHub: commit b8c3903
