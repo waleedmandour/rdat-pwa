@@ -1,0 +1,122 @@
+[
+  {
+    "id": "gtr-001",
+    "type": "terminology",
+    "en": "fighter jet",
+    "ar": "طائرة مقاتلة",
+    "context": "A military aircraft designed primarily for air-to-air combat with other aircraft",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-002",
+    "type": "terminology",
+    "en": "military aircraft",
+    "ar": "طائرة عسكرية",
+    "context": "Any fixed-wing or rotary-wing aircraft operated by military forces for combat or support missions",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-003",
+    "type": "terminology",
+    "en": "sanctions",
+    "ar": "عقوبات اقتصادية",
+    "context": "Restrictive measures imposed by one or more countries against another country, entity, or individual to coerce policy change",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-004",
+    "type": "terminology",
+    "en": "nuclear program",
+    "ar": "البرنامج النووي",
+    "context": "A coordinated national effort to develop nuclear technology for energy, medicine, or weapons",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-005",
+    "type": "terminology",
+    "en": "Security Council",
+    "ar": "مجلس الأمن",
+    "context": "The United Nations Security Council, responsible for maintaining international peace and security",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-006",
+    "type": "terminology",
+    "en": "ceasefire",
+    "ar": "وقف إطلاق النار",
+    "context": "A temporary suspension of hostilities by agreement between opposing forces in a conflict",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-007",
+    "type": "terminology",
+    "en": "sovereignty",
+    "ar": "السيادة",
+    "context": "The supreme authority of a state to govern itself without external interference",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "gtr-008",
+    "type": "terminology",
+    "en": "diplomatic relations",
+    "ar": "العلاقات الدبلوماسية",
+    "context": "Official relationships between two nations conducted through ambassadors and diplomatic missions",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "gtr-009",
+    "type": "translation_memory",
+    "en": "The United States imposed new sanctions on Iran over its nuclear program.",
+    "ar": "فرضت الولايات المتحدة عقوبات جديدة على إيران بسبب برنامجها النووي.",
+    "context": "US-Iran geopolitical escalation regarding nuclear non-proliferation compliance",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-010",
+    "type": "translation_memory",
+    "en": "The Security Council convened an emergency session to discuss the ceasefire agreement in the region.",
+    "ar": "عقد مجلس الأمن جلسة طارئة لمناقشة اتفاق وقف إطلاق النار في المنطقة.",
+    "context": "UN Security Council response to escalating regional conflict requiring diplomatic intervention",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-011",
+    "type": "translation_memory",
+    "en": "American military aircraft conducted reconnaissance operations near the disputed border.",
+    "ar": "أجرت الطائرات العسكرية الأمريكية عمليات استطلاع بالقرب من الحدود المتنازع عليها.",
+    "context": "US military surveillance activity near a contested territorial boundary",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-012",
+    "type": "translation_memory",
+    "en": "The two nations agreed to restore diplomatic relations after years of tensions.",
+    "ar": "اتفقت الدولتان على استعادة العلاقات الدبلوماسية بعد سنوات من التوترات.",
+    "context": "Bilateral diplomatic normalization following prolonged geopolitical dispute",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "gtr-013",
+    "type": "terminology",
+    "en": "arms embargo",
+    "ar": "حظر تسليح",
+    "context": "A legal restriction on the sale or supply of weapons and military equipment to a specific country or entity",
+    "amta_enforcement": "strict"
+  },
+  {
+    "id": "gtr-014",
+    "type": "terminology",
+    "en": "peacekeeping mission",
+    "ar": "بعثة حفظ سلام",
+    "context": "A UN-authorized deployment of military and civilian personnel to help maintain peace and security in a conflict zone",
+    "amta_enforcement": "suggested"
+  },
+  {
+    "id": "gtr-015",
+    "type": "translation_memory",
+    "en": "The fighter jets were deployed to enforce the no-fly zone over the northern provinces.",
+    "ar": "نُشرت الطائرات المقاتلة لفرض منطقة حظر الطيران فوق المحافظات الشمالية.",
+    "context": "Military enforcement of an aerial exclusion zone to restrict unauthorized flights",
+    "amta_enforcement": "strict"
+  }
+]

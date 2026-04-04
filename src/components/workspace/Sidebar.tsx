@@ -96,21 +96,21 @@ export function Sidebar({
       label: "GTR Glossary",
       arLabel: UI_LABELS.glossary.ar,
       icon: Database,
-      badge: "Phase 3",
+      badge: null,
     },
     {
       id: "vector-db" as string,
       label: "Vector DB",
       arLabel: "قاعدة بيانات المتجهات",
       icon: Database,
-      badge: "Phase 3",
+      badge: null,
     },
     {
       id: "ai-models" as string,
       label: "AI Models",
       arLabel: UI_LABELS.aiModels.ar,
       icon: Sparkles,
-      badge: "Phase 4",
+      badge: null,
     },
   ];
 
@@ -331,9 +331,9 @@ export function Sidebar({
       {/* Bottom info */}
       <div className="mt-auto p-3 border-t border-[var(--ide-border)]">
         <p className="text-[10px] text-[var(--ide-text-dim)] leading-relaxed">
-          Phase 8 — Split-Pane CAT Workspace. Professional bilingual UI with
-          Arabic subtitle support. {UI_LABELS.sovereignTrack.en} (Gemma 2 WebGPU) +
-          {UI_LABELS.reasoningTrack.en} (Gemini 3.1 Flash Lite).
+          Split-Pane CAT Workspace with GTR vector DB. Professional bilingual
+          UI with Arabic subtitle support. {UI_LABELS.sovereignTrack.en} (Gemma 2
+          WebGPU) + {UI_LABELS.reasoningTrack.en} (Gemini 3.1 Flash Lite).
         </p>
       </div>
     </aside>

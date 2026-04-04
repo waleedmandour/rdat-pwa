@@ -1,12 +1,19 @@
 // ─── RAG Worker Message Protocol ────────────────────────────────────
 // Typed messages for Main Thread ↔ Web Worker communication.
 
+/** AMTA enforcement level for glossary entries */
+export type AMTAEnforcement = "strict" | "suggested" | boolean;
+
 /** Corpus entry as stored in the vector database */
 export interface CorpusEntry {
   id: string;
   en: string;
   ar: string;
   context: string;
+  /** Entry type: terminology (individual terms) or translation_memory (full sentences) */
+  type?: "terminology" | "translation_memory";
+  /** AMTA enforcement: "strict" = hard lint, "suggested" = soft hint, boolean for legacy compat */
+  amta_enforcement?: AMTAEnforcement;
 }
 
 /** A single RAG search result with similarity score */
@@ -16,6 +23,9 @@ export interface RAGResult {
   ar: string;
   context: string;
   score: number;
+  /** Propagated from corpus entry for downstream consumers */
+  type?: "terminology" | "translation_memory";
+  amta_enforcement?: AMTAEnforcement;
 }
 
 /** Timing breakdown for a search operation */
@@ -28,7 +38,7 @@ export interface RAGTiming {
 // ─── Main → Worker Messages ─────────────────────────────────────────
 
 export type WorkerRequest =
-  | { type: "bootstrap"; corpusUrl: string }
+  | { type: "bootstrap"; corpusUrl: string; corpusData?: CorpusEntry[] }
   | { type: "search"; query: string; requestId: string }
   | { type: "get-status" };
 

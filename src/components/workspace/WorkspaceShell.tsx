@@ -14,7 +14,7 @@ import { EditorWelcome } from "./EditorWelcome";
 import { MonacoEditor } from "./MonacoEditor";
 import { TerminologyPanel } from "./TerminologyPanel";
 import { useEditorEventLoop } from "@/hooks/useEditorEventLoop";
-import { useRAG } from "@/hooks/useRAG";
+import { useGTRBootstrapper } from "@/hooks/useGTRBootstrapper";
 import { useWebLLM } from "@/hooks/useWebLLM";
 import { useGemini } from "@/hooks/useGemini";
 import { useAMTALinter } from "@/hooks/useAMTALinter";
@@ -33,7 +33,9 @@ export type EditorView = "welcome" | "editor";
  */
 const DEFAULT_SOURCE_TEXT_EN = `Force Majeure. Neither party shall be held liable for failure to perform obligations under this agreement due to events beyond reasonable control.
 
-Intellectual Property Rights. All patents, trademarks, copyrights, and trade secrets developed during the term of this agreement shall remain the exclusive property of the originating party.
+American military aircraft conducted reconnaissance operations near the disputed border region. The United States imposed new sanctions on Iran over its nuclear program.
+
+The Security Council convened an emergency session to discuss the ceasefire agreement. The two nations agreed to restore diplomatic relations after years of tensions.
 
 Governing Law. This agreement shall be governed by and construed in accordance with the laws of the jurisdiction in which the originating party is domiciled.`;
 
@@ -150,8 +152,8 @@ export function WorkspaceShell({
   // Track editor selection state for Rewrite button disable logic
   const [hasSelection, setHasSelection] = useState(false);
 
-  // ─── RAG Pipeline ──────────────────────────────────────────────
-  const rag = useRAG();
+  // ─── GTR Pipeline (RAG + Corpus Caching) ──────────────────────
+  const rag = useGTRBootstrapper();
 
   // ─── WebLLM Engine ─────────────────────────────────────────────
   const webllm = useWebLLM();

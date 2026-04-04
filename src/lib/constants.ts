@@ -21,12 +21,15 @@ export const GHOST_TEXT_DEBOUNCE_MS = 150; // Faster debounce for ghost text
 // ─── Mock Inference (Phase 2 placeholder) ───────────────────────────
 export const MOCK_INFERENCE_DELAY_MS = 1500; // Simulated AI generation delay
 
-// ─── RAG / Vector DB (Phase 3) ─────────────────────────────────────
+// ─── RAG / Vector DB (GTR) ─────────────────────────────────────────
 export const EMBEDDING_DIMENSIONS = 384; // MiniLM-L12-v2 output dimensions
 export const EMBEDDING_MODEL_ID = "Xenova/paraphrase-multilingual-MiniLM-L12-v2";
 export const MODEL_LOAD_TIMEOUT_MS = 60_000; // 60s timeout for model download
-export const CORPUS_BOOTSTRAP_URL = "/opus-glossary-en-ar.json";
-export const RAG_SEARCH_LIMIT = 3; // Top K results
+export const DEFAULT_CORPUS_URL = "/data/default-corpus-en-ar.json";
+export const CORPUS_BOOTSTRAP_URL = DEFAULT_CORPUS_URL; // Legacy alias
+export const CORPUS_CACHE_KEY = "rdat-gtr-corpus-cache";
+export const CORPUS_CACHE_VERSION = "v1";
+export const RAG_SEARCH_LIMIT = 5; // Top K results (increased for richer terminology display)
 export const RAG_SEARCH_TARGET_MS = 50; // Target: vector search < 50ms
 
 // ─── Vector DB ──────────────────────────────────────────────────────

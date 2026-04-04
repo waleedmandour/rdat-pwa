@@ -197,18 +197,27 @@ async function initEmbeddingModel(): Promise<boolean> {
 
 // ─── Bootstrap: Fetch Corpus → Generate Embeddings → Index ───────
 
-async function bootstrap(corpusUrl: string): Promise<void> {
-  setStatus("indexing", "Fetching corpus JSON…");
-
+async function bootstrap(corpusUrl: string, preloadedData?: CorpusEntry[]): Promise<void> {
   try {
-    const response = await fetch(corpusUrl);
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch corpus: ${response.status} ${response.statusText}`
-      );
+    let corpus: CorpusEntry[];
+
+    if (preloadedData && preloadedData.length > 0) {
+      // Use pre-loaded corpus from localStorage cache (skip HTTP fetch)
+      corpus = preloadedData;
+      setStatus("indexing", `Using cached corpus (${corpus.length} entries)…`);
+      log("info", `Using pre-loaded corpus: ${corpus.length} entries`);
+    } else {
+      // Fetch corpus from URL
+      setStatus("indexing", "Fetching corpus JSON…");
+      const response = await fetch(corpusUrl);
+      if (!response.ok) {
+        throw new Error(
+          `Failed to fetch corpus: ${response.status} ${response.statusText}`
+        );
+      }
+      corpus = await response.json();
+      log("info", `Corpus fetched: ${corpus.length} entries`);
     }
-    const corpus: CorpusEntry[] = await response.json();
-    log("info", `Corpus fetched: ${corpus.length} entries`);
 
     // Attempt to load the real embedding model
     await initEmbeddingModel();
@@ -237,6 +246,9 @@ async function bootstrap(corpusUrl: string): Promise<void> {
         ar: entry.ar,
         context: entry.context,
         embedding,
+        // Preserve GTR metadata for search results
+        type: entry.type || "terminology",
+        amta_enforcement: entry.amta_enforcement || false,
       });
 
       setStatus(
@@ -314,6 +326,8 @@ async function searchQuery(
       ar: hit.document.ar,
       context: hit.document.context,
       score: hit.score,
+      type: hit.document.type,
+      amta_enforcement: hit.document.amta_enforcement,
     })
   );
 
@@ -363,8 +377,8 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
 
   switch (msg.type) {
     case "bootstrap":
-      log("info", `Bootstrapping RAG pipeline from: ${msg.corpusUrl}`);
-      bootstrap(msg.corpusUrl);
+      log("info", `Bootstrapping GTR pipeline from: ${msg.corpusUrl}${msg.corpusData ? " (pre-loaded cache)" : ""}`);
+      bootstrap(msg.corpusUrl, msg.corpusData);
       break;
 
     case "search":
