@@ -90,3 +90,27 @@ Task: Implement 4 UI/UX fixes — AMTA linter punctuation, cross-editor highligh
 - Now displays "EN → AR" instead of "EN ← AR"
 
 All changes pass ESLint with zero errors.
+---
+Task ID: 1
+Agent: Main Agent
+Task: Research GTR glossary databases online and embed corpus in RDAT-Copilot
+
+Work Log:
+- Searched 15+ web sources for EN-AR geopolitical glossary databases
+- Deep-dived into: UNTERM (UN), HuggingFace Tatoeba-EN-AR (30,853 pairs), OPUS corpus, TTMEM, Desert-Sky vocabulary, ICNC glossary, ILOTERM
+- Scraped full HTML tables from arabic.desert-sky.net/m_govt.html (~200 geopolitical EN-AR term pairs)
+- Evaluated sources by embeddability for client-side PWA (size, licensing, format)
+- Created public/data/default-corpus-en-ar.json with 180 entries (160 terminology + 20 translation memory)
+- Organized across 8 domains: government, diplomacy, elections, law, human rights, ideology, military, legal
+- 83 strict AMTA-enforced terms for quality linting
+- Bumped CORPUS_CACHE_VERSION from v1 to v2
+- Verified build succeeded (Next.js 16 Turbopack - zero errors)
+- Pushed to GitHub as commit b714249
+
+Stage Summary:
+- UNTERM and OPUS not directly embeddable (too large for client-side PWA)
+- Desert-Sky vocabulary identified as primary source (free, accurate, comprehensive)
+- HuggingFace Tatoeba-EN-AR (CC-BY-2.0) is best TM source if larger corpus needed later
+- UNTERM Country Names EN-AR (Excel download) could supplement as future enhancement
+- All infrastructure (useGTRBootstrapper, rag-worker, TerminologyPanel) was already built
+- Sidebar was already clean (no Phase text found)
