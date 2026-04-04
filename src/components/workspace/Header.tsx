@@ -9,6 +9,7 @@ import {
   ArrowLeftRight,
   Info,
 } from "lucide-react";
+import { InstallPWAButton } from "./InstallPWAButton";
 import { Button } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/constants";
 import type { LanguageDirection, LanguagePair } from "@/types";
@@ -91,7 +92,9 @@ export function Header({
       </div>
 
       {/* Right section */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
+        {/* PWA Install Button (only shows in eligible browsers) */}
+        <InstallPWAButton />
         <Button
           variant="ghost"
           size="icon"

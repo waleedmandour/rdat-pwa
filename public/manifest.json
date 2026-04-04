@@ -2,12 +2,12 @@
   "name": "RDAT Copilot",
   "short_name": "RDAT",
   "description": "Repository-Driven Adaptive Translation — AI-Powered Co-Writing IDE for Translators",
-  "start_url": ".",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#0d1117",
   "theme_color": "#0d1117",
-  "orientation": "landscape",
-  "scope": ".",
+  "orientation": "any",
+  "scope": "/",
   "icons": [
     {
       "src": "icons/icon-72x72.png",
