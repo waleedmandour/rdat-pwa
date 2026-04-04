@@ -124,9 +124,9 @@ export const MODE_LABELS = {
 } as const;
 
 export const MODE_LABELS_AR = {
-  local: "سيادي (معالج محلي)",
+  local: "مسار التحكم (علي الجهاز)",
   cloud: "سحابي (Gemini)",
-  hybrid: "هجين (محلي + سحابي)",
+  hybrid: "هجين (مسار تحكم + سحابي)",
 } as const;
 
 export const GPU_STATUS_LABELS = {
@@ -170,11 +170,11 @@ export const WEBLLM_STATE_LABELS = {
 } as const;
 
 export const WEBLLM_STATE_LABELS_AR = {
-  idle: "النموذج المحلي: خامل",
-  initializing: "النموذج المحلي: تحميل…",
-  ready: "النموذج المحلي: جاهز",
-  generating: "النموذج المحلي: توليد…",
-  error: "النموذج المحلي: خطأ",
+  idle: "ذكاء اصطناعي مثبت علي الجهاز: خامل",
+  initializing: "ذكاء اصطناعي مثبت علي الجهاز: تحميل…",
+  ready: "ذكاء اصطناعي مثبت علي الجهاز: جاهز",
+  generating: "ذكاء اصطناعي مثبت علي الجهاز: توليد…",
+  error: "ذكاء اصطناعي مثبت علي الجهاز: خطأ",
 } as const;
 
 // ─── Cloud AI (Reasoning Track) ─────────────────────────────────────
@@ -189,7 +189,7 @@ export const AMTA_MIN_TERM_LENGTH = 3; // Minimum term length to lint
 // ─── Bilingual UI Labels ───────────────────────────────────────────
 export const UI_LABELS = {
   translationEditor: { ar: "محرر الترجمة", en: "Translation Editor" },
-  sovereignTrack: { ar: "المسار السيادي", en: "Sovereign Track" },
+  sovereignTrack: { ar: "مسار التحكم (علي الجهاز)", en: "Sovereign Track" },
   reasoningTrack: { ar: "مسار الاستدلال", en: "Reasoning Track" },
   glossary: { ar: "مسرد المصطلحات", en: "Terminology Glossary" },
   aiModels: { ar: "نماذج الذكاء الاصطناعي", en: "AI Models" },

@@ -361,6 +361,9 @@ export function WorkspaceShell({
           <Sidebar
             activeView={activeView}
             onViewChange={openView}
+            geminiMaskedKey={gemini.getMaskedKey()}
+            geminiHasApiKey={gemini.hasApiKey}
+            onSetGeminiApiKey={gemini.setApiKey}
           />
         )}
 

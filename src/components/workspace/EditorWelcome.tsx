@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Sparkles,
   Cloud,
   Cpu,
   Zap,
@@ -24,10 +23,13 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
       <div className="flex flex-col items-center max-w-xl w-full">
         {/* Hero Section */}
         <div className="flex flex-col items-center text-center mb-8">
-          {/* Icon */}
-          <div className="flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-teal-500/20 to-cyan-500/20 border border-teal-500/30 mb-6">
-            <Sparkles className="w-10 h-10 text-teal-400" />
-          </div>
+          {/* App Logo — uses the RDAT "R" icon from logo.svg */}
+          <div
+            className="w-20 h-20 rounded-2xl border border-[var(--ide-border)] mb-6 bg-[var(--ide-bg-secondary)] bg-no-repeat bg-center bg-contain p-2"
+            style={{ backgroundImage: "url(/logo.svg)" }}
+            role="img"
+            aria-label="RDAT Copilot Logo"
+          />
 
           {/* Arabic Title (primary) */}
           <h1 className="text-2xl font-bold text-[var(--ide-text)] mb-1.5 tracking-tight" dir="rtl">
@@ -68,11 +70,11 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
           </div>
           <p className="text-xs text-[var(--ide-text-muted)] leading-relaxed" dir="rtl">
             {appMode === "hybrid" &&
-              "متصفحك يدعم WebGPU. المسار السيادي (الذكاء الاصطناعي المحلي) ومسار الاستدلال (الذكاء الاصطناعي السحابي) متاحان كلاهما."}
+              "متصفحك يدعم WebGPU. مسار التحكم (علي الجهاز) والذكاء الاصطناعي السحابي (Gemini) متاحان كلاهما."}
             {appMode === "cloud" &&
               "WebGPU غير متاح في هذا المتصفح. يتم التشغيل في وضع السحابة فقط باستخدام Gemini API لجميع ميزات الذكاء الاصطناعي."}
             {appMode === "local" &&
-              "يتم التشغيل في وضع عدم الاتصال باستخدام النموذج المحلي فقط. ميزات السحابة معطلة."}
+              "يتم التشغيل في وضع عدم الاتصال باستخدام الذكاء الاصطناعي المثبت علي الجهاز فقط. ميزات السحابة معطلة."}
           </p>
         </div>
 
@@ -114,10 +116,10 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
             <div className="p-4 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors cursor-pointer group">
               <div className="flex items-center gap-2 mb-2">
                 <Shield className="w-4 h-4 text-emerald-400" />
-                <span className="text-sm font-medium text-[var(--ide-text)]">المسار السيادي</span>
+                <span className="text-sm font-medium text-[var(--ide-text)]">مسار التحكم (علي الجهاز)</span>
               </div>
               <p className="text-[9px] text-teal-300/60 mb-2" dir="rtl">
-                نموذج Gemma 2 يعمل محليًا عبر WebGPU — لا يحتاج اتصال بالإنترنت
+                نموذج Gemma 2 مثبت علي الجهاز عبر WebGPU — لا يحتاج اتصال بالإنترنت
               </p>
               <p className="text-[10px] text-[var(--ide-text-dim)]">
                 Gemma 2 runs locally via WebGPU — no internet connection needed
@@ -144,7 +146,7 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
                 </span>
               </div>
               <p className="text-[11px] text-[var(--ide-text-muted)]">Gemma 2 (INT4 Quantized)</p>
-              <p className="text-[9px] text-teal-300/60" dir="rtl">يعمل محليًا عبر WebGPU في المتصفح</p>
+              <p className="text-[9px] text-teal-300/60" dir="rtl">مثبت علي الجهاز عبر WebGPU في المتصفح</p>
             </div>
 
             {/* Reasoning Track */}
@@ -172,7 +174,7 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
               </div>
               <p className="text-[10px] text-[var(--ide-text-dim)] mt-1">
                 WebLLM v0.2.82 does not yet support Gemma 4. Once available, we will
-                upgrade the Sovereign Track for significantly better translation quality.
+                upgrade the sovereign track for significantly better translation quality.
               </p>
             </div>
           </div>
@@ -209,7 +211,7 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
             {
               phase: 4,
               title: "Local Sovereign Track (Gemma 2B)",
-              arTitle: "المسار السيادي المحلي (Gemma 2B)",
+              arTitle: "مسار التحكم المثبت علي الجهاز (Gemma 2B)",
               status: "completed" as const,
               description: "WebLLM inference, ghost text, interrupt on keystroke",
             },
@@ -231,8 +233,15 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
               phase: 7,
               title: "Professional UI & Vercel Deployment",
               arTitle: "واجهة احترافية — Vercel Deployment",
-              status: "active" as const,
+              status: "completed" as const,
               description: "Bilingual Arabic/English labels, Vercel deployment, polish",
+            },
+            {
+              phase: 8,
+              title: "Split-Pane CAT Workspace",
+              arTitle: "مساحة العمل المقسمة — واجهة CAT",
+              status: "active" as const,
+              description: "Side-by-side source/target, source-driven RAG, Gemini rewrite",
             },
           ].map((item) => (
             <div
