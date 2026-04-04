@@ -4,6 +4,7 @@ import { useRef, useCallback, useEffect } from "react";
 import Editor, { type OnMount, type BeforeMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import type { RAGResult } from "@/lib/rag-types";
+import type { SuggestionMode } from "@/types";
 import { MOCK_INFERENCE_DELAY_MS } from "@/lib/constants";
 
 /**
@@ -96,6 +97,8 @@ interface MonacoEditorProps {
   className?: string;
   /** Line number to highlight (used for cross-editor active sentence tracking) */
   highlightLine?: number;
+  /** Callback to notify parent of the current suggestion mode (gtr vs zero-shot) */
+  onSuggestionModeChange?: (mode: SuggestionMode) => void;
 }
 
 /**
@@ -126,6 +129,10 @@ function injectHighlightStyle() {
  * - Cursor position tracking for source line extraction
  * - Cross-editor line highlighting via deltaDecorations
  * - Proper disposal of providers and editor on unmount
+ *
+ * v3.0 — Always-On Fallback Pipeline:
+ * - Ghost-Text Autocorrect: prefix replacement via word-range detection
+ * - If LLM is ready, always generates (no abort when RAG = 0)
  */
 export function MonacoEditor({
   value,
@@ -142,6 +149,7 @@ export function MonacoEditor({
   onCursorPositionChange,
   className,
   highlightLine,
+  onSuggestionModeChange,
 }: MonacoEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
@@ -182,6 +190,12 @@ export function MonacoEditor({
   useEffect(() => {
     onCursorChangeRef.current = onCursorPositionChange;
   }, [onCursorPositionChange]);
+
+  // Store suggestion mode callback in a ref
+  const onSuggestionModeChangeRef = useRef(onSuggestionModeChange);
+  useEffect(() => {
+    onSuggestionModeChangeRef.current = onSuggestionModeChange;
+  }, [onSuggestionModeChange]);
 
   /**
    * beforeMount — Register the language and inline completions provider.
@@ -235,6 +249,9 @@ export function MonacoEditor({
                 const suggestion = getRandomSuggestion();
                 console.log(`[RDAT] Ghost text delivered (mock): "${suggestion}"`);
 
+                // Notify parent of zero-shot mode (no GTR context in mock)
+                onSuggestionModeChangeRef.current?.("zero-shot");
+
                 return {
                   items: [
                     {
@@ -256,7 +273,7 @@ export function MonacoEditor({
               }
             }
 
-            // ── Real WebLLM generation path ──
+            // ── Real WebLLM generation path (Always-On) ──
             try {
               if (token.isCancellationRequested) {
                 throw new Error("Already cancelled");
@@ -270,10 +287,47 @@ export function MonacoEditor({
                 disposable.dispose();
               });
 
+              // ── Ghost-Text Autocorrect: Compute word range for prefix replacement ──
+              // Get the current word boundary at the cursor position
+              const wordUntil = model.getWordUntilPosition(position);
+              const lineContent = model.getLineContent(position.lineNumber);
+              const lineTextUntilCursor = lineContent.substring(0, position.column - 1);
+
+              // Build a range spanning from the start of the current word to the cursor
+              // This enables prefix replacement: if the user types "الهرم الأكبـ",
+              // the LLM generates "الأكبر" and Monaco replaces the incomplete prefix.
+              const wordStartColumn = Math.max(1, position.column - wordUntil.word.length);
+              const wordRange: Monaco.IRange = {
+                startLineNumber: position.lineNumber,
+                startColumn: wordStartColumn,
+                endLineNumber: position.lineNumber,
+                endColumn: position.column,
+              };
+
+              // Detect if the current word is incomplete or potentially misspelled
+              // (ends with partial Arabic diacritic, is very short, or has trailing partial chars)
+              const currentWord = wordUntil.word;
+              const isIncompleteOrPartial =
+                currentWord.length > 0 && (
+                  currentWord.length <= 2 ||                          // Very short word likely incomplete
+                  /[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FFa-zA-Z\s]$/.test(currentWord) || // Trailing non-letter char
+                  /[\u064B-\u065F\u0670]$/.test(currentWord)            // Trailing Arabic diacritic (tashkeel)
+                );
+
+              console.log(
+                `[RDAT] Ghost text autocorrect — word: "${currentWord}" (${currentWord.length} chars), ` +
+                `isPartial: ${isIncompleteOrPartial}, range: col ${wordStartColumn}→${position.column}`
+              );
+
               // Get current editor text
               const text = model.getValue();
 
+              // Notify parent about suggestion mode based on RAG results
+              const hasRAGResults = config.ragResults && config.ragResults.length > 0;
+              onSuggestionModeChangeRef.current?.(hasRAGResults ? "gtr" : "zero-shot");
+
               // Generate completion using AI (WebLLM or Gemini) + RAG context
+              // Always-On: generation proceeds even when ragResults.length === 0
               const generatedText = await config.generateCompletion(text, config.ragResults);
 
               if (cancelled) {
@@ -282,17 +336,26 @@ export function MonacoEditor({
               }
 
               if (generatedText && generatedText.trim().length > 0) {
-                console.log(`[RDAT] Ghost text delivered (WebLLM): "${generatedText.substring(0, 50)}…"`);
+                const trimmed = generatedText.trim();
+                console.log(`[RDAT] Ghost text delivered (AI): "${trimmed.substring(0, 50)}…" [mode: ${hasRAGResults ? "GTR" : "Zero-Shot"}]`);
+
+                // Ghost-Text Autocorrect: If the current word is incomplete/misspelled,
+                // use the word range so the LLM output replaces the partial prefix.
+                // Otherwise, use the standard cursor-position range (append after cursor).
+                const shouldUseWordRange = isIncompleteOrPartial && currentWord.length > 0;
+
                 return {
                   items: [
                     {
-                      insertText: generatedText.trim(),
-                      range: {
-                        startLineNumber: position.lineNumber,
-                        startColumn: position.column,
-                        endLineNumber: position.lineNumber,
-                        endColumn: position.column,
-                      },
+                      insertText: trimmed,
+                      range: shouldUseWordRange
+                        ? wordRange
+                        : {
+                            startLineNumber: position.lineNumber,
+                            startColumn: position.column,
+                            endLineNumber: position.lineNumber,
+                            endColumn: position.column,
+                          },
                     },
                   ],
                 };

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import type { GPUStatus, AppMode, RewriteResult, LanguageDirection } from "@/types";
+import type { GPUStatus, AppMode, RewriteResult, LanguageDirection, SuggestionMode } from "@/types";
 import type { RAGResult } from "@/lib/rag-types";
 import type * as Monaco from "monaco-editor";
 import { Header } from "./Header";
@@ -208,6 +208,9 @@ export function WorkspaceShell({
     } catch { /* noop */ }
   }, [langDirection]);
 
+  // ─── Suggestion Mode State (GTR vs Zero-Shot) ──────────────────
+  const [suggestionMode, setSuggestionMode] = useState<SuggestionMode>("gtr");
+
   // ─── About Dialog ────────────────────────────────────────────────
   const [aboutOpen, setAboutOpen] = useState(false);
 
@@ -262,13 +265,18 @@ export function WorkspaceShell({
    * generateCompletion — Orchestrates SOURCE-DRIVEN RAG + AI for نص مخفي (ghost text).
    * Called from MonacoEditor's inline completions provider (target pane only).
    *
-   * Pipeline (dual-track نص مخفي / ghost text):
+   * Pipeline v3.0 — Always-On Fallback:
    *   1. Extract the active source sentence (from source pane, line-matched)
    *   2. RAG search on source sentence (if not cached from debounce)
-   *   3. Build messages: source sentence + RAG context + target draft
-   *   4a. Generate via WebLLM (Gemma 2B local) — PRIMARY
+   *   3. Build messages dynamically:
+   *      - If RAG > 0: Context-Augmented Prompt (GTR terminology enforced)
+   *      - If RAG === 0: Zero-Shot Translation Prompt (pure LLM knowledge)
+   *   4a. Generate via WebLLM (Gemma local) — PRIMARY
    *   4b. Fall back to Gemini (cloud) if WebLLM not ready — SECONDARY
    *   4c. Fall back to mock suggestions if neither available
+   *
+   * Key change: Generation is NEVER aborted when RAG = 0. The pipeline
+   * always produces a suggestion, switching to zero-shot mode transparently.
    */
   const generateCompletion = useCallback(
     async (editorText: string, ragResults: RAGResult[]): Promise<string | null> => {
@@ -285,10 +293,19 @@ export function WorkspaceShell({
         }
       }
 
-      // Step 3: Build messages with source sentence + RAG context + target draft
-      const messages = buildMessages(editorText, results, langDirection, sourceSentence);
+      // Step 3: Build messages dynamically based on RAG availability
+      const { messages, usedGTR } = buildMessages(editorText, results, langDirection, sourceSentence);
+
+      // Update suggestion mode for the StatusBar indicator
+      setSuggestionMode(usedGTR ? "gtr" : "zero-shot");
+
+      console.log(
+        `[RDAT] Ghost text pipeline — mode: ${usedGTR ? "GTR (Context-Augmented)" : "Zero-Shot (Fallback)"}, ` +
+        `RAG results: ${results.length}`
+      );
 
       // Step 4a: Try WebLLM first (Sovereign Track — local GPU)
+      // ALWAYS attempt generation — never abort when RAG = 0
       if (webllm.isReady) {
         return webllm.generate(messages);
       }
@@ -645,6 +662,7 @@ export function WorkspaceShell({
                         enableCompletions
                         languageId="rdat-target"
                         onCursorPositionChange={handleCursorPositionChange}
+                        onSuggestionModeChange={setSuggestionMode}
                       />
                     </div>
                   </div>
@@ -751,6 +769,7 @@ export function WorkspaceShell({
         amtaLintCount={amta.lintCount}
         langPair={langPair}
         onSwapDirection={swapLanguageDirection}
+        suggestionMode={suggestionMode}
       />
 
       {/* About Dialog */}

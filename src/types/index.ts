@@ -100,6 +100,9 @@ export interface LintMarker {
 // ─── Gemini Cloud State ───────────────────────────────────────────
 export type GeminiState = "idle" | "ready" | "generating" | "error";
 
+// ─── Suggestion Mode ──────────────────────────────────────────────
+export type SuggestionMode = "gtr" | "zero-shot";
+
 // ─── AMTA Linter ───────────────────────────────────────────────────
 export interface AMTALintIssue {
   id: string;

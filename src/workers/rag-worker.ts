@@ -312,7 +312,7 @@ async function searchQuery(
     vector: {
       value: queryEmbedding,
       property: "embedding",
-      similarity: 0.3,
+      similarity: 0.2, // Lowered from 0.3 to allow more fuzzy semantic matches
     },
     limit: RAG_SEARCH_LIMIT,
   });

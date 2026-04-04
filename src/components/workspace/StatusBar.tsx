@@ -8,8 +8,10 @@ import {
   Database,
   AlertTriangle,
   ArrowLeftRight,
+  BrainCircuit,
+  Sparkles,
 } from "lucide-react";
-import type { GPUStatus, AppMode, InferenceState, WebLLMState, WebLLMProgress, GeminiState, LanguagePair } from "@/types";
+import type { GPUStatus, AppMode, InferenceState, WebLLMState, WebLLMProgress, GeminiState, LanguagePair, SuggestionMode } from "@/types";
 import type { RAGState, RAGTiming } from "@/lib/rag-types";
 import { formatGPULabel, getGPUStatusDotColor } from "@/lib/gpu-utils";
 import {
@@ -40,6 +42,8 @@ interface StatusBarProps {
   amtaLintCount: number;
   langPair: LanguagePair;
   onSwapDirection: () => void;
+  /** Current ghost text suggestion mode — GTR (verified TM) vs Zero-Shot (unverified AI) */
+  suggestionMode?: SuggestionMode;
 }
 
 function getRAGStateColor(state: RAGState): string {
@@ -158,7 +162,11 @@ export function StatusBar({
   amtaLintCount,
   langPair,
   onSwapDirection,
+  suggestionMode = "gtr",
 }: StatusBarProps) {
+  // Derive whether an AI engine is actively generating
+  const isGenerating = inferenceState === "running" || webllmState === "generating";
+
   return (
     <footer className="flex items-center justify-between h-7 px-3 border-t border-[var(--ide-border)] bg-[var(--ide-statusbar)] text-[11px] select-none">
       {/* Left section */}
@@ -219,6 +227,41 @@ export function StatusBar({
             }
           >
             AI: {INFERENCE_STATE_LABELS[inferenceState]}
+          </span>
+        </div>
+
+        <span className="text-[var(--ide-border)]">│</span>
+
+        {/* Suggestion Mode Indicator (GTR vs Zero-Shot) */}
+        <div className="flex items-center gap-1.5" title={
+          suggestionMode === "gtr"
+            ? "GTR Active — Suggestions are augmented with verified Translation Memory data"
+            : "Zero-Shot / LLM Mode — Suggestions are unverified AI output, not verified TM data"
+        }>
+          {isGenerating ? (
+            <Loader2 className={`w-3 h-3 animate-spin ${
+              suggestionMode === "gtr" ? "text-emerald-400" : "text-blue-400"
+            }`} />
+          ) : suggestionMode === "gtr" ? (
+            <Database className="w-3 h-3 text-emerald-400" />
+          ) : (
+            <Sparkles className="w-3 h-3 text-blue-400" />
+          )}
+          <span className={
+            suggestionMode === "gtr"
+              ? "text-emerald-400"
+              : "text-blue-400"
+          }>
+            {suggestionMode === "gtr" ? "GTR: Active" : "GTR: Zero-Shot"}
+          </span>
+          <span
+            className={`text-[9px] px-1 py-0.5 rounded ${
+              suggestionMode === "gtr"
+                ? "bg-emerald-500/20 text-emerald-400"
+                : "bg-blue-500/20 text-blue-400"
+            }`}
+          >
+            {suggestionMode === "gtr" ? "TM Verified" : "LLM Mode"}
           </span>
         </div>
 
