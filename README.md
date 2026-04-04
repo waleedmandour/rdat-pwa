@@ -18,6 +18,7 @@ A Progressive Web App that provides a full-featured, AI-powered co-writing envir
 
 **Dr. Waleed Mandour**
 Sultan Qaboos University (جامعة السلطان قابوس)
+📧 [w.abumandour@squ.edu.om](mailto:w.abumandour@squ.edu.om)
 
 RDAT Copilot is a research-informed translation technology tool designed for professional translators working between English and Arabic. It embodies a non-destructive editing philosophy — AI never overwrites the translator's text — and provides intelligent, context-aware suggestions that respect the translator's creative authority.
 
@@ -447,6 +448,7 @@ MIT — See [LICENSE](LICENSE) for details.
 
 <div align="center">
 <strong>Dr. Waleed Mandour</strong> · Sultan Qaboos University · جامعة السلطان قابوس
+📧 [w.abumandour@squ.edu.om](mailto:w.abumandour@squ.edu.om)
 
 Powered by WebGPU, Transformers.js, Orama, and Google Gemini
 </div>
@@ -496,6 +498,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
       <affiliationAr>جامعة السلطان قابوس</affiliation>
       <department>Department of Foreign Languages and Literature</department>
       <country>Oman</country>
+      <email>w.abumandour@squ.edu.om</email>
     </author>
     <application>
       <name>RDAT Copilot</name>
