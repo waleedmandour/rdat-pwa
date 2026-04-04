@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useSyncExternalStore } from "react";
-import type { GeminiState } from "@/types";
+import type { GeminiState, LanguageDirection } from "@/types";
 import type { RAGResult } from "@/lib/rag-types";
 import { GEMINI_API_KEY_STORAGE } from "@/lib/constants";
 import { initGemini, disposeGemini, isGeminiReady, rewriteText } from "@/lib/gemini-provider";
@@ -116,7 +116,7 @@ export function useGemini() {
    * rewrite — Send text to Gemini for rewriting.
    */
   const rewrite = useCallback(
-    async (text: string, ragResults: RAGResult[] = [], instruction?: string): Promise<string | null> => {
+    async (text: string, ragResults: RAGResult[] = [], direction: LanguageDirection = "en-ar", instruction?: string): Promise<string | null> => {
       if (!isGeminiReady()) {
         console.warn("[RDAT-Gemini] Not ready — no API key configured");
         return null;
@@ -125,7 +125,7 @@ export function useGemini() {
       setIsRewriting(true);
 
       try {
-        const result = await rewriteText(text, ragResults, instruction);
+        const result = await rewriteText(text, ragResults, direction, instruction);
         setIsRewriting(false);
         return result;
       } catch (err) {

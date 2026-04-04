@@ -1,16 +1,15 @@
 import type { CorpusEntry } from "./rag-types";
 import type { AMTALintIssue } from "@/types";
+import type { LanguageDirection } from "@/types";
 import { AMTA_MIN_TERM_LENGTH } from "./constants";
 
 /**
- * AMTA Linter — Scans editor text for English legal terms from the glossary
+ * AMTA Linter — Scans editor text for untranslated terms from the glossary
  * and flags them if they appear untranslated or improperly translated.
  *
  * Strategy:
- * 1. For each English term in the glossary, search for it in the editor text
- * 2. If found, check if the corresponding Arabic term is also present nearby
- * 3. If the English term is found but Arabic translation is missing, flag it
- * 4. Return an array of lint issues for Monaco markers
+ * 1. For EN→AR: search for English terms in editor, check Arabic translation nearby
+ * 2. For AR→EN: search for Arabic terms in editor, check English translation nearby
  */
 
 /**
@@ -18,11 +17,13 @@ import { AMTA_MIN_TERM_LENGTH } from "./constants";
  *
  * @param text The full editor text
  * @param glossary The translation memory entries (EN-AR pairs)
+ * @param direction The current language direction
  * @returns Array of AMTALintIssue objects for each untranslated term found
  */
 export function lintText(
   text: string,
-  glossary: CorpusEntry[]
+  glossary: CorpusEntry[],
+  direction: LanguageDirection = "en-ar"
 ): AMTALintIssue[] {
   if (!text || text.trim().length === 0 || !glossary || glossary.length === 0) {
     return [];
@@ -30,34 +31,39 @@ export function lintText(
 
   const issues: AMTALintIssue[] = [];
   const lines = text.split("\n");
+  const isForward = direction === "en-ar";
 
   for (const entry of glossary) {
     const enTerm = entry.en;
     const arTerm = entry.ar;
 
-    // Skip very short terms
-    if (enTerm.length < AMTA_MIN_TERM_LENGTH) continue;
+    // In forward mode, search for English terms; in reverse, search for Arabic terms
+    const searchTerm = isForward ? enTerm : arTerm;
+    const checkTerm = isForward ? arTerm : enTerm;
+    const searchLabel = isForward ? "en" : "ar";
 
-    // Search for the English term in each line
+    // Skip very short terms
+    if (searchTerm.length < AMTA_MIN_TERM_LENGTH) continue;
+
+    // Search for the term in each line
     for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
       const line = lines[lineIdx];
       const lowerLine = line.toLowerCase();
-      const lowerTerm = enTerm.toLowerCase();
+      const lowerTerm = searchTerm.toLowerCase();
 
-      // Find all occurrences of the English term in this line
+      // Find all occurrences in this line
       let searchFrom = 0;
       while (true) {
         const idx = lowerLine.indexOf(lowerTerm, searchFrom);
         if (idx === -1) break;
 
-        // Check if the Arabic term is present in the same line or adjacent lines
+        // Check if the corresponding translation is present nearby
         const contextWindow = getNearbyText(lines, lineIdx, 1);
-        const hasArabicTranslation = contextWindow.includes(arTerm);
+        const hasTranslation = contextWindow.includes(checkTerm);
 
-        if (!hasArabicTranslation) {
-          // Found untranslated term — create a lint issue
+        if (!hasTranslation) {
           const startColumn = idx + 1; // Monaco is 1-based
-          const endColumn = idx + enTerm.length + 1;
+          const endColumn = idx + searchTerm.length + 1;
 
           issues.push({
             id: `amta-${entry.id}-${lineIdx}-${idx}`,
@@ -68,7 +74,9 @@ export function lintText(
             endLineNumber: lineIdx + 1,
             startColumn,
             endColumn,
-            message: `AMTA: "${enTerm}" is not translated. Suggested: "${arTerm}"`,
+            message: isForward
+              ? `AMTA: "${enTerm}" is not translated. Suggested: "${arTerm}"`
+              : `AMTA: "${arTerm}" is not translated. Suggested: "${enTerm}"`,
           });
         }
 
@@ -77,11 +85,11 @@ export function lintText(
     }
   }
 
-  console.log(`[RDAT-AMTA] Lint complete: ${issues.length} issues found`);
+  console.log(`[RDAT-AMTA] Lint complete (${direction}): ${issues.length} issues found`);
   if (issues.length > 0) {
     issues.forEach((issue) => {
       console.log(
-        `  [RDAT-AMTA] Line ${issue.startLineNumber}: "${issue.enTerm}" → "${issue.arTerm}"`
+        `  [RDAT-AMTA] Line ${issue.startLineNumber}: "${isForward ? issue.enTerm : issue.arTerm}" → "${isForward ? issue.arTerm : issue.enTerm}"`
       );
     });
   }
@@ -100,14 +108,23 @@ function getNearbyText(lines: string[], centerLine: number, radius: number): str
 
 /**
  * Build CodeAction for an AMTA lint issue.
- * Returns the text edit that replaces the English term with the Arabic one.
+ * Returns the text edit that replaces the source term with the target term.
  */
-export function buildAMTACodeAction(issue: AMTALintIssue): {
+export function buildAMTACodeAction(
+  issue: AMTALintIssue,
+  direction: LanguageDirection = "en-ar"
+): {
   title: string;
   edit: { range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number }; text: string };
 } {
+  const isForward = direction === "en-ar";
+  const searchTerm = isForward ? issue.enTerm : issue.arTerm;
+  const replaceTerm = isForward ? issue.arTerm : issue.enTerm;
+
   return {
-    title: `AMTA: Replace "${issue.enTerm}" → "${issue.arTerm}"`,
+    title: isForward
+      ? `AMTA: Replace "${issue.enTerm}" → "${issue.arTerm}"`
+      : `AMTA: Replace "${issue.arTerm}" → "${issue.enTerm}"`,
     edit: {
       range: {
         startLineNumber: issue.startLineNumber,
@@ -115,7 +132,7 @@ export function buildAMTACodeAction(issue: AMTALintIssue): {
         endLineNumber: issue.endLineNumber,
         endColumn: issue.endColumn,
       },
-      text: issue.arTerm,
+      text: replaceTerm,
     },
   };
 }

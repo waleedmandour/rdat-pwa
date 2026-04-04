@@ -14,8 +14,10 @@ import {
   Check,
   Trash2,
   Rocket,
+  ArrowLeftRight,
 } from "lucide-react";
-import { UI_LABELS, LOCAL_MODEL_DISPLAY_NAME, LOCAL_MODEL_FAMILY } from "@/lib/constants";
+import { UI_LABELS, LOCAL_MODEL_DISPLAY_NAME, LOCAL_MODEL_FAMILY, LANGUAGE_PAIRS } from "@/lib/constants";
+import type { LanguageDirection } from "@/types";
 
 interface SettingsModalProps {
   open: boolean;
@@ -23,6 +25,8 @@ interface SettingsModalProps {
   geminiMaskedKey?: string;
   geminiHasApiKey?: boolean;
   onSetGeminiApiKey?: (key: string) => void;
+  langDirection?: LanguageDirection;
+  onSwapDirection?: () => void;
 }
 
 // SSR-safe client detection via useSyncExternalStore
@@ -43,6 +47,8 @@ export function SettingsModal({
   geminiMaskedKey,
   geminiHasApiKey,
   onSetGeminiApiKey,
+  langDirection = "en-ar",
+  onSwapDirection,
 }: SettingsModalProps) {
   const [activeSection, setActiveSection] = useState("general");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -249,7 +255,7 @@ export function SettingsModal({
                     </label>
                     <div className="flex items-center gap-2 px-3 py-2 rounded border border-[var(--ide-border)] bg-[var(--ide-bg-secondary)]">
                       <Globe className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
-                      <span className="text-xs text-[var(--ide-text)]">English (en)</span>
+                      <span className="text-xs text-[var(--ide-text)]">{LANGUAGE_PAIRS[langDirection].sourceLabel} ({LANGUAGE_PAIRS[langDirection].source})</span>
                     </div>
                   </div>
                   <div>
@@ -258,9 +264,19 @@ export function SettingsModal({
                     </label>
                     <div className="flex items-center gap-2 px-3 py-2 rounded border border-[var(--ide-border)] bg-[var(--ide-bg-secondary)]">
                       <Globe className="w-3.5 h-3.5 text-[var(--ide-text-muted)]" />
-                      <span className="text-xs text-[var(--ide-text)]">Arabic (ar)</span>
+                      <span className="text-xs text-[var(--ide-text)]">{LANGUAGE_PAIRS[langDirection].targetLabel} ({LANGUAGE_PAIRS[langDirection].target})</span>
                     </div>
                   </div>
+                </div>
+                <div className="flex justify-center pt-3">
+                  <button
+                    onClick={onSwapDirection}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg border border-teal-500/30 bg-teal-500/5 text-xs text-teal-400 hover:bg-teal-500/10 hover:border-teal-500/50 transition-colors cursor-pointer"
+                  >
+                    <ArrowLeftRight className={`w-3.5 h-3.5 ${langDirection === "ar-en" ? "rotate-180" : ""} transition-transform`} />
+                    <span>Swap: {LANGUAGE_PAIRS[langDirection].sourceLabel} ↔ {LANGUAGE_PAIRS[langDirection].targetLabel}</span>
+                    <span className="text-[9px] text-teal-300/50" dir="rtl">تبديل الاتجاه</span>
+                  </button>
                 </div>
               </div>
             )}

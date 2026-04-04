@@ -9,7 +9,7 @@ import {
   AlertTriangle,
   ArrowLeftRight,
 } from "lucide-react";
-import type { GPUStatus, AppMode, InferenceState, WebLLMState, WebLLMProgress, GeminiState } from "@/types";
+import type { GPUStatus, AppMode, InferenceState, WebLLMState, WebLLMProgress, GeminiState, LanguagePair } from "@/types";
 import type { RAGState, RAGTiming } from "@/lib/rag-types";
 import { formatGPULabel, getGPUStatusDotColor } from "@/lib/gpu-utils";
 import {
@@ -38,6 +38,8 @@ interface StatusBarProps {
   webllmProgress: WebLLMProgress | null;
   geminiState: GeminiState;
   amtaLintCount: number;
+  langPair: LanguagePair;
+  onSwapDirection: () => void;
 }
 
 function getRAGStateColor(state: RAGState): string {
@@ -154,6 +156,8 @@ export function StatusBar({
   webllmProgress,
   geminiState,
   amtaLintCount,
+  langPair,
+  onSwapDirection,
 }: StatusBarProps) {
   return (
     <footer className="flex items-center justify-between h-7 px-3 border-t border-[var(--ide-border)] bg-[var(--ide-statusbar)] text-[11px] select-none">
@@ -176,11 +180,15 @@ export function StatusBar({
 
         <span className="text-[var(--ide-border)]">│</span>
 
-        {/* Language pair */}
-        <div className="flex items-center gap-1 text-[var(--ide-text-muted)]">
+        {/* Language pair — clickable to swap */}
+        <button
+          onClick={onSwapDirection}
+          className="flex items-center gap-1 text-[var(--ide-text-muted)] hover:text-teal-400 cursor-pointer transition-colors"
+          title="Click to swap translation direction"
+        >
           <ArrowLeftRight className="w-3 h-3 text-teal-400" />
-          <span>EN ← AR</span>
-        </div>
+          <span>{langPair.source.toUpperCase()} ← {langPair.target.toUpperCase()}</span>
+        </button>
 
         <span className="text-[var(--ide-border)]">│</span>
 

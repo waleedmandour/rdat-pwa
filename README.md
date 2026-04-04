@@ -42,10 +42,97 @@ RDAT Copilot is a research-informed translation technology tool designed for pro
 - [License](#license)
 - [User Guide (XML)](#user-guide-for-translation-students--دليل-المستخدم-لطلاب-الترجمة)
 - [Cheat Sheet](#cheat-sheet--الورقة-المرجعية-السريعة)
+- [Workflow Diagram](#workflow-diagram--مخطط سير العمل)
 
 ---
 
 ## Architecture Overview
+
+### System Workflow Diagram — مخطط سير العمل
+
+```mermaid
+flowchart TB
+    %% ── Entry ──
+    Start([🚀 Translator Opens RDAT Copilot]) --> Browser{WebGPU\nSupported?}
+    Browser -->|Yes| Hybrid[⚡ Hybrid Mode\nLocal + Cloud]
+    Browser -->|No| CloudMode[☁️ Cloud Mode\nGemini API Only]
+
+    %% ── Editor Layer ──
+    Hybrid --> Editor[📝 Monaco Editor\nRTL Support, Ghost Text]
+    CloudMode --> Editor
+
+    Editor --> Keystroke[⌨️ Translator Types\nin Editor]
+
+    %% ── Event Loop ──
+    Keystroke --> Debounce{150ms\nDebounce}
+    Debounce -->|New Keystroke| Interrupt[🛑 Interrupt Previous\nInference]
+    Interrupt --> Debounce
+    Debounce -->|Timer Fires| Extract[📄 Extract Current\nSentence]
+
+    %% ── Parallel Processing ──
+    Extract --> RAG_Search
+    Extract --> AMTA_Lint
+
+    %% ── RAG Pipeline ──
+    subgraph RAG [RAG Pipeline — Semantic Search]
+        RAG_Search[🔍 Semantic Search\nOrama Vector DB] --> Embed[🧠 Embed via\nTransformers.js]
+        Embed --> TopK[📊 Top 3 Matches\n< 50ms]
+    end
+
+    %% ── AMTA Linter ──
+    subgraph AMTA [AMTA Linter — Quality Check]
+        AMTA_Lint[🔎 Scan for\nUntranslated Terms] --> Check{Translation\nPresent Nearby?}
+        Check -->|No| Warning[⚠️ Yellow Squiggle\n+ Ctrl+. Quick Fix]
+        Check -->|Yes| OK[✅ No Issue]
+    end
+
+    %% ── Sovereign Track ──
+    TopK --> PromptBuild[🏗️ Build Prompt\nRAG Context + System Prompt]
+    PromptBuild --> WebLLM[🤖 Gemma 2B INT4\nvia WebGPU]
+    WebLLM --> GhostText[👻 Ghost Text\n3-15 Words]
+
+    GhostText --> Decision{Translator\nDecision}
+    Decision -->|Press Tab| Accept[✅ Accept Suggestion\nText Inserted]
+    Decision -->|Keep Typing| Dismiss[❌ Dismiss\nNew Inference]
+
+    Accept --> Editor
+    Dismiss --> Keystroke
+    OK --> Editor
+
+    %% ── Reasoning Track ──
+    Editor --> SelectText[🖱️ Select Text +\nClick ✨ Rewrite]
+    SelectText --> GeminiAPI[🌐 Gemini 3.1 Flash Lite\nCloud API]
+
+    GeminiAPI --> RewriteResult[📋 Rewrite Panel\nSide-by-Side View]
+
+    RewriteResult --> AcceptRewrite{Accept or\nDismiss?}
+    AcceptRewrite -->|Accept ✔| ApplyRewrite[✅ Replace Selection]
+    AcceptRewrite -->|Dismiss ✖| Editor
+
+    ApplyRewrite --> Editor
+
+    %% ── Language Direction ──
+    Editor --> SwapDir[🔄 Click EN↔AR\nSwap Direction]
+    SwapDir --> PromptsUpdate[Update System Prompts\n+ Linter Logic + RAG Display]
+    PromptsUpdate --> Editor
+
+    %% ── Styling ──
+    classDef primary fill:#0d9488,stroke:#115e59,color:#fff,font-weight:bold
+    classDef ai fill:#0ea5e9,stroke:#0c4a6e,color:#fff
+    classDef lint fill:#f59e0b,stroke:#92400e,color:#fff
+    classDef decision fill:#6366f1,stroke:#3730a3,color:#fff
+    classDef action fill:#10b981,stroke:#065f46,color:#fff
+    classDef start fill:#8b5cf6,stroke:#5b21b6,color:#fff
+
+    class Start start
+    class Hybrid,CloudMode,Editor,Accept,ApplyRewrite action
+    class WebLLM,GeminiAPI ai
+    class AMTA_Lint,Warning lint
+    class Browser,Debounce,Decision,AcceptRewrite decision
+    class SwapDir,PromptsUpdate primary
+```
+
+### Architecture Layers
 
 RDAT Copilot is a client-side Progressive Web App built with Next.js 16, Monaco Editor, and WebGPU. It runs entirely in the browser — no backend server required for core functionality. The architecture follows a **non-destructive editing philosophy**: AI never overwrites the translator's text. Ghost text appears as inline suggestions (press Tab to accept), and heavier cloud rewrites are presented in an approval panel.
 

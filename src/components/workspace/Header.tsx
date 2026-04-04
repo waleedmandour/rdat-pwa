@@ -10,17 +10,24 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { APP_NAME } from "@/lib/constants";
+import type { LanguageDirection, LanguagePair } from "@/types";
 
 interface HeaderProps {
   onToggleSidebar: () => void;
   sidebarOpen: boolean;
   onOpenSettings: () => void;
+  langDirection: LanguageDirection;
+  langPair: LanguagePair;
+  onSwapDirection: () => void;
 }
 
 export function Header({
   onToggleSidebar,
   sidebarOpen,
   onOpenSettings,
+  langDirection,
+  langPair,
+  onSwapDirection,
 }: HeaderProps) {
   return (
     <header className="flex items-center justify-between h-10 px-3 border-b border-[var(--ide-border)] bg-[var(--ide-titlebar)] select-none relative">
@@ -67,13 +74,17 @@ export function Header({
           <span className="text-[var(--ide-text-muted)]">مشروع جديد</span>
         </nav>
 
-        {/* Language pair indicator */}
-        <div className="flex items-center gap-1 ml-2 px-2 py-0.5 rounded bg-[var(--ide-bg-secondary)] border border-[var(--ide-border)]">
-          <ArrowLeftRight className="w-3 h-3 text-teal-400" />
-          <span className="text-[11px] text-[var(--ide-text-muted)]" dir="rtl">
-            الإنجليزية ← العربية
+        {/* Language pair indicator — clickable to swap */}
+        <button
+          onClick={onSwapDirection}
+          className="flex items-center gap-1 ml-2 px-2 py-0.5 rounded bg-[var(--ide-bg-secondary)] border border-[var(--ide-border)] cursor-pointer hover:bg-teal-500/10 hover:border-teal-500/30 transition-colors group"
+          title={`Click to swap: ${langPair.sourceLabel} ↔ ${langPair.targetLabel}`}
+        >
+          <ArrowLeftRight className={`w-3 h-3 text-teal-400 transition-transform group-hover:rotate-180 ${langDirection === "ar-en" ? "rotate-180" : ""}`} />
+          <span className="text-[11px] text-[var(--ide-text-muted)] group-hover:text-teal-300" dir="rtl">
+            {langPair.sourceLabelAr} ← {langPair.targetLabelAr}
           </span>
-        </div>
+        </button>
       </div>
 
       {/* Right section */}

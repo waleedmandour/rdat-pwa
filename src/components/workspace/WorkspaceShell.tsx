@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { GPUStatus, AppMode, RewriteResult } from "@/types";
+import type { GPUStatus, AppMode, RewriteResult, LanguageDirection } from "@/types";
 import type { RAGResult } from "@/lib/rag-types";
 import type * as Monaco from "monaco-editor";
 import { Header } from "./Header";
@@ -17,6 +17,7 @@ import { useWebLLM } from "@/hooks/useWebLLM";
 import { useGemini } from "@/hooks/useGemini";
 import { useAMTALinter } from "@/hooks/useAMTALinter";
 import { buildMessages } from "@/lib/prompt-builder";
+import { LANGUAGE_PAIRS, LANG_DIRECTION_STORAGE } from "@/lib/constants";
 import { extractCurrentSentence, truncateForEmbedding } from "@/lib/sentence-extractor";
 import { FileText, BookOpen, Sparkles, Loader2, X } from "lucide-react";
 
@@ -35,6 +36,29 @@ export function WorkspaceShell({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeView, setActiveView] = useState<EditorView>("editor");
+
+  // ─── Language Direction State ───────────────────────────────────
+  const [langDirection, setLangDirection] = useState<LanguageDirection>(() => {
+    if (typeof window === "undefined") return "en-ar";
+    try {
+      const stored = localStorage.getItem(LANG_DIRECTION_STORAGE);
+      return (stored === "ar-en" ? "ar-en" : "en-ar") as LanguageDirection;
+    } catch {
+      return "en-ar";
+    }
+  });
+
+  const swapLanguageDirection = useCallback(() => {
+    setLangDirection((prev) => {
+      const next: LanguageDirection = prev === "en-ar" ? "ar-en" : "en-ar";
+      try { localStorage.setItem(LANG_DIRECTION_STORAGE, next); } catch { /* noop */ }
+      console.log(`[RDAT] Language direction swapped: ${prev} → ${next}`);
+      return next;
+    });
+  }, []);
+
+  const langPair = LANGUAGE_PAIRS[langDirection];
+
   const [sourceText, setSourceText] = useState(
     "Force Majeure. Neither party shall be held liable for failure to perform obligations under this agreement due to events beyond reasonable control.\n\nIntellectual Property Rights. All patents, trademarks, copyrights, and trade secrets developed during the term of this agreement shall remain the exclusive property of the originating party."
   );
@@ -116,13 +140,13 @@ export function WorkspaceShell({
         }
       }
 
-      // Step 2: Build messages with RAG context
-      const messages = buildMessages(editorText, results);
+      // Step 2: Build messages with RAG context + language direction
+      const messages = buildMessages(editorText, results, langDirection);
 
       // Step 3: Generate via WebLLM
       return webllm.generate(messages);
     },
-    [rag, webllm]
+    [rag, webllm, langDirection]
   );
 
   /**
@@ -181,7 +205,7 @@ export function WorkspaceShell({
 
     console.log(`[RDAT] Rewrite requested for ${selectedText.length} chars`);
 
-    const result = await gemini.rewrite(selectedText, rag.lastResults);
+    const result = await gemini.rewrite(selectedText, rag.lastResults, langDirection);
 
     if (result) {
       setRewriteResult({
@@ -192,7 +216,7 @@ export function WorkspaceShell({
     } else {
       setRewriteError("Gemini could not generate a rewrite. Check your API key and try again.");
     }
-  }, [gemini, rag.lastResults]);
+  }, [gemini, rag.lastResults, langDirection]);
 
   /**
    * handleAcceptRewrite — Replaces the selected text with the rewritten version.
@@ -226,6 +250,9 @@ export function WorkspaceShell({
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
         sidebarOpen={sidebarOpen}
         onOpenSettings={() => setSettingsOpen(true)}
+        langDirection={langDirection}
+        langPair={langPair}
+        onSwapDirection={swapLanguageDirection}
       />
 
       {/* WebGPU Warning Banner (only when unsupported) */}
@@ -391,6 +418,8 @@ export function WorkspaceShell({
         webllmProgress={webllm.progress}
         geminiState={gemini.geminiState}
         amtaLintCount={amta.lintCount}
+        langPair={langPair}
+        onSwapDirection={swapLanguageDirection}
       />
 
       {/* Settings Modal */}
@@ -400,6 +429,8 @@ export function WorkspaceShell({
         geminiMaskedKey={gemini.getMaskedKey()}
         geminiHasApiKey={gemini.hasApiKey}
         onSetGeminiApiKey={gemini.setApiKey}
+        langDirection={langDirection}
+        onSwapDirection={swapLanguageDirection}
       />
     </div>
   );

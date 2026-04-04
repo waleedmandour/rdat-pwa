@@ -1,3 +1,15 @@
+// ─── Language Direction ──────────────────────────────────────────────
+export type LanguageDirection = "en-ar" | "ar-en";
+
+export interface LanguagePair {
+  source: string;
+  target: string;
+  sourceLabel: string;
+  targetLabel: string;
+  sourceLabelAr: string;
+  targetLabelAr: string;
+}
+
 // ─── App Mode ───────────────────────────────────────────────────────
 export type AppMode = "local" | "cloud" | "hybrid";
 

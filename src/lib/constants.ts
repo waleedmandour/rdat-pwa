@@ -1,5 +1,7 @@
 // ─── App Constants ──────────────────────────────────────────────────
 
+import type { LanguageDirection, LanguagePair } from "@/types";
+
 export const APP_NAME = "RDAT Copilot";
 export const APP_SHORT_NAME = "RDAT";
 export const APP_VERSION = "2.0.0";
@@ -40,7 +42,65 @@ export const LOCAL_MODEL_INIT_TIMEOUT_MS = 300_000; // 5 minutes for first model
 export const LLM_MAX_TOKENS = 50; // Ghost text should be short
 export const LLM_TEMPERATURE = 0.3; // Low temperature for predictable completions
 
+// ─── Language Direction ─────────────────────────────────────────────
+
+export const LANGUAGE_PAIRS: Record<LanguageDirection, LanguagePair> = {
+  "en-ar": {
+    source: "en",
+    target: "ar",
+    sourceLabel: "English",
+    targetLabel: "Arabic",
+    sourceLabelAr: "الإنجليزية",
+    targetLabelAr: "العربية",
+  },
+  "ar-en": {
+    source: "ar",
+    target: "en",
+    sourceLabel: "Arabic",
+    targetLabel: "English",
+    sourceLabelAr: "العربية",
+    targetLabelAr: "الإنجليزية",
+  },
+};
+
+export const LANG_DIRECTION_STORAGE = "rdat-lang-direction";
+
+export const DEFAULT_REWRITE_INSTRUCTION: Record<LanguageDirection, string> = {
+  "en-ar": "Rewrite this Arabic translation to match a formal legal register, maintaining the meaning.",
+  "ar-en": "Rewrite this English translation to match a formal legal register, maintaining the meaning.",
+};
+
+export const SYSTEM_PROMPTS: Record<LanguageDirection, string> = {
+  "en-ar": `You are an English-Arabic co-writing translation assistant. You help translators by suggesting the next few words of their translation.
+
+CRITICAL RULES:
+1. Output ONLY the next few words to complete the user's current text.
+2. Do NOT provide commentary, explanations, or translations of the full text.
+3. Do NOT repeat what the user has already written.
+4. Keep your suggestion to 3-15 words maximum.
+5. If the text is in English, suggest the Arabic translation continuation.
+6. If the text is in Arabic, suggest the Arabic continuation.
+7. Match the tone and register of the surrounding text (legal, technical, formal).
+8. Never output markdown, formatting, or code blocks.`,
+  "ar-en": `You are an Arabic-English co-writing translation assistant. You help translators by suggesting the next few words of their translation.
+
+CRITICAL RULES:
+1. Output ONLY the next few words to complete the user's current text.
+2. Do NOT provide commentary, explanations, or translations of the full text.
+3. Do NOT repeat what the user has already written.
+4. Keep your suggestion to 3-15 words maximum.
+5. If the text is in Arabic, suggest the English translation continuation.
+6. If the text is in English, suggest the English continuation.
+7. Match the tone and register of the surrounding text (legal, technical, formal).
+8. Never output markdown, formatting, or code blocks.`,
+};
+
 // ─── Cloud AI (Reasoning Track) ─────────────────────────────────────
+export const GEMINI_SYSTEM_PROMPTS: Record<LanguageDirection, string> = {
+  "en-ar": `You are an expert English-Arabic legal translator. When the user provides text, rewrite it according to the instruction given. If no instruction is given, rewrite to match a formal legal register in Arabic. Output ONLY the rewritten text, no commentary or explanation.`,
+  "ar-en": `You are an expert Arabic-English legal translator. When the user provides text, rewrite it according to the instruction given. If no instruction is given, rewrite to match a formal legal register in English. Output ONLY the rewritten text, no commentary or explanation.`,
+};
+
 export const GEMINI_API_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
 
@@ -108,7 +168,6 @@ export const WEBLLM_STATE_LABELS_AR = {
 // ─── Cloud AI (Reasoning Track) ─────────────────────────────────────
 export const GEMINI_MODEL_ID = "gemini-3.1-flash-lite-preview";
 export const GEMINI_API_KEY_STORAGE = "rdat-gemini-api-key";
-export const GEMINI_REWRITE_SYSTEM_PROMPT = `You are an expert English-Arabic legal translator. When the user provides text, rewrite it according to the instruction given. If no instruction is given, rewrite to match a formal legal register in Arabic. Output ONLY the rewritten text, no commentary or explanation.`;
 
 // ─── AMTA Linter ───────────────────────────────────────────────────
 export const AMTA_LINT_DEBOUNCE_MS = 2000; // 2 seconds after typing stops
