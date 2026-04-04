@@ -20,12 +20,12 @@ import { useAMTALinter } from "@/hooks/useAMTALinter";
 import { buildMessages } from "@/lib/prompt-builder";
 import { LANGUAGE_PAIRS, LANG_DIRECTION_STORAGE } from "@/lib/constants";
 import { truncateForEmbedding, getSourceSentence } from "@/lib/sentence-extractor";
-import { FileText, BookOpen, Sparkles, Loader2, X, Pencil, Check, Copy, Lock } from "lucide-react";
+import { FileText, BookOpen, Sparkles, Loader2, X, Pencil, Check, Lock } from "lucide-react";
 
 /**
  * Available editor views — the user can switch between them.
  */
-type EditorView = "welcome" | "editor";
+export type EditorView = "welcome" | "editor";
 
 /**
  * Default English source text for the source pane.
