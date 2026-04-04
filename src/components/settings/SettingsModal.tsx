@@ -187,7 +187,7 @@ export function SettingsModal({
                         {UI_LABELS.autoSuggest.ar}
                       </p>
                       <p className="text-[11px] text-[var(--ide-text-muted)] mt-0.5">
-                        Show ghost text suggestions as you type
+                        Show نص مخفي (ghost text) suggestions as you type
                       </p>
                     </div>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-medium">

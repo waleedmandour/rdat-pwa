@@ -87,7 +87,7 @@ export function Sidebar({
     {
       id: "welcome" as const,
       label: "Welcome & Roadmap",
-      arLabel: "مرحبًا وخارطة الطريق",
+      arLabel: "تفاصيل البرنامج",
       icon: BookOpen,
       badge: null,
     },

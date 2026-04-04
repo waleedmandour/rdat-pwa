@@ -86,7 +86,7 @@ interface MonacoEditorProps {
   onEditorDidMount?: (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => void;
   /** Whether the editor is read-only (used for source pane) */
   readOnly?: boolean;
-  /** Whether to enable inline completions / ghost text (disabled for source pane) */
+  /** Whether to enable inline completions / نص مخفي (ghost text) (disabled for source pane) */
   enableCompletions?: boolean;
   /** Custom language ID — defaults to rdat-target for active editing */
   languageId?: string;
@@ -206,7 +206,7 @@ export function MonacoEditor({
         !monaco?.languages ||
         typeof monaco.languages.registerInlineCompletionsProvider !== "function"
       ) {
-        console.warn("[RDAT] Monaco inline completions API not available — ghost text disabled");
+        console.warn("[RDAT] Monaco inline completions API not available — نص مخفي (ghost text) disabled");
         return;
       }
 

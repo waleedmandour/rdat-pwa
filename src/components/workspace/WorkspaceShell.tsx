@@ -197,10 +197,10 @@ export function WorkspaceShell({
   }, [cleanup]);
 
   /**
-   * generateCompletion — Orchestrates SOURCE-DRIVEN RAG + AI for ghost text.
+   * generateCompletion — Orchestrates SOURCE-DRIVEN RAG + AI for نص مخفي (ghost text).
    * Called from MonacoEditor's inline completions provider (target pane only).
    *
-   * Pipeline (dual-track ghost text):
+   * Pipeline (dual-track نص مخفي / ghost text):
    *   1. Extract the active source sentence (from source pane, line-matched)
    *   2. RAG search on source sentence (if not cached from debounce)
    *   3. Build messages: source sentence + RAG context + target draft

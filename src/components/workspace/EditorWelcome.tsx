@@ -48,7 +48,7 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
             <span className="text-teal-400 font-medium">
               {UI_LABELS.translationEditor.en}
             </span>{" "}
-            tab to start translating with AI ghost text suggestions.
+            tab to start translating with AI نص مخفي (ghost text) suggestions.
           </p>
         </div>
 
@@ -94,7 +94,7 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
                 انتقل إلى المحرر وابدأ الكتابة مع اقتراحات الذكاء الاصطناعي
               </p>
               <p className="text-[10px] text-[var(--ide-text-dim)]">
-                Open the Translation Editor tab and start writing with AI ghost text
+                Open the Translation Editor tab and start writing with AI نص مخفي (ghost text)
               </p>
             </div>
 
@@ -199,7 +199,7 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
               title: "Monaco Editor & Event Loop",
               arTitle: "محرر Monaco وحلقة الأحداث",
               status: "completed" as const,
-              description: "IDE editor, debounced keystrokes, abort logic, ghost text",
+              description: "IDE editor, debounced keystrokes, abort logic, نص مخفي (ghost text)",
             },
             {
               phase: 3,
@@ -213,7 +213,7 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
               title: "Local Sovereign Track (Gemma 2B)",
               arTitle: "مسار التحكم المثبت علي الجهاز (Gemma 2B)",
               status: "completed" as const,
-              description: "WebLLM inference, ghost text, interrupt on keystroke",
+              description: "WebLLM inference, نص مخفي (ghost text), interrupt on keystroke",
             },
             {
               phase: 5,
@@ -308,7 +308,7 @@ export function EditorWelcome({ appMode }: EditorWelcomeProps) {
             <span className="text-teal-400 font-medium">
               {UI_LABELS.translationEditor.en}
             </span>
-            <span>tab to see Monaco + ghost text in action</span>
+            <span>tab to see Monaco + نص مخفي (ghost text) in action</span>
           </div>
         </div>
 
