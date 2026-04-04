@@ -28,7 +28,7 @@ RDAT Copilot is a research-informed translation technology tool designed for pro
 
 - [Architecture Overview](#architecture-overview)
 - [Dual-Track AI System](#dual-track-ai-system)
-  - [Sovereign Track — المسار السيادي (Local WebGPU)](#sovereign-track--المسار-السيادي-local-webgpu)
+  - [Sovereign Track — المسار المٌتَحَكِم (Local WebGPU)](#sovereign-track--المسار-المٌتَحَكِم-local-webgpu)
   - [Reasoning Track — مسار الاستدلال (Cloud Gemini)](#reasoning-track--مسار-الاستدلال-cloud-gemini)
   - [Track Comparison — مقارنة المسارين](#track-comparison--مقارنة-المسارين)
 - [RAG Pipeline — محرك البحث الدلالي](#rag-pipeline--محرك-البحث-الدلالي)
@@ -163,7 +163,7 @@ Ghost text suggestions are generated from the following sources, in order of pri
 
 ## Dual-Track AI System
 
-### Sovereign Track — المسار السيادي (Local WebGPU)
+### Sovereign Track — المسار المٌتَحَكِم (Local WebGPU)
 
 The Sovereign Track runs a quantized Gemma 2B model entirely in the browser using [WebLLM](https://github.com/mlc-ai/web-llm). This provides real-time ghost text — short inline completion suggestions (3–15 words) that appear as you type.
 
@@ -200,7 +200,7 @@ The Gemini API key is stored in the browser's `localStorage` and never sent to a
 
 ### Track Comparison — مقارنة المسارين
 
-| Aspect | Sovereign Track — المسار السيادي | Reasoning Track — مسار الاستدلال |
+| Aspect | Sovereign Track — المسار المٌتَحَكِم | Reasoning Track — مسار الاستدلال |
 |--------|----------------|-----------------|
 | **Purpose** | Ghost text suggestions | Heavy rewriting and synthesis |
 | **Model** | Gemma 2B (INT4, local) | Gemini 3.1 Flash Lite (cloud) |
@@ -552,7 +552,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
       <ar>نظرة عامة على الواجهة</ar><en>Interface Overview</en>
     </section>
     <section ref="sovereign-track" number="4">
-      <ar>المسار السيادي — الترجمة بالذكاء الاصطناعي المحلي</ar><en>Sovereign Track — Local AI Translation</en>
+      <ar>المسار المٌتَحَكِم — الترجمة بالذكاء الاصطناعي المحلي</ar><en>Sovereign Track — Local AI Translation</en>
     </section>
     <section ref="reasoning-track" number="5">
       <ar>مسار الاستدلال — إعادة الصياغة السحابية</ar><en>Reasoning Track — Cloud Rewriting</en>
@@ -618,7 +618,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
           </name>
           <description>
             <ar>
-              يجمع التطبيق بين "المسار السيادي" الذي يعمل محليًا على جهازك عبر WebGPU باستخدام نموذج Gemma، و"مسار الاستدلال" الذي يستخدم Gemini السحابي للمهام الأكثر تعقيدًا. يمكنك اختيار المسار المناسب حسب الموقف أو استخدام كليهما معًا.
+              يجمع التطبيق بين "المسار المٌتَحَكِم" الذي يعمل محليًا على جهازك عبر WebGPU باستخدام نموذج Gemma، و"مسار الاستدلال" الذي يستخدم Gemini السحابي للمهام الأكثر تعقيدًا. يمكنك اختيار المسار المناسب حسب الموقف أو استخدام كليهما معًا.
             </ar>
             <en>
               The app combines a "Sovereign Track" that runs locally on your device via WebGPU using the Gemma model, and a "Reasoning Track" that uses cloud Gemini for more complex tasks. You can choose the appropriate track for each situation or use both together.
@@ -717,7 +717,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
             <en>Internet Connection (first time)</en>
           </name>
           <details>
-            <ar>لتحميل النموذج المحلي (Gemma 2B) ونماذج التضمين. بعد التحميل الأول، يعمل المسار السيادي بدون إنترنت.</ar>
+            <ar>لتحميل النموذج المحلي (Gemma 2B) ونماذج التضمين. بعد التحميل الأول، يعمل المسار المٌتَحَكِم بدون إنترنت.</ar>
             <en>To download the local model (Gemma 2B) and embedding models. After the first download, the Sovereign Track works offline.</en>
           </details>
         </requirement>
@@ -871,7 +871,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
           <en>Sidebar — Explorer</en>
         </name>
         <description>
-          <ar>يتضمن قسمين: "WORKSPACE" (مساحة العمل) الذي يحتوي على محرر الترجمة وشاشة الترحيب، و"AI ENGINES" (محركات الذكاء الاصطناعي) الذي يعرض حالة المسار السيادي ومسار الاستدلال. يحتوي أيضًا على قسم "اختصارات المترجم" مع الاختصارات الأساسية.</ar>
+          <ar>يتضمن قسمين: "WORKSPACE" (مساحة العمل) الذي يحتوي على محرر الترجمة وشاشة الترحيب، و"AI ENGINES" (محركات الذكاء الاصطناعي) الذي يعرض حالة المسار المٌتَحَكِم ومسار الاستدلال. يحتوي أيضًا على قسم "اختصارات المترجم" مع الاختصارات الأساسية.</ar>
           <en>Includes two sections: "WORKSPACE" containing the translation editor and welcome screen, and "AI ENGINES" showing the status of the Sovereign Track and Reasoning Track. Also includes a "Translator Shortcuts" section with essential shortcuts.</en>
         </description>
         <menu-items>
@@ -988,13 +988,13 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
   <section id="sovereign-track">
     <heading>
       <number>4</number>
-      <ar>المسار السيادي — الترجمة بالذكاء الاصطناعي المحلي</ar>
+      <ar>المسار المٌتَحَكِم — الترجمة بالذكاء الاصطناعي المحلي</ar>
       <en>Sovereign Track — Local AI Translation</en>
     </heading>
 
     <paragraph>
       <ar>
-        المسار السيادي هو ميزة RDAT Copilot الأساسية — نموذج ذكاء اصطناعي يعمل بالكامل على جهازك باستخدام WebGPU، بدون اتصال بالإنترنت. يستخدم نموذج Gemma 2B (INT4) المضغوط عبر مكتبة WebLLM. هذا يعني أن بياناتك تبقى على جهازك دائمًا — خصوصية تامة.
+        المسار المٌتَحَكِم هو ميزة RDAT Copilot الأساسية — نموذج ذكاء اصطناعي يعمل بالكامل على جهازك باستخدام WebGPU، بدون اتصال بالإنترنت. يستخدم نموذج Gemma 2B (INT4) المضغوط عبر مكتبة WebLLM. هذا يعني أن بياناتك تبقى على جهازك دائمًا — خصوصية تامة.
       </ar>
       <en>
         The Sovereign Track is RDAT Copilot's core feature — an AI model running entirely on your device using WebGPU, without internet connection. It uses the compressed Gemma 2B (INT4) model via the WebLLM library. This means your data always stays on your device — complete privacy.
@@ -1023,7 +1023,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
       </heading>
       <paragraph>
         <ar>
-          في المرة الأولى التي تستخدم فيها المسار السيادي، يجب تحميل النموذج (حوالي 1.4 جيجابايت). سترى شريط تقدم في شريط الحالة. هذا التحميل يتم مرة واحدة فقط — النموذج يُخزّن مؤقتًا في المتصفح للاستخدام المستقبلي. تأكد من اتصالك بالإنترنت وألا تُغلق المتصفح أثناء التحميل.
+          في المرة الأولى التي تستخدم فيها المسار المٌتَحَكِم، يجب تحميل النموذج (حوالي 1.4 جيجابايت). سترى شريط تقدم في شريط الحالة. هذا التحميل يتم مرة واحدة فقط — النموذج يُخزّن مؤقتًا في المتصفح للاستخدام المستقبلي. تأكد من اتصالك بالإنترنت وألا تُغلق المتصفح أثناء التحميل.
         </ar>
         <en>
           The first time you use the Sovereign Track, the model must be downloaded (approximately 1.4 GB). You will see a progress bar in the status bar. This download happens only once — the model is cached in the browser for future use. Ensure you have an internet connection and do not close the browser during the download.
@@ -1073,7 +1073,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
 
     <paragraph>
       <ar>
-        مسار الاستدلال يستخدم نموذج Gemini 3.1 Flash Lite من Google للمهام التي تحتاج إلى قدرات أعمق في التفكير والصياغة. على عكس المسار السيادي الذي يقدم اقتراحات قصيرة تلقائيًا، هذا المسار يعمل يدويًا — تختار نصًا وتطلب إعادة صياغته.
+        مسار الاستدلال يستخدم نموذج Gemini 3.1 Flash Lite من Google للمهام التي تحتاج إلى قدرات أعمق في التفكير والصياغة. على عكس المسار المٌتَحَكِم الذي يقدم اقتراحات قصيرة تلقائيًا، هذا المسار يعمل يدويًا — تختار نصًا وتطلب إعادة صياغته.
       </ar>
       <en>
         The Reasoning Track uses Google's Gemini 3.1 Flash Lite model for tasks requiring deeper reasoning and phrasing capabilities. Unlike the Sovereign Track which automatically provides short suggestions, this track works manually — you select text and request a rewrite.
@@ -1749,7 +1749,7 @@ Powered by WebGPU, Transformers.js, Orama, and Google Gemini
 
 | Track | Arabic | Trigger | Output | Network |
 |-------|--------|---------|--------|---------|
-| **Sovereign** 🟢 | المسار السيادي | Automatic (on keystroke) | 3–15 word ghost text | Offline ✅ |
+| **Sovereign** 🟢 | المسار المٌتَحَكِم | Automatic (on keystroke) | 3–15 word ghost text | Offline ✅ |
 | **Reasoning** 🔵 | مسار الاستدلال | Manual (select → ✨ Rewrite) | Full passage in panel | Online 🌐 |
 
 ### 📊 Status Bar Indicators — مؤشرات شريط الحالة
