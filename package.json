@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
-    "build": "next build",
-    "build:ghpages": "OUTPUT=export BASE_PATH=/rdat-pwa next build",
+    "build": "next build --webpack",
+    "build:ghpages": "OUTPUT=export BASE_PATH=/rdat-pwa next build --webpack",
     "start": "next start",
     "lint": "eslint src/"
   },

@@ -9,14 +9,20 @@ import withPWAInit from "@ducanh2912/next-pwa";
  * which is required by WebLLM for fast weight transfer to the GPU and by
  * Transformers.js for multi-threaded WASM inference.
  *
- * For GitHub Pages static export: use `OUTPUT=export BASE_PATH=/rdat-pwa npm run build`
+ * For GitHub Pages static export: use `OUTPUT=export BASE_PATH=/rdat-pwa npm run build:ghpages`
  *   → The `OUTPUT` env var enables static export mode conditionally.
+ *
+ * IMPORTANT: Next.js 16 defaults to Turbopack, but @ducanh2912/next-pwa
+ * requires webpack to generate the service worker. The build scripts use
+ * `next build --webpack` to force webpack mode.
  */
 
 /* ─── PWA Plugin ─────────────────────────────────────────────────────── */
 
 const withPWA = withPWAInit({
   dest: "public",
+  // Increase size limit to precache larger chunks (e.g., monaco editor)
+  maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 8 MB
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
@@ -88,7 +94,9 @@ const nextConfig: NextConfig = {
   // --- Allow all cross-origin preview requests (sandbox environment) ---
   allowedDevOrigins: ["*"],
 
-  // --- Silence Turbopack/webpack conflict warning from @ducanh2912/next-pwa ---
+  // --- NOTE: PWA plugin requires webpack (not Turbopack) ---
+  // Next.js 16 defaults to Turbopack. Build scripts use `next build --webpack`
+  // to force webpack mode, which is required by @ducanh2912/next-pwa.
   turbopack: {},
 
   // --- Security Headers (Cross-Origin Isolation for WebGPU/WASM) ---
