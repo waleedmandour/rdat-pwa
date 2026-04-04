@@ -7,11 +7,13 @@ import type { RAGResult } from "@/lib/rag-types";
 import { MOCK_INFERENCE_DELAY_MS } from "@/lib/constants";
 
 /**
- * Custom RDAT language ID for the inline completions provider.
- * Using "plaintext" works universally, but a custom ID lets us
- * scope providers cleanly in later phases.
+ * Custom RDAT language IDs for the split-pane architecture.
+ * Using separate IDs allows inline completions to be scoped to the
+ * target editor only, while the source editor remains clean.
  */
-const RDAT_LANGUAGE_ID = "rdat-translation";
+const RDAT_SOURCE_LANGUAGE_ID = "rdat-source";
+const RDAT_TARGET_LANGUAGE_ID = "rdat-target";
+const RDAT_LANGUAGE_ID = "rdat-translation"; // Legacy fallback
 
 /**
  * Ghost text suggestions for the mock provider.
@@ -63,6 +65,15 @@ interface CompletionConfig {
   isLLMReady: boolean;
 }
 
+/**
+ * Cursor position callback for tracking the active line
+ * in the target editor (used to extract the corresponding source line).
+ */
+interface CursorPosition {
+  lineNumber: number;
+  column: number;
+}
+
 interface MonacoEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -71,16 +82,31 @@ interface MonacoEditorProps {
   ragResults?: RAGResult[];
   isLLMReady?: boolean;
   onEditorDidMount?: (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => void;
+  /** Whether the editor is read-only (used for source pane) */
+  readOnly?: boolean;
+  /** Whether to enable inline completions / ghost text (disabled for source pane) */
+  enableCompletions?: boolean;
+  /** Custom language ID — defaults to rdat-target for active editing */
+  languageId?: string;
+  /** Callback when cursor position changes (used to track active line for RAG) */
+  onCursorPositionChange?: (position: CursorPosition) => void;
+  /** Optional className for the editor wrapper */
+  className?: string;
 }
 
 /**
  * MonacoEditor — A thin wrapper around @monaco-editor/react configured
  * for the RDAT Copilot translation IDE.
  *
+ * Supports the split-pane CAT architecture:
+ * - Source pane: readOnly, no completions, rdat-source language
+ * - Target pane: active editing, inline completions, rdat-target language
+ *
  * Key features:
  * - vs-dark theme, wordWrap on, minimap off, fontSize 16
  * - automaticLayout for seamless resize within WorkspaceShell
  * - Inline completions provider: real WebLLM when ready, mock fallback
+ * - Cursor position tracking for source line extraction
  * - Proper disposal of providers and editor on unmount
  */
 export function MonacoEditor({
@@ -91,9 +117,18 @@ export function MonacoEditor({
   ragResults = [],
   isLLMReady = false,
   onEditorDidMount,
+  readOnly = false,
+  enableCompletions = true,
+  languageId,
+  onCursorPositionChange,
+  className,
 }: MonacoEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const inlineProviderRef = useRef<Monaco.IDisposable | null>(null);
+  const cursorDisposableRef = useRef<Monaco.IDisposable | null>(null);
+
+  // Resolve the language ID
+  const resolvedLanguageId = languageId || (enableCompletions ? RDAT_TARGET_LANGUAGE_ID : RDAT_SOURCE_LANGUAGE_ID);
 
   // Store completion config in a ref so the provider callback always
   // has the latest values without needing re-registration
@@ -113,15 +148,28 @@ export function MonacoEditor({
     };
   }, [generateCompletion, interruptGeneration, ragResults, isLLMReady]);
 
+  // Store cursor callback in a ref
+  const onCursorChangeRef = useRef(onCursorPositionChange);
+  useEffect(() => {
+    onCursorChangeRef.current = onCursorPositionChange;
+  }, [onCursorPositionChange]);
+
   /**
-   * beforeMount — Register the inline completions provider.
+   * beforeMount — Register the language and inline completions provider.
+   * Only registers completions for the TARGET editor (enableCompletions=true).
    * This runs once before the editor DOM is created.
    */
   const handleBeforeMount: BeforeMount = useCallback((monaco) => {
     try {
-      // Register a custom language so the provider is scoped cleanly
+      // Register the custom language ID
       if (monaco?.languages?.register) {
-        monaco.languages.register({ id: RDAT_LANGUAGE_ID });
+        monaco.languages.register({ id: resolvedLanguageId });
+      }
+
+      // Skip provider registration for source pane
+      if (!enableCompletions) {
+        console.log(`[RDAT] Source editor mounted (language: ${resolvedLanguageId}) — completions disabled`);
+        return;
       }
 
       // Guard: ensure Monaco API is fully loaded before registering providers
@@ -134,7 +182,7 @@ export function MonacoEditor({
       }
 
       inlineProviderRef.current = monaco.languages.registerInlineCompletionsProvider(
-        RDAT_LANGUAGE_ID,
+        resolvedLanguageId,
         {
           provideInlineCompletions: async (
             model: Monaco.editor.ITextModel,
@@ -148,7 +196,7 @@ export function MonacoEditor({
 
             const config = completionConfigRef.current;
 
-            // If LLM is not ready, fall back to mock (Phase 2 behavior)
+            // If LLM is not ready, fall back to mock
             if (!config.isLLMReady || !config.generateCompletion) {
               try {
                 await waitForDelayOrAbort(MOCK_INFERENCE_DELAY_MS, token);
@@ -234,35 +282,55 @@ export function MonacoEditor({
     } catch (err) {
       console.warn("[RDAT] Failed to register inline completions provider:", err);
     }
-  }, []);
+  }, [resolvedLanguageId, enableCompletions]);
 
   /**
    * onMount — Capture the editor reference for imperative control.
+   * Sets up cursor tracking for source line extraction.
    */
   const handleMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
 
-    // Configure inline completions to show automatically
-    editor.updateOptions({
-      inlineSuggest: {
-        enabled: true,
-      },
-    });
+    // Configure inline completions to show automatically (target only)
+    if (enableCompletions) {
+      editor.updateOptions({
+        inlineSuggest: {
+          enabled: true,
+        },
+      });
+    }
 
-    console.log("[RDAT] Monaco editor mounted — inline completions provider active");
+    // Track cursor position changes (for RAG source line extraction)
+    if (onCursorChangeRef.current) {
+      cursorDisposableRef.current = editor.onDidChangeCursorPosition((e) => {
+        onCursorChangeRef.current?.({
+          lineNumber: e.position.lineNumber,
+          column: e.position.column,
+        });
+      });
+    }
+
+    console.log(
+      `[RDAT] Monaco editor mounted (language: ${resolvedLanguageId}, readOnly: ${readOnly}) — ${enableCompletions ? "inline completions active" : "completions disabled"}`
+    );
     onEditorDidMount?.(editor, monaco);
-  }, [onEditorDidMount]);
+  }, [onEditorDidMount, resolvedLanguageId, readOnly, enableCompletions]);
 
   /**
-   * Cleanup: Dispose of the inline provider and editor instance on unmount.
+   * Cleanup: Dispose of the inline provider, cursor tracker, and editor on unmount.
    */
   useEffect(() => {
     return () => {
-      console.log("[RDAT] Monaco editor unmounting — disposing resources");
+      console.log(`[RDAT] Monaco editor unmounting (language: ${resolvedLanguageId}) — disposing resources`);
 
       if (inlineProviderRef.current) {
         inlineProviderRef.current.dispose();
         inlineProviderRef.current = null;
+      }
+
+      if (cursorDisposableRef.current) {
+        cursorDisposableRef.current.dispose();
+        cursorDisposableRef.current = null;
       }
 
       if (editorRef.current) {
@@ -270,12 +338,12 @@ export function MonacoEditor({
         editorRef.current = null;
       }
     };
-  }, []);
+  }, [resolvedLanguageId]);
 
   return (
     <Editor
       height="100%"
-      language={RDAT_LANGUAGE_ID}
+      language={resolvedLanguageId}
       theme="vs-dark"
       value={value}
       onChange={(v) => onChange(v ?? "")}
@@ -317,19 +385,21 @@ export function MonacoEditor({
         },
 
         // ─── Behavior ──────────────────────────────
+        readOnly,
         inlineSuggest: {
-          enabled: true,
+          enabled: enableCompletions,
         },
         quickSuggestions: false,
         suggestOnTriggerCharacters: false,
         acceptSuggestionOnEnter: "on",
         tabSize: 2,
         insertSpaces: true,
+        domReadOnly: readOnly,
 
         // ─── IDE Chrome ─────────────────────────────
         lineNumbers: "on",
-        glyphMargin: true,
-        folding: true,
+        glyphMargin: !readOnly, // Only show glyph margin for active editor
+        folding: !readOnly,     // Disable folding for readOnly
         lineDecorationsWidth: 8,
         lineNumbersMinChars: 3,
         scrollbar: {
@@ -338,7 +408,15 @@ export function MonacoEditor({
           vertical: "auto",
           horizontal: "auto",
         },
+
+        // ─── Source Pane Styling ────────────────────
+        ...(readOnly && {
+          renderLineHighlight: "none",
+          cursorBlinking: "smooth" as const,
+          contextmenu: true, // Allow paste via context menu
+        }),
       }}
+      className={className}
     />
   );
 }

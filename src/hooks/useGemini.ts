@@ -116,7 +116,7 @@ export function useGemini() {
    * rewrite — Send text to Gemini for rewriting.
    */
   const rewrite = useCallback(
-    async (text: string, ragResults: RAGResult[] = [], direction: LanguageDirection = "en-ar", instruction?: string): Promise<string | null> => {
+    async (text: string, ragResults: RAGResult[] = [], direction: LanguageDirection = "en-ar", instruction?: string, sourceText?: string): Promise<string | null> => {
       if (!isGeminiReady()) {
         console.warn("[RDAT-Gemini] Not ready — no API key configured");
         return null;
@@ -125,7 +125,7 @@ export function useGemini() {
       setIsRewriting(true);
 
       try {
-        const result = await rewriteText(text, ragResults, direction, instruction);
+        const result = await rewriteText(text, ragResults, direction, instruction, sourceText);
         setIsRewriting(false);
         return result;
       } catch (err) {

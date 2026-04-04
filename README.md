@@ -52,97 +52,110 @@ RDAT Copilot is a research-informed translation technology tool designed for pro
 
 ```mermaid
 flowchart TB
-    %% ── Entry ──
-    Start([🚀 Translator Opens RDAT Copilot]) --> Browser{WebGPU\nSupported?}
-    Browser -->|Yes| Hybrid[⚡ Hybrid Mode\nLocal + Cloud]
-    Browser -->|No| CloudMode[☁️ Cloud Mode\nGemini API Only]
-
-    %% ── Editor Layer ──
-    Hybrid --> Editor[📝 Monaco Editor\nRTL Support, Ghost Text]
-    CloudMode --> Editor
-
-    Editor --> Keystroke[⌨️ Translator Types\nin Editor]
-
-    %% ── Event Loop ──
-    Keystroke --> Debounce{150ms\nDebounce}
-    Debounce -->|New Keystroke| Interrupt[🛑 Interrupt Previous\nInference]
+    Start([RDAT Copilot]) --> Browser{WebGPU Supported?}
+    Browser -->|Yes| Hybrid[Hybrid Mode]
+    Browser -->|No| CloudMode[Cloud Mode]
+    Hybrid --> SplitPane[Split-Pane CAT Workspace]
+    CloudMode --> SplitPane
+    SplitPane --> SourcePane[Source Pane LEFT - readOnly]
+    SplitPane --> TargetPane[Target Pane RIGHT - Active Editor]
+    SourcePane --> EditBtn[Edit Button - Paste Source]
+    TargetPane --> Keystroke[Translator Types]
+    Keystroke --> Debounce{300ms Debounce}
+    Debounce -->|New Keystroke| Interrupt[Interrupt Inference]
     Interrupt --> Debounce
-    Debounce -->|Timer Fires| Extract[📄 Extract Current\nSentence]
-
-    %% ── Parallel Processing ──
-    Extract --> RAG_Search
-    Extract --> AMTA_Lint
-
-    %% ── RAG Pipeline ──
-    subgraph RAG [RAG Pipeline — Semantic Search]
-        RAG_Search[🔍 Semantic Search\nOrama Vector DB] --> Embed[🧠 Embed via\nTransformers.js]
-        Embed --> TopK[📊 Top 3 Matches\n< 50ms]
+    Debounce -->|Fires| TrackLine[Track Cursor Line in Target]
+    TrackLine --> ExtractSource[Extract Corresponding Source Line]
+    ExtractSource --> RAG_Search
+    ExtractSource --> AMTA_Lint
+    subgraph RAG [RAG Pipeline - Source-Driven]
+        RAG_Search[Embed SOURCE Sentence] --> TopK[Top 3 TM Matches]
     end
-
-    %% ── AMTA Linter ──
-    subgraph AMTA [AMTA Linter — Quality Check]
-        AMTA_Lint[🔎 Scan for\nUntranslated Terms] --> Check{Translation\nPresent Nearby?}
-        Check -->|No| Warning[⚠️ Yellow Squiggle\n+ Ctrl+. Quick Fix]
-        Check -->|Yes| OK[✅ No Issue]
+    subgraph AMTA [AMTA Linter]
+        AMTA_Lint[Scan TARGET for Terms] --> Check{Translated?}
+        Check -->|No| Warning[Squiggle + Quick Fix]
+        Check -->|Yes| OK[Pass]
     end
-
-    %% ── Sovereign Track ──
-    TopK --> PromptBuild[🏗️ Build Prompt\nRAG Context + System Prompt]
-    PromptBuild --> WebLLM[🤖 Gemma 2B INT4\nvia WebGPU]
-    WebLLM --> GhostText[👻 Ghost Text\n3-15 Words]
-
-    GhostText --> Decision{Translator\nDecision}
-    Decision -->|Press Tab| Accept[✅ Accept Suggestion\nText Inserted]
-    Decision -->|Keep Typing| Dismiss[❌ Dismiss\nNew Inference]
-
-    Accept --> Editor
+    TopK --> PromptBuild[Build Prompt: Source + TM + Draft]
+    PromptBuild --> WebLLM[Gemma 2B via WebGPU]
+    WebLLM --> GhostText[Ghost Text 3-15 Words]
+    GhostText --> Decision{Tab or Keep Typing}
+    Decision -->|Tab| Accept[Accept into Target]
+    Decision -->|Type| Dismiss[New Inference]
+    Accept --> TargetPane
     Dismiss --> Keystroke
-    OK --> Editor
-
-    %% ── Reasoning Track ──
-    Editor --> SelectText[🖱️ Select Text +\nClick ✨ Rewrite]
-    SelectText --> GeminiAPI[🌐 Gemini 3.1 Flash Lite\nCloud API]
-
-    GeminiAPI --> RewriteResult[📋 Rewrite Panel\nSide-by-Side View]
-
-    RewriteResult --> AcceptRewrite{Accept or\nDismiss?}
-    AcceptRewrite -->|Accept ✔| ApplyRewrite[✅ Replace Selection]
-    AcceptRewrite -->|Dismiss ✖| Editor
-
-    ApplyRewrite --> Editor
-
-    %% ── Language Direction ──
-    Editor --> SwapDir[🔄 Click EN↔AR\nSwap Direction]
-    SwapDir --> PromptsUpdate[Update System Prompts\n+ Linter Logic + RAG Display]
-    PromptsUpdate --> Editor
-
-    %% ── Styling ──
-    classDef primary fill:#0d9488,stroke:#115e59,color:#fff,font-weight:bold
-    classDef ai fill:#0ea5e9,stroke:#0c4a6e,color:#fff
-    classDef lint fill:#f59e0b,stroke:#92400e,color:#fff
-    classDef decision fill:#6366f1,stroke:#3730a3,color:#fff
-    classDef action fill:#10b981,stroke:#065f46,color:#fff
-    classDef start fill:#8b5cf6,stroke:#5b21b6,color:#fff
-
-    class Start start
-    class Hybrid,CloudMode,Editor,Accept,ApplyRewrite action
-    class WebLLM,GeminiAPI ai
-    class AMTA_Lint,Warning lint
-    class Browser,Debounce,Decision,AcceptRewrite decision
-    class SwapDir,PromptsUpdate primary
+    TargetPane --> SelectText[Select + Rewrite]
+    SelectText --> GetSource[Get Source Sentence]
+    GetSource --> Gemini[Gemini - Source + Target]
+    Gemini --> RewritePanel[Rewrite Panel]
+    RewritePanel --> AcceptRewrite{Accept?}
+    AcceptRewrite -->|Yes| Apply[Replace in Target]
+    AcceptRewrite -->|No| TargetPane
+    SplitPane --> SwapDir[EN to AR / AR to EN]
+    SwapDir --> Reset[Reset Both Panes]
+    Reset --> SplitPane
 ```
 
 ### Architecture Layers
 
-RDAT Copilot is a client-side Progressive Web App built with Next.js 16, Monaco Editor, and WebGPU. It runs entirely in the browser — no backend server required for core functionality. The architecture follows a **non-destructive editing philosophy**: AI never overwrites the translator's text. Ghost text appears as inline suggestions (press Tab to accept), and heavier cloud rewrites are presented in an approval panel.
+RDAT Copilot features a **split-pane CAT (Computer-Assisted Translation) workspace** built with Next.js 16, Monaco Editor, and WebGPU. It runs entirely in the browser with no backend server required. The left pane displays the source document (read-only reference), while the right pane is the active translation editor where ghost text and linting operate. The architecture follows a non-destructive editing philosophy: AI never overwrites the translator's text.
 
-The system is organized into five functional layers:
+The system is organized into six functional layers:
 
-1. **Editor Layer — طبقة المحرر** — Monaco Editor with RTL support, syntax-aware inline completions, and a custom `rdat-translation` language ID.
-2. **Event Loop Layer — طبقة الأحداث** — A debounced keystroke handler with AbortController lifecycle. Every keystroke resets a 300ms debounce; when it fires, RAG retrieval and AMTA linting run in parallel. If inference is active on a new keystroke, `interruptGenerate()` cancels immediately.
-3. **RAG Layer — طبقة البحث الدلالي** — An Orama vector database in a dedicated Web Worker. Embeddings via Transformers.js (with deterministic hash fallback). Semantic search returns the top 3 translation memory matches in under 50ms.
-4. **AI Layer — طبقة الذكاء الاصطناعي** — Dual-track: Sovereign (local Gemma via WebGPU for real-time ghost text) + Reasoning (Gemini from the browser for rewriting).
-5. **Linting Layer — طبقة الفحص** — The AMTA linter scans for untranslated English legal terms, draws yellow squiggles, and offers Ctrl+. autocorrections.
+1. **Split-Pane Editor Layer** — Two Monaco Editor instances managed by `react-resizable-panels`. The source pane (left, `rdat-source` language, readOnly) displays the original document. The target pane (right, `rdat-target` language) is the active editor with ghost text, AMTA linting, and inline completions. An "Edit" button allows loading/changing the source text via a textarea overlay.
+
+2. **Source-Driven Event Loop** — When the translator types in the target pane, a 300ms debounce fires and tracks the cursor's line number. The corresponding line is extracted from the **source pane** (not the target draft) and sent to the RAG pipeline for semantic search. This ensures that terminology matches are based on the original source meaning.
+
+3. **RAG Layer (Source-Driven)** — An Orama vector database in a Web Worker. Embeddings via Transformers.js (paraphrase-multilingual-MiniLM-L12-v2, 384 dimensions). The search query is always derived from the **source text**, not the target draft, producing more semantically relevant Translation Memory matches.
+
+4. **AI Layer (Dual-Track)** — Sovereign Track (local Gemma 2B INT4 via WebGPU for ghost text) and Reasoning Track (Gemini for rewriting). The LLM prompt now includes four structured sections: Source Sentence, Translation Memory, Current Target Draft, and Instruction.
+
+5. **Cloud Synthesis (Source-Aware)** — Gemini rewrites now receive both the selected target text AND its corresponding source sentence, enabling accuracy-aware stylistic rewriting.
+
+6. **AMTA Linting Layer** — Scans the **target text** for untranslated source-language terms, draws yellow squiggles, and offers Ctrl+. autocorrections sourced from the same glossary corpus used by RAG.
+
+---
+
+## Split-Pane CAT Workspace — مساحة العمل المقسمة
+
+RDAT Copilot uses a professional split-pane layout that mirrors industry-standard CAT tools. The workspace is divided into two resizable panes connected by a draggable divider.
+
+### Source Pane (Left) — الجزء المصدر
+
+- **Read-Only Monaco Editor** displaying the original source document (English or Arabic depending on translation direction).
+- **"Edit" Button** opens a textarea overlay where translators can paste or modify their source text.
+- **Language indicator** shows the source language (e.g., "SOURCE · English (الإنجليزية)").
+- Content persists during the session and resets when the language direction is swapped.
+
+### Target Pane (Right) — جزء الترجمة
+
+- **Active Monaco Editor** where the translator writes the translation.
+- **Ghost Text** (inline completions) appears as dimmed text, suggesting the next 3-15 words.
+- **AMTA Squiggles** appear as yellow warnings for untranslated terms.
+- **Line Tracking**: The cursor's current line number is tracked and used to fetch the corresponding source line for RAG queries.
+- **Selection + Rewrite**: Selecting text and clicking "✨ Rewrite" sends both the target selection and its source sentence to Gemini.
+
+### Source-Driven RAG Pipeline
+
+The key architectural innovation is **source-driven retrieval**:
+
+1. The translator's cursor position in the **target pane** determines which line is "active" (e.g., line 5).
+2. Line 5 is extracted from the **source pane** (the original text being translated).
+3. This source sentence is embedded using Transformers.js and searched against the Orama vector database.
+4. The top 3 Translation Memory matches (based on source meaning) are injected into the LLM prompt.
+5. This ensures terminology suggestions are semantically grounded in the **original source**, not the translator's draft.
+
+### Ghost Text Sources Confirmed — مصادر اقتراحات النص الشبحي
+
+Ghost text suggestions are generated from the following sources, in order of priority:
+
+| Source | Component | Description |
+|--------|-----------|-------------|
+| **Source Sentence** | `getSourceSentence()` | The active sentence from the source pane, line-matched to the target cursor position. This is the primary semantic reference. |
+| **Translation Memory** | RAG Pipeline | Top 3 glossary matches from Orama vector DB, searched using the source sentence embedding. |
+| **Target Draft** | Monaco Editor | The current text the translator has typed in the target pane, providing context for continuation. |
+| **LLM Generation** | WebLLM (Gemma 2B) | Combines all above sources into a structured prompt to generate 3-15 word ghost text completions via local WebGPU inference. |
+| **Mock Fallback** | `MOCK_SUGGESTIONS` | When WebLLM is not ready, placeholder suggestions are shown after a 1.5s simulated delay. |
 
 ---
 

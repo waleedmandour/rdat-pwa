@@ -34,17 +34,24 @@ export function getGeminiApiKey(): string | null {
  * rewriteText — Send text to Gemini for rewriting/synthesis.
  * Uses the cloud Reasoning Track for heavier tasks.
  *
- * @param text The selected text from the editor
+ * Updated for split-pane CAT architecture:
+ * Now sends BOTH the target translation AND its corresponding source text
+ * so the LLM can evaluate translation accuracy before rewriting for
+ * stylistic register.
+ *
+ * @param text The selected target text from the editor
  * @param ragResults Top RAG matches for context
  * @param direction The current language direction
  * @param instruction Optional custom instruction
+ * @param sourceText The corresponding source sentence from the source pane
  * @returns The rewritten text, or null on failure
  */
 export async function rewriteText(
   text: string,
   ragResults: RAGResult[] = [],
   direction: LanguageDirection = "en-ar",
-  instruction?: string
+  instruction?: string,
+  sourceText?: string
 ): Promise<string | null> {
   if (!genAI) {
     console.error("[RDAT-Gemini] Not initialized — call initGemini() first");
@@ -55,14 +62,30 @@ export async function rewriteText(
   const systemPrompt = GEMINI_SYSTEM_PROMPTS[direction];
   const defaultInstruction = DEFAULT_REWRITE_INSTRUCTION[direction];
 
-  // Build context with RAG
+  // Build context with source text + RAG + target text
+  let userMessage = "";
+
+  // Section 1: Original Source Text (from the source pane)
+  if (sourceText && sourceText.trim().length > 0) {
+    userMessage += `Original Source Text:\n${sourceText.trim()}\n\n`;
+  }
+
+  // Section 2: RAG Context (Translation Memory)
   const ragContext = formatRAGContext(ragResults, direction);
-  const userMessage = ragContext
-    ? `${ragContext}\n\nText to rewrite:\n${text}\n\nInstruction: ${instruction || defaultInstruction}`
-    : `Text to rewrite:\n${text}\n\nInstruction: ${instruction || defaultInstruction}`;
+  if (ragContext) {
+    userMessage += `${ragContext}\n\n`;
+  }
+
+  // Section 3: Target Translation to evaluate and rewrite
+  userMessage += `Target Translation to evaluate and rewrite:\n${text}\n\n`;
+
+  // Section 4: Instruction
+  userMessage += `Instruction: ${instruction || defaultInstruction}`;
 
   try {
-    console.log(`[RDAT-Gemini] Sending rewrite request (${text.length} chars, direction: ${direction})`);
+    console.log(
+      `[RDAT-Gemini] Sending rewrite request (${text.length} chars, direction: ${direction}${sourceText ? `, source: ${sourceText.length} chars` : ""})`
+    );
 
     const result = await model.generateContent({
       contents: [

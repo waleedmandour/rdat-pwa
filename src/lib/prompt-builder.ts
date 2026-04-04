@@ -34,21 +34,41 @@ export function formatRAGContext(
 
 /**
  * buildMessages — Constructs the chat messages array for WebLLM.
- * System prompt + RAG context + current editor text.
+ *
+ * Updated for split-pane (CAT) architecture:
+ *   1. System prompt — defines the co-writing assistant role
+ *   2. Source Sentence — the active sentence from the SOURCE pane
+ *   3. Relevant TM/Glossary — RAG results from source-driven search
+ *   4. Current Target Draft — what the user has typed so far in the TARGET pane
+ *   5. Instruction — explicit guidance for ghost text generation
  */
 export function buildMessages(
   editorText: string,
   ragResults: RAGResult[],
-  direction: LanguageDirection = "en-ar"
+  direction: LanguageDirection = "en-ar",
+  sourceSentence: string = ""
 ): Array<{ role: "system" | "user"; content: string }> {
   const systemPrompt = getSystemPrompt(direction);
   const ragContext = formatRAGContext(ragResults, direction);
 
-  let userMessage = editorText.trim();
+  // Build the user message with structured sections
+  let userMessage = "";
 
-  if (ragContext) {
-    userMessage = `${ragContext}\n\nCurrent text to complete:\n${userMessage}`;
+  // Section 1: Source Sentence (from the source pane)
+  if (sourceSentence && sourceSentence.trim().length > 0) {
+    userMessage += `Source Sentence:\n${sourceSentence.trim()}\n\n`;
   }
+
+  // Section 2: RAG Context (Translation Memory matches)
+  if (ragContext) {
+    userMessage += `${ragContext}\n\n`;
+  }
+
+  // Section 3: Current Target Draft
+  userMessage += `Current Target Draft:\n${editorText.trim()}\n\n`;
+
+  // Section 4: Explicit instruction
+  userMessage += `Instruction: Provide only the next few words to complete the target draft. Output 3-15 words maximum. Do not repeat what has already been written.`;
 
   return [
     { role: "system", content: systemPrompt },

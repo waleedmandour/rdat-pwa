@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import type { GPUStatus, AppMode, RewriteResult, LanguageDirection } from "@/types";
 import type { RAGResult } from "@/lib/rag-types";
 import type * as Monaco from "monaco-editor";
@@ -18,13 +19,29 @@ import { useGemini } from "@/hooks/useGemini";
 import { useAMTALinter } from "@/hooks/useAMTALinter";
 import { buildMessages } from "@/lib/prompt-builder";
 import { LANGUAGE_PAIRS, LANG_DIRECTION_STORAGE } from "@/lib/constants";
-import { extractCurrentSentence, truncateForEmbedding } from "@/lib/sentence-extractor";
-import { FileText, BookOpen, Sparkles, Loader2, X } from "lucide-react";
+import { truncateForEmbedding, getSourceSentence } from "@/lib/sentence-extractor";
+import { FileText, BookOpen, Sparkles, Loader2, X, Pencil, Check, Copy, Lock } from "lucide-react";
 
 /**
  * Available editor views — the user can switch between them.
  */
 type EditorView = "welcome" | "editor";
+
+/**
+ * Default English source text for the source pane.
+ */
+const DEFAULT_SOURCE_TEXT_EN = `Force Majeure. Neither party shall be held liable for failure to perform obligations under this agreement due to events beyond reasonable control.
+
+Intellectual Property Rights. All patents, trademarks, copyrights, and trade secrets developed during the term of this agreement shall remain the exclusive property of the originating party.
+
+Governing Law. This agreement shall be governed by and construed in accordance with the laws of the jurisdiction in which the originating party is domiciled.`;
+
+/**
+ * Default Arabic source text for AR→EN mode.
+ */
+const DEFAULT_SOURCE_TEXT_AR = `القوة القاهرة. لا يتحمل أي من الطرفين مسؤولية الإخلال بالتزاماته بموجب هذا الاتفاق في حالة حدوث قوة قاهرة.
+
+حقوق الملكية الفكرية. تظل جميع براءات الاختراع والعلامات التجارية وحقوق النشر والأسرار التجارية المطور`;
 
 export function WorkspaceShell({
   gpuStatus,
@@ -48,6 +65,21 @@ export function WorkspaceShell({
     }
   });
 
+  const langPair = LANGUAGE_PAIRS[langDirection];
+
+  // ─── Split-Pane State ───────────────────────────────────────────
+  // Source text — the document the user is translating FROM
+  const [sourceText, setSourceText] = useState(
+    langDirection === "en-ar" ? DEFAULT_SOURCE_TEXT_EN : DEFAULT_SOURCE_TEXT_AR
+  );
+
+  // Target text — the user's translation draft
+  const [targetText, setTargetText] = useState("");
+
+  // Track the active line in the target editor (for source line extraction)
+  const [activeTargetLine, setActiveTargetLine] = useState(1);
+
+  // ─── Language Direction Swap ────────────────────────────────────
   const swapLanguageDirection = useCallback(() => {
     setLangDirection((prev) => {
       const next: LanguageDirection = prev === "en-ar" ? "ar-en" : "en-ar";
@@ -55,13 +87,47 @@ export function WorkspaceShell({
       console.log(`[RDAT] Language direction swapped: ${prev} → ${next}`);
       return next;
     });
+    // Reset source/target text for new language direction
+    setSourceText(langDirection === "en-ar" ? DEFAULT_SOURCE_TEXT_AR : DEFAULT_SOURCE_TEXT_EN);
+    setTargetText("");
+    setActiveTargetLine(1);
+  }, [langDirection]);
+
+  // Source editing overlay state
+  const [isEditingSource, setIsEditingSource] = useState(false);
+  const [editSourceDraft, setEditSourceDraft] = useState("");
+
+  // Refs for async access in callbacks
+  const sourceTextRef = useRef(sourceText);
+  const activeTargetLineRef = useRef(activeTargetLine);
+
+  useEffect(() => { sourceTextRef.current = sourceText; }, [sourceText]);
+  useEffect(() => { activeTargetLineRef.current = activeTargetLine; }, [activeTargetLine]);
+
+  // Source text defaults are set in swapLanguageDirection callback
+  // (avoids cascading render from setState-in-effect)
+
+  // ─── Source Editing Handlers ────────────────────────────────────
+  const handleOpenSourceEditor = useCallback(() => {
+    setEditSourceDraft(sourceTextRef.current);
+    setIsEditingSource(true);
   }, []);
 
-  const langPair = LANGUAGE_PAIRS[langDirection];
+  const handleApplySourceEdit = useCallback(() => {
+    setSourceText(editSourceDraft);
+    setIsEditingSource(false);
+    console.log(`[RDAT] Source text updated (${editSourceDraft.length} chars, ${editSourceDraft.split("\n").length} lines)`);
+  }, [editSourceDraft]);
 
-  const [sourceText, setSourceText] = useState(
-    "Force Majeure. Neither party shall be held liable for failure to perform obligations under this agreement due to events beyond reasonable control.\n\nIntellectual Property Rights. All patents, trademarks, copyrights, and trade secrets developed during the term of this agreement shall remain the exclusive property of the originating party."
-  );
+  const handleCancelSourceEdit = useCallback(() => {
+    setIsEditingSource(false);
+    setEditSourceDraft("");
+  }, []);
+
+  // ─── Cursor Position Tracking (Target Editor) ───────────────────
+  const handleCursorPositionChange = useCallback((position: { lineNumber: number; column: number }) => {
+    setActiveTargetLine(position.lineNumber);
+  }, []);
 
   // ─── Gemini Cloud (Reasoning Track) ────────────────────────────
   const gemini = useGemini();
@@ -73,6 +139,8 @@ export function WorkspaceShell({
   const [showRewritePanel, setShowRewritePanel] = useState(false);
   const [rewriteResult, setRewriteResult] = useState<RewriteResult | null>(null);
   const [rewriteError, setRewriteError] = useState<string | null>(null);
+  // Store the source sentence at rewrite time (avoid ref-during-render)
+  const [rewriteSourceSentence, setRewriteSourceSentence] = useState("");
 
   // ─── Editor instance ref for imperative operations ──────────────
   const editorInstanceRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -87,70 +155,76 @@ export function WorkspaceShell({
   // ─── WebLLM Engine ─────────────────────────────────────────────
   const webllm = useWebLLM();
 
-  // ─── Editor Event Loop (with RAG + AMTA callback) ─────────────
+  // ─── Editor Event Loop (Source-Driven RAG + AMTA callback) ──────
   const ragSearchRef = useRef(rag.search);
-  useEffect(() => {
-    ragSearchRef.current = rag.search;
-  });
+  useEffect(() => { ragSearchRef.current = rag.search; });
 
   const amtaDebouncedLintRef = useRef(amta.debouncedLint);
-  useEffect(() => {
-    amtaDebouncedLintRef.current = amta.debouncedLint;
-  });
+  useEffect(() => { amtaDebouncedLintRef.current = amta.debouncedLint; });
 
   const { inferenceState, handleEditorChange, cleanup } =
     useEditorEventLoop({
       onDebounced: (text: string) => {
-        // Extract the current sentence for RAG query
-        const sentence = extractCurrentSentence(text);
-        if (!sentence || sentence.trim().length < 3) return;
+        // ── SOURCE-DRIVEN RAG: Extract the corresponding source line ──
+        const currentLine = activeTargetLineRef.current;
+        const sourceSentence = getSourceSentence(sourceTextRef.current, currentLine);
 
-        const query = truncateForEmbedding(sentence);
-        console.log(
-          `[RDAT] RAG query triggered — sentence: "${sentence.substring(0, 80)}${sentence.length > 80 ? "…" : ""}"`
-        );
+        if (sourceSentence && sourceSentence.trim().length >= 3) {
+          const query = truncateForEmbedding(sourceSentence);
+          console.log(
+            `[RDAT] RAG query triggered (source-driven) — source line ${currentLine}: "${sourceSentence.substring(0, 80)}${sourceSentence.length > 80 ? "…" : ""}"`
+          );
 
-        // Fire RAG search in the Web Worker (off main thread)
-        ragSearchRef.current(query);
+          // Fire RAG search on SOURCE text (not target draft)
+          ragSearchRef.current(query);
+        }
 
-        // Fire AMTA lint (debounced internally)
+        // Fire AMTA lint on TARGET text (debounced internally)
         amtaDebouncedLintRef.current(text);
       },
     });
 
   // Cleanup event loop on unmount
   useEffect(() => {
-    return () => {
-      cleanup();
-    };
+    return () => { cleanup(); };
   }, [cleanup]);
 
   /**
-   * generateCompletion — Orchestrates RAG + WebLLM for ghost text.
-   * Called from MonacoEditor's inline completions provider.
+   * generateCompletion — Orchestrates SOURCE-DRIVEN RAG + WebLLM for ghost text.
+   * Called from MonacoEditor's inline completions provider (target pane only).
+   *
+   * Pipeline:
+   *   1. Extract the active source sentence (from source pane, line-matched)
+   *   2. RAG search on source sentence (if not cached from debounce)
+   *   3. Build messages: source sentence + RAG context + target draft
+   *   4. Generate via WebLLM (Gemma 2B local)
    */
   const generateCompletion = useCallback(
     async (editorText: string, ragResults: RAGResult[]): Promise<string | null> => {
-      // Step 1: RAG search (if not already cached from debounce)
+      // Step 1: Extract source sentence corresponding to target cursor position
+      const currentLine = activeTargetLineRef.current;
+      const sourceSentence = getSourceSentence(sourceTextRef.current, currentLine) || "";
+
+      // Step 2: RAG search on SOURCE text (if not already cached from debounce)
       let results = ragResults;
       if (results.length === 0 && rag.isReady) {
-        const sentence = extractCurrentSentence(editorText);
-        if (sentence && sentence.trim().length >= 3) {
-          results = await rag.search(truncateForEmbedding(sentence));
+        if (sourceSentence && sourceSentence.trim().length >= 3) {
+          results = await rag.search(truncateForEmbedding(sourceSentence));
+          console.log(`[RDAT] Ghost text RAG fallback — searched source line ${currentLine}`);
         }
       }
 
-      // Step 2: Build messages with RAG context + language direction
-      const messages = buildMessages(editorText, results, langDirection);
+      // Step 3: Build messages with source sentence + RAG context + target draft
+      const messages = buildMessages(editorText, results, langDirection, sourceSentence);
 
-      // Step 3: Generate via WebLLM
+      // Step 4: Generate via WebLLM
       return webllm.generate(messages);
     },
     [rag, webllm, langDirection]
   );
 
   /**
-   * handleEditorDidMount — Called when Monaco mounts.
+   * handleEditorDidMount — Called when the TARGET editor mounts.
    * Stores editor ref, attaches AMTA linter, and tracks selection changes.
    */
   const handleEditorDidMount = useCallback(
@@ -171,6 +245,8 @@ export function WorkspaceShell({
       if (text) {
         amta.runLint(text);
       }
+
+      console.log("[RDAT] Target editor mounted — AMTA linter and selection tracking attached");
     },
     [amta]
   );
@@ -186,7 +262,10 @@ export function WorkspaceShell({
   }, []);
 
   /**
-   * handleRewrite — Sends selected text to Gemini for rewriting.
+   * handleRewrite — Sends selected TARGET text AND corresponding SOURCE text to Gemini.
+   *
+   * Updated for split-pane: The rewrite now includes the source sentence
+   * so Gemini can evaluate translation accuracy before rewriting.
    */
   const handleRewrite = useCallback(async () => {
     const editor = editorInstanceRef.current;
@@ -199,13 +278,27 @@ export function WorkspaceShell({
     const selectedText = model.getValueInRange(selection);
     if (!selectedText || selectedText.trim().length === 0) return;
 
+    // Extract corresponding source sentence for accuracy evaluation
+    const currentLine = activeTargetLineRef.current;
+    const sourceSentence = getSourceSentence(sourceTextRef.current, currentLine) || "";
+
     setRewriteError(null);
     setShowRewritePanel(true);
     setRewriteResult(null);
+    setRewriteSourceSentence(sourceSentence);
 
-    console.log(`[RDAT] Rewrite requested for ${selectedText.length} chars`);
+    console.log(
+      `[RDAT] Rewrite requested — ${selectedText.length} chars target, ${sourceSentence.length} chars source`
+    );
 
-    const result = await gemini.rewrite(selectedText, rag.lastResults, langDirection);
+    // Send BOTH source and target to Gemini for accuracy-aware rewriting
+    const result = await gemini.rewrite(
+      selectedText,
+      rag.lastResults,
+      langDirection,
+      undefined,
+      sourceSentence
+    );
 
     if (result) {
       setRewriteResult({
@@ -234,9 +327,12 @@ export function WorkspaceShell({
       },
     ]);
 
+    // Update the target text state
+    setTargetText(editorInstanceRef.current.getValue());
+
     setShowRewritePanel(false);
     setRewriteResult(null);
-    console.log("[RDAT] Rewrite accepted — selection replaced");
+    console.log("[RDAT] Rewrite accepted — selection replaced in target pane");
   }, [rewriteResult]);
 
   const openView = (view: EditorView) => {
@@ -295,7 +391,7 @@ export function WorkspaceShell({
               }`}
             >
               <FileText className="w-3.5 h-3.5 flex-shrink-0" />
-              <span className="truncate">Translation Editor</span>
+              <span className="truncate">Translation Workspace</span>
               {/* Dirty indicator */}
               <span className="w-2 h-2 rounded-full bg-teal-400 ml-1 flex-shrink-0" />
             </button>
@@ -305,7 +401,7 @@ export function WorkspaceShell({
               onClick={handleRewrite}
               disabled={!hasSelection || !gemini.hasApiKey || gemini.isRewriting}
               className="flex items-center gap-1.5 px-2.5 h-full text-[12px] border-r border-[var(--ide-border)] cursor-pointer transition-colors whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed text-sky-400 hover:text-sky-300 hover:bg-sky-500/10"
-              title={!gemini.hasApiKey ? "Set Gemini API key in Settings first" : hasSelection ? "Rewrite selected text with Gemini" : "Select text to rewrite"}
+              title={!gemini.hasApiKey ? "Set Gemini API key in Settings first" : hasSelection ? "Rewrite selected text with Gemini (source-aware)" : "Select text to rewrite"}
             >
               {gemini.isRewriting ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -314,20 +410,148 @@ export function WorkspaceShell({
               )}
               <span className="truncate">{gemini.isRewriting ? "Rewriting…" : "Rewrite"}</span>
             </button>
+
+            {/* Source line indicator */}
+            <div className="flex items-center gap-1.5 px-3 h-full text-[11px] text-[var(--ide-text-dim)] ml-auto">
+              <Lock className="w-3 h-3" />
+              <span>Source L{activeTargetLine}</span>
+            </div>
           </div>
 
           {/* Editor content area */}
           <div className="flex-1 min-h-0 relative">
             {activeView === "editor" ? (
-              <MonacoEditor
-                value={sourceText}
-                onChange={handleEditorChange}
-                generateCompletion={generateCompletion}
-                interruptGeneration={webllm.interruptGenerate}
-                ragResults={rag.lastResults}
-                isLLMReady={webllm.isReady}
-                onEditorDidMount={handleEditorDidMount}
-              />
+              /* ── Split-Pane Workspace ── */
+              <PanelGroup direction="horizontal" className="h-full">
+                {/* ─── Source Pane (Left) ─── */}
+                <Panel defaultSize={38} minSize={20} order={1}>
+                  <div className="h-full flex flex-col">
+                    {/* Source pane header */}
+                    <div className="flex items-center justify-between h-8 px-3 border-b border-[var(--ide-border)] bg-[var(--ide-tabs-bg)] select-none">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-amber-400/70" />
+                        <span className="text-[11px] font-medium text-[var(--ide-text-muted)]">
+                          SOURCE
+                        </span>
+                        <span className="text-[10px] text-[var(--ide-text-dim)] px-1.5 py-0.5 rounded bg-[var(--ide-bg-secondary)] border border-[var(--ide-border)]">
+                          {langPair.sourceLabel}
+                        </span>
+                        <span className="text-[10px] text-[var(--ide-text-dim)]" dir="rtl">
+                          ({langPair.sourceLabelAr})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={handleOpenSourceEditor}
+                          className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-[var(--ide-text-dim)] hover:text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover)] transition-colors cursor-pointer"
+                          title="Edit source text"
+                        >
+                          <Pencil className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Source editor */}
+                    <div className="flex-1 relative min-h-0">
+                      <MonacoEditor
+                        value={sourceText}
+                        onChange={() => { /* readOnly: no onChange needed */ }}
+                        readOnly
+                        enableCompletions={false}
+                        languageId="rdat-source"
+                      />
+
+                      {/* Source editing overlay */}
+                      {isEditingSource && (
+                        <div className="absolute inset-0 bg-[var(--ide-bg-primary)]/95 backdrop-blur-sm z-20 flex flex-col p-3 gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-medium text-[var(--ide-text)]">
+                              Edit Source Text
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={handleCancelSourceEdit}
+                                className="px-2.5 py-1 text-[10px] rounded text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover)] transition-colors cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={handleApplySourceEdit}
+                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] rounded bg-teal-500/20 text-teal-400 hover:bg-teal-500/30 transition-colors cursor-pointer"
+                              >
+                                <Check className="w-3 h-3" />
+                                Apply
+                              </button>
+                            </div>
+                          </div>
+                          <textarea
+                            value={editSourceDraft}
+                            onChange={(e) => setEditSourceDraft(e.target.value)}
+                            className="flex-1 w-full bg-[var(--ide-bg-secondary)] border border-[var(--ide-border)] rounded p-3 text-[13px] text-[var(--ide-text)] font-mono leading-relaxed resize-none focus:outline-none focus:border-teal-500/50"
+                            placeholder="Paste your source text here..."
+                            dir={langDirection === "ar-en" ? "rtl" : "ltr"}
+                            autoFocus
+                          />
+                          <div className="text-[10px] text-[var(--ide-text-dim)]">
+                            {editSourceDraft.length} chars · {editSourceDraft.split("\n").length} lines
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Panel>
+
+                {/* ─── Resize Handle ─── */}
+                <PanelResizeHandle className="group relative w-1.5 bg-[var(--ide-border)] hover:bg-teal-500/30 active:bg-teal-500/50 transition-colors cursor-col-resize flex items-center justify-center">
+                  <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[2px] group-hover:w-[3px] group-active:w-[4px] bg-transparent group-hover:bg-teal-400/60 group-active:bg-teal-400 transition-all rounded-full" />
+                </PanelResizeHandle>
+
+                {/* ─── Target Pane (Right) ─── */}
+                <Panel defaultSize={62} minSize={30} order={2}>
+                  <div className="h-full flex flex-col">
+                    {/* Target pane header */}
+                    <div className="flex items-center justify-between h-8 px-3 border-b border-[var(--ide-border)] bg-[var(--ide-tabs-bg)] select-none">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-teal-400" />
+                        <span className="text-[11px] font-medium text-[var(--ide-text)]">
+                          TARGET
+                        </span>
+                        <span className="text-[10px] text-teal-300/70 px-1.5 py-0.5 rounded bg-teal-500/10 border border-teal-500/20">
+                          {langPair.targetLabel}
+                        </span>
+                        <span className="text-[10px] text-[var(--ide-text-dim)]" dir="rtl">
+                          ({langPair.targetLabelAr})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-[var(--ide-text-dim)]">
+                          {targetText.length > 0 ? `${targetText.split("\n").length} lines` : "Start typing…"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Target editor */}
+                    <div className="flex-1 relative min-h-0">
+                      <MonacoEditor
+                        value={targetText}
+                        onChange={(v) => {
+                          setTargetText(v);
+                          handleEditorChange(v);
+                        }}
+                        generateCompletion={generateCompletion}
+                        interruptGeneration={webllm.interruptGenerate}
+                        ragResults={rag.lastResults}
+                        isLLMReady={webllm.isReady}
+                        onEditorDidMount={handleEditorDidMount}
+                        enableCompletions
+                        languageId="rdat-target"
+                        onCursorPositionChange={handleCursorPositionChange}
+                      />
+                    </div>
+                  </div>
+                </Panel>
+              </PanelGroup>
             ) : (
               <div className="h-full overflow-auto">
                 <EditorWelcome appMode={appMode} />
@@ -340,11 +564,11 @@ export function WorkspaceShell({
                 <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--ide-border)]">
                   <span className="text-xs font-medium text-[var(--ide-text)] flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                    Gemini Rewrite
+                    Gemini Rewrite (Source-Aware)
                   </span>
                   <button
                     onClick={() => setShowRewritePanel(false)}
-                    className="flex items-center justify-center w-5 h-5 rounded text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-hover)] transition-colors"
+                    className="flex items-center justify-center w-5 h-5 rounded text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-hover)] transition-colors cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -355,7 +579,7 @@ export function WorkspaceShell({
                       <div className="flex flex-col items-center gap-3">
                         <Loader2 className="w-6 h-6 text-sky-400 animate-spin" />
                         <span className="text-xs text-[var(--ide-text-muted)]">
-                          Gemini is rewriting…
+                          Gemini is evaluating and rewriting…
                         </span>
                       </div>
                     </div>
@@ -367,15 +591,24 @@ export function WorkspaceShell({
                   )}
                   {rewriteResult && (
                     <>
+                      {/* Show source reference */}
+                      {rewriteSourceSentence && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-amber-400/70 mb-1">Source Reference</p>
+                          <p className="text-xs text-[var(--ide-text-muted)] bg-amber-500/5 border border-amber-500/10 p-2 rounded max-h-24 overflow-y-auto">
+                            {rewriteSourceSentence}
+                          </p>
+                        </div>
+                      )}
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[var(--ide-text-dim)] mb-1">Original</p>
+                        <p className="text-[10px] uppercase tracking-wider text-[var(--ide-text-dim)] mb-1">Original Translation</p>
                         <p className="text-xs text-[var(--ide-text-muted)] bg-[var(--ide-bg-tertiary)] p-2 rounded max-h-32 overflow-y-auto">
                           {rewriteResult.original}
                         </p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wider text-[var(--ide-text-dim)] mb-1">Rewritten</p>
-                        <p className="text-xs text-[var(--ide-text)] bg-[var(--ide-bg-tertiary)] p-2 rounded max-h-32 overflow-y-auto whitespace-pre-wrap">
+                        <p className="text-[10px] uppercase tracking-wider text-sky-400/70 mb-1">Rewritten</p>
+                        <p className="text-xs text-[var(--ide-text)] bg-sky-500/5 border border-sky-500/10 p-2 rounded max-h-32 overflow-y-auto whitespace-pre-wrap">
                           {rewriteResult.rewritten}
                         </p>
                       </div>
@@ -386,13 +619,13 @@ export function WorkspaceShell({
                   <div className="flex items-center gap-2 px-4 py-2 border-t border-[var(--ide-border)]">
                     <button
                       onClick={handleAcceptRewrite}
-                      className="px-3 py-1 text-[11px] rounded bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 transition-colors"
+                      className="px-3 py-1 text-[11px] rounded bg-sky-500/20 text-sky-400 hover:bg-sky-500/30 transition-colors cursor-pointer"
                     >
                       Accept
                     </button>
                     <button
                       onClick={() => setShowRewritePanel(false)}
-                      className="px-3 py-1 text-[11px] rounded text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover)] transition-colors"
+                      className="px-3 py-1 text-[11px] rounded text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover)] transition-colors cursor-pointer"
                     >
                       Dismiss
                     </button>
