@@ -20,7 +20,15 @@ import { useWebLLM } from "@/hooks/useWebLLM";
 import { useGemini } from "@/hooks/useGemini";
 import { useAMTALinter } from "@/hooks/useAMTALinter";
 import { buildMessages } from "@/lib/prompt-builder";
-import { LANGUAGE_PAIRS, LANG_DIRECTION_STORAGE } from "@/lib/constants";
+import {
+  LANGUAGE_PAIRS,
+  LANG_DIRECTION_STORAGE,
+  DEFAULT_SOURCE_TEXT_EN,
+  DEFAULT_SOURCE_TEXT_AR,
+  DEFAULT_TARGET_TEXT_AR,
+  WORKSPACE_AUTOSAVE_KEY,
+  WORKSPACE_AUTOSAVE_DEBOUNCE_MS,
+} from "@/lib/constants";
 import { truncateForEmbedding, getSourceSentence } from "@/lib/sentence-extractor";
 import { FileText, BookOpen, Sparkles, Loader2, X, Pencil, Check, Lock } from "lucide-react";
 
@@ -30,22 +38,14 @@ import { FileText, BookOpen, Sparkles, Loader2, X, Pencil, Check, Lock } from "l
 export type EditorView = "welcome" | "editor";
 
 /**
- * Default English source text for the source pane.
+ * Autosaved workspace state type.
  */
-const DEFAULT_SOURCE_TEXT_EN = `Force Majeure. Neither party shall be held liable for failure to perform obligations under this agreement due to events beyond reasonable control.
-
-American military aircraft conducted reconnaissance operations near the disputed border region. The United States imposed new sanctions on Iran over its nuclear program.
-
-The Security Council convened an emergency session to discuss the ceasefire agreement. The two nations agreed to restore diplomatic relations after years of tensions.
-
-Governing Law. This agreement shall be governed by and construed in accordance with the laws of the jurisdiction in which the originating party is domiciled.`;
-
-/**
- * Default Arabic source text for AR→EN mode.
- */
-const DEFAULT_SOURCE_TEXT_AR = `القوة القاهرة. لا يتحمل أي من الطرفين مسؤولية الإخلال بالتزاماته بموجب هذا الاتفاق في حالة حدوث قوة قاهرة.
-
-حقوق الملكية الفكرية. تظل جميع براءات الاختراع والعلامات التجارية وحقوق النشر والأسرار التجارية المطور`;
+interface AutosaveState {
+  sourceText: string;
+  targetText: string;
+  langDirection: string;
+  timestamp: number;
+}
 
 export function WorkspaceShell({
   gpuStatus,
@@ -72,13 +72,34 @@ export function WorkspaceShell({
   const langPair = LANGUAGE_PAIRS[langDirection];
 
   // ─── Split-Pane State ───────────────────────────────────────────
-  // Source text — the document the user is translating FROM
-  const [sourceText, setSourceText] = useState(
-    langDirection === "en-ar" ? DEFAULT_SOURCE_TEXT_EN : DEFAULT_SOURCE_TEXT_AR
-  );
+  // Restore workspace from localStorage autosave, or use defaults
+  const [sourceText, setSourceText] = useState(() => {
+    try {
+      const saved = localStorage.getItem(WORKSPACE_AUTOSAVE_KEY);
+      if (saved) {
+        const parsed: AutosaveState = JSON.parse(saved);
+        if (parsed.sourceText && parsed.timestamp) {
+          console.log(`[RDAT] Restored autosaved workspace (source: ${parsed.sourceText.length} chars, ${new Date(parsed.timestamp).toLocaleTimeString()})`);
+          return parsed.sourceText;
+        }
+      }
+    } catch { /* noop */ }
+    return langDirection === "en-ar" ? DEFAULT_SOURCE_TEXT_EN : DEFAULT_SOURCE_TEXT_AR;
+  });
 
-  // Target text — the user's translation draft
-  const [targetText, setTargetText] = useState("");
+  // Target text — the user's translation draft (restore from autosave or defaults)
+  const [targetText, setTargetText] = useState(() => {
+    try {
+      const saved = localStorage.getItem(WORKSPACE_AUTOSAVE_KEY);
+      if (saved) {
+        const parsed: AutosaveState = JSON.parse(saved);
+        if (parsed.targetText !== undefined && parsed.timestamp) {
+          return parsed.targetText;
+        }
+      }
+    } catch { /* noop */ }
+    return langDirection === "en-ar" ? DEFAULT_TARGET_TEXT_AR : "";
+  });
 
   // Track the active line in the target editor (for source line extraction)
   const [activeTargetLine, setActiveTargetLine] = useState(1);
@@ -92,8 +113,9 @@ export function WorkspaceShell({
       return next;
     });
     // Reset source/target text for new language direction
-    setSourceText(langDirection === "en-ar" ? DEFAULT_SOURCE_TEXT_AR : DEFAULT_SOURCE_TEXT_EN);
-    setTargetText("");
+    const nextDir: LanguageDirection = langDirection === "en-ar" ? "ar-en" : "en-ar";
+    setSourceText(nextDir === "en-ar" ? DEFAULT_SOURCE_TEXT_EN : DEFAULT_SOURCE_TEXT_AR);
+    setTargetText(nextDir === "en-ar" ? DEFAULT_TARGET_TEXT_AR : "");
     setActiveTargetLine(1);
   }, [langDirection]);
 
@@ -107,6 +129,31 @@ export function WorkspaceShell({
 
   useEffect(() => { sourceTextRef.current = sourceText; }, [sourceText]);
   useEffect(() => { activeTargetLineRef.current = activeTargetLine; }, [activeTargetLine]);
+
+  // ─── Workspace Autosave (debounced 2s) ─────────────────────────
+  const targetTextRef = useRef(targetText);
+  const langDirectionRef = useRef(langDirection);
+  useEffect(() => { targetTextRef.current = targetText; }, [targetText]);
+  useEffect(() => { langDirectionRef.current = langDirection; }, [langDirection]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const state: AutosaveState = {
+          sourceText: sourceTextRef.current,
+          targetText: targetTextRef.current,
+          langDirection: langDirectionRef.current,
+          timestamp: Date.now(),
+        };
+        localStorage.setItem(WORKSPACE_AUTOSAVE_KEY, JSON.stringify(state));
+        console.log(`[RDAT] Workspace autosaved (${state.sourceText.length} + ${state.targetText.length} chars)`);
+      } catch (err) {
+        console.warn("[RDAT] Autosave failed:", err);
+      }
+    }, WORKSPACE_AUTOSAVE_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [sourceText, targetText, langDirection]);
 
   // Source text defaults are set in swapLanguageDirection callback
   // (avoids cascading render from setState-in-effect)
@@ -145,6 +192,21 @@ export function WorkspaceShell({
   const [rewriteError, setRewriteError] = useState<string | null>(null);
   // Store the source sentence at rewrite time (avoid ref-during-render)
   const [rewriteSourceSentence, setRewriteSourceSentence] = useState("");
+
+  // ─── Clear Workspace Handler ────────────────────────────────────
+  const handleClearWorkspace = useCallback(() => {
+    setSourceText(langDirection === "en-ar" ? DEFAULT_SOURCE_TEXT_EN : DEFAULT_SOURCE_TEXT_AR);
+    setTargetText(langDirection === "en-ar" ? DEFAULT_TARGET_TEXT_AR : "");
+    setActiveTargetLine(1);
+    setShowRewritePanel(false);
+    setRewriteResult(null);
+
+    // Clear autosaved state
+    try {
+      localStorage.removeItem(WORKSPACE_AUTOSAVE_KEY);
+      console.log("[RDAT] Workspace cleared — autosave removed");
+    } catch { /* noop */ }
+  }, [langDirection]);
 
   // ─── About Dialog ────────────────────────────────────────────────
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -368,6 +430,7 @@ export function WorkspaceShell({
         sidebarOpen={sidebarOpen}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenAbout={() => setAboutOpen(true)}
+        onClearWorkspace={handleClearWorkspace}
         langDirection={langDirection}
         langPair={langPair}
         onSwapDirection={swapLanguageDirection}

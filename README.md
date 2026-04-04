@@ -40,6 +40,7 @@ RDAT Copilot is a research-informed translation technology tool designed for pro
 - [Deployment — النشر](#deployment--النشر)
 - [Project Structure](#project-structure)
 - [Tech Stack](#tech-stack)
+- [Data Sources & Acknowledgements](#data-sources--acknowledgements--مصادر-البيانات-والشكر)
 - [License](#license)
 - [User Guide (XML)](#user-guide-for-translation-students--دليل-المستخدم-لطلاب-الترجمة)
 - [Cheat Sheet](#cheat-sheet--الورقة-المرجعية-السريعة)
@@ -437,6 +438,24 @@ rdat-pwa/
 | **Vector DB** | Orama | In-memory RAG vector store |
 | **PWA** | `@ducanh2912/next-pwa` | Service worker + Workbox |
 | **CI** | GitHub Actions | Lint + build validation |
+
+---
+
+## Data Sources & Acknowledgements — مصادر البيانات والشكر
+
+RDAT Copilot incorporates parallel corpora and translation memory data from the following sources, which are used to bootstrap the in-browser RAG vector database and provide terminology context for AI-powered translation suggestions. All data is processed and stored locally in the user's browser — no external API calls are made for corpus retrieval.
+
+### WikiMatrix — ويكيماتريكس
+
+This project uses sentence-aligned parallel corpora from **[WikiMatrix](https://github.com/facebookresearch/LASER/tree/master/tasks/WikiMatrix)** (Schwenk et al., 2019, *Proceedings of the 2019 Conference on Empirical Methods in Natural Language Processing and the 9th International Joint Conference on Natural Language Processing*) as training and translation memory data for the English-Arabic language pair. WikiMatrix provides high-quality, Wikipedia-derived sentence alignments mined across 85+ languages using multilingual sentence embeddings. The English-Arabic subset used in this project is sourced from the [WikiMatrix v1.0 release](https://github.com/facebookresearch/LASER/tree/master/tasks/WikiMatrix) and is used in compliance with the CC-BY-SA 3.0 license governing Wikipedia content. Sentence alignments are converted to the TMX format and loaded into the in-browser Orama vector database for semantic search. We gratefully acknowledge the LASER team at Meta AI for making this invaluable resource freely available to the research community.
+
+### QED Corpus
+
+Additional English-Arabic parallel data is drawn from the **[QED Corpus](https://github.com/qed-project/qed)** (Koehn et al.), a curated collection of TED talk translations and other professionally translated content. This corpus is used to supplement the translation memory with conversational and diplomatic register texts, broadening the domain coverage of the RAG pipeline beyond the legal and technical terms in the primary glossary.
+
+### OPUS Glossary
+
+The primary English-Arabic legal and technical glossary is derived from the **[OPUS](https://opus.nlpl.eu/)** open parallel corpus project. OPUS aggregates translation data from a wide range of public sources including EU proceedings, UN documents, and OpenSubtitles. The glossary subset used here focuses on legal, diplomatic, and technical terminology relevant to formal translation registers.
 
 ---
 

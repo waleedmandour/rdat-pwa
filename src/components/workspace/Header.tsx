@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Languages,
   Settings,
@@ -8,9 +9,21 @@ import {
   Moon,
   ArrowLeftRight,
   Info,
+  Trash2,
 } from "lucide-react";
 import { InstallPWAButton } from "./InstallPWAButton";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { APP_NAME } from "@/lib/constants";
 import type { LanguageDirection, LanguagePair } from "@/types";
 
@@ -19,6 +32,7 @@ interface HeaderProps {
   sidebarOpen: boolean;
   onOpenSettings: () => void;
   onOpenAbout: () => void;
+  onClearWorkspace: () => void;
   langDirection: LanguageDirection;
   langPair: LanguagePair;
   onSwapDirection: () => void;
@@ -29,6 +43,7 @@ export function Header({
   sidebarOpen,
   onOpenSettings,
   onOpenAbout,
+  onClearWorkspace,
   langDirection,
   langPair,
   onSwapDirection,
@@ -95,6 +110,49 @@ export function Header({
       <div className="flex items-center gap-1.5">
         {/* PWA Install Button (only shows in eligible browsers) */}
         <InstallPWAButton />
+
+        {/* Clear Workspace — with confirmation dialog */}
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-[var(--ide-text-muted)] hover:text-red-400 hover:bg-red-500/10"
+              aria-label="Clear workspace"
+              title="Clear workspace and reset to defaults"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent className="bg-[var(--ide-panel)] border-[var(--ide-border)]">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-[var(--ide-text)]">
+                Clear Workspace — مسح مساحة العمل
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-[var(--ide-text-muted)]">
+                This will reset both the source and target panes to their default text and remove all autosaved data.
+                Your translation progress will be lost.
+                <br />
+                <span className="text-[var(--ide-text-dim)]" dir="rtl">
+                  سيؤدي هذا إلى إعادة تعيين كل من الجزء المصدر والجزء المستهدف إلى النص الافتراضي وحذف جميع البيانات المحفوظة تلقائيًا.
+                </span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="text-[var(--ide-text-muted)] hover:text-[var(--ide-text)] hover:bg-[var(--ide-hover)]">
+                Cancel — إلغاء
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={onClearWorkspace}
+                className="bg-red-500/20 text-red-400 hover:bg-red-500/30 border border-red-500/20"
+              >
+                <Trash2 className="w-3.5 h-3.5 mr-1.5 inline-block" />
+                Clear — مسح
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <Button
           variant="ghost"
           size="icon"

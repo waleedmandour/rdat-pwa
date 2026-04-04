@@ -68,6 +68,43 @@ export const LANGUAGE_PAIRS: Record<LanguageDirection, LanguagePair> = {
 
 export const LANG_DIRECTION_STORAGE = "rdat-lang-direction";
 
+// ─── Workspace Autosave ──────────────────────────────────────────────
+export const WORKSPACE_AUTOSAVE_KEY = "rdat-workspace-autosave";
+export const WORKSPACE_AUTOSAVE_DEBOUNCE_MS = 2000; // 2 seconds
+
+// ─── Default Texts (WikiMatrix-aligned) ──────────────────────────────
+
+/**
+ * Default source text: Great Pyramid of Giza encyclopedic text.
+ * Sourced from Wikipedia (WikiMatrix-aligned, EN→AR parallel corpus).
+ * Used when no user text is loaded and no autosaved state exists.
+ */
+export const DEFAULT_SOURCE_TEXT_EN = `The Great Pyramid of Giza is the oldest and largest of the three pyramids in the Giza pyramid complex bordering present-day Giza in Greater Cairo, Egypt. It is the oldest of the Seven Wonders of the Ancient World, and the only one to remain largely intact.
+
+The Great Pyramid was built as a tomb for the Fourth Dynasty pharaoh Khufu, also known by his Greek name Cheops. Construction of the pyramid is thought to have taken approximately twenty years, employing a workforce of around 100,000 skilled laborers and craftsmen. The pyramid originally stood at 146.6 metres, making it the tallest man-made structure in the world for over 3,800 years.
+
+The interior of the Great Pyramid contains three main chambers: the King's Chamber, the Queen's Chamber, and a lower chamber cut into the bedrock beneath the structure. The King's Chamber contains a large granite sarcophagus, and the walls are made of smoothly polished red granite. The Grand Gallery, a long ascending passage, leads to the King's Chamber and features a corbelled ceiling that rises to a height of 8.6 metres.
+
+The pyramid was constructed using an estimated 2.3 million limestone blocks, each weighing an average of 2.5 tons. The precision of the construction is remarkable, with the base being level to within just 2.1 centimetres across its entire 230-metre length. The casing stones that once covered the pyramid were highly polished white limestone, giving the structure a brilliant appearance that could be seen from miles away.
+
+Modern archaeological research has revealed that the Great Pyramid was part of a larger mortuary complex that included temples, causeways, and smaller satellite pyramids. The complex served as a central element in ancient Egyptian funerary practices and religious beliefs about the afterlife. Today, the Great Pyramid remains one of the most iconic and studied structures in human history, attracting millions of visitors each year and continuing to inspire archaeological and scientific investigation.`;
+
+/**
+ * Default Arabic translation text (partial — to demonstrate workspace functionality).
+ * This is an intentionally incomplete translation to show the user where to begin.
+ */
+export const DEFAULT_TARGET_TEXT_AR = `أهرام الجيزة العظيم هو أقدم وأكبر الأهرامات الثلاثة في مجموعة أهرامات الجيزة الحدودية لمدينة الجيزة الحالية في القاهرة الكبرى، مصر. إنه أقدم عجائب الدنيا السبع القديمة، والوحيد الذي بقي سليماً إلى حد كبير.
+
+بُني الهرم الأكبر كضريح للفرعون خوفو من الأسرة الرابعة، المعروف أيضاً باسمه اليوناني خيوبس. يُعتقد أن بناء الهرم استغرق حوالي عشرين عاماً، حيث شارك في البناء حوالي 100,000 عامل ماهر وحرفي. كان ارتفاع الهرم الأصلي 146.6 متراً، مما جعله أطول بناء من صنع الإنسان في العالم لأكثر من 3,800 عام.`;
+
+/**
+ * Default Arabic source text for AR→EN mode.
+ * WikiMatrix-aligned encyclopedic content.
+ */
+export const DEFAULT_SOURCE_TEXT_AR = `أهرام الجيزة العظيم هو أقدم وأكبر الأهرامات الثلاثة في مجموعة أهرامات الجيزة. يقع في الجيزة على مشارف القاهرة الكبرى في مصر. يُعد الهرم الأكبر أقدم عجائب الدنيا السبع في العالم القديم، وهو العجابة الوحيدة التي لا تزال قائمة إلى حد كبير حتى اليوم.
+
+تم بناء الهرم الأكبر كمقبرة للفرعون خوفو من الأسرة الرابعة. يُقدر أن البناء استغرق حوالي عشرين عاماً، بمشاركة حوالي مئة ألف عامل وحرفي. كان ارتفاع الهرم الأصلي 146.6 متراً، وكان بذلك أطول مبنى صنعه الإنسان في العالم لأكثر من ثلاثة آلاف وثمانمئة عام. يتكون الجزء الداخلي من الهرم من ثلاث حجرات رئيسية: حجرة الملك وحجرة الملكة وحجرة منخفضة محفورة في الصخر تحت البناء.`;
+
 export const DEFAULT_REWRITE_INSTRUCTION: Record<LanguageDirection, string> = {
   "en-ar": "Evaluate this Arabic translation against the English source for accuracy, then rewrite to match a formal legal register while preserving the original meaning.",
   "ar-en": "Evaluate this English translation against the Arabic source for accuracy, then rewrite to match a formal legal register while preserving the original meaning.",
