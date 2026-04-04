@@ -51,3 +51,42 @@ Stage Summary:
 - Logo changed from Z to R shape across all 11 files
 - No missing components found — project is architecturally complete for Phase 8
 - All changes pushed to https://github.com/waleedmandour/rdat-pwa.git
+---
+Task ID: 2
+Agent: UI/UX Fix Agent
+Task: Implement 4 UI/UX fixes — AMTA linter punctuation, cross-editor highlighting, terminology panel, status bar arrow
+
+### Work Summary
+
+**FIX 1: AMTA Linter Punctuation Bug** (`src/lib/amta-linter.ts`)
+- Added `sanitizeText()` function that replaces 16 smart/curly quote characters and invisible Unicode chars (zero-width spaces, non-joiners, BOM, CJK brackets) with standard ASCII equivalents
+- Added `isWholeWordMatch(line, idx, termLength)` helper that checks both left and right boundaries of a match against `[a-zA-Z0-9\u0600-\u06FF]` (Latin + Arabic alphanumerics), preventing false positives from substring matches
+- Updated `lintText()` to sanitize both the search term and each line before matching, then use `isWholeWordMatch()` to validate matches
+- Added `findOriginalTermIndex()` to map sanitized match positions back to original line positions for accurate Monaco column reporting
+- Context check (`hasTranslation`) also uses sanitized text for consistent matching
+- Preserved `AMTA_MIN_TERM_LENGTH` filter and `direction` parameter behavior
+
+**FIX 2: Active Sentence Tracking** (`src/components/workspace/MonacoEditor.tsx`)
+- Added `highlightLine?: number` prop to `MonacoEditorProps`
+- Added `monacoRef` to store Monaco instance for decoration API access
+- Added `highlightDecorationsRef` to track decoration IDs for cleanup
+- Added `injectHighlightStyle()` function that injects a `<style>` tag with `.rdat-source-highlight { background: rgba(45, 212, 191, 0.08) !important; }` (runs once via module-level guard)
+- Added `useEffect` watching `highlightLine` that uses `editor.deltaDecorations()` with `isWholeLine: true`, `className: 'rdat-source-highlight'`, and an overview ruler color `#2dd4bf` in Full lane
+- In `WorkspaceShell.tsx`: passed `highlightLine={activeTargetLine}` to the Source MonacoEditor
+
+**FIX 3: Terminology Matches (RAG) Panel** (`src/components/workspace/TerminologyPanel.tsx`)
+- Created new component with bilingual header: "Terminology Matches / تطابق المصطلحات"
+- Collapsible via chevron button (ChevronDown/ChevronRight), default open
+- Match count shown as teal badge in header
+- Results rendered as compact rows: index → EN term → AR term → similarity badge
+- Similarity badges color-coded: ≥80% emerald, ≥60% amber, else dim
+- Max height 180px with scrollable overflow and thin custom scrollbar
+- Empty state: "No matches for current sentence / لا توجد تطابقات" with MessageSquareDashed icon
+- Hidden entirely when RAG state is "idle"
+- Integrated into WorkspaceShell.tsx below the source MonacoEditor, within the source Panel's flex-column layout
+
+**FIX 4: Status Bar Language Direction Arrow** (`src/components/workspace/StatusBar.tsx`)
+- Changed line 190 from `←` (backwards) to `→` (correct translation direction)
+- Now displays "EN → AR" instead of "EN ← AR"
+
+All changes pass ESLint with zero errors.

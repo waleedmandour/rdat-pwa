@@ -12,6 +12,7 @@ import { WebGPUBanner } from "@/components/gpu/WebGPUBanner";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import { EditorWelcome } from "./EditorWelcome";
 import { MonacoEditor } from "./MonacoEditor";
+import { TerminologyPanel } from "./TerminologyPanel";
 import { useEditorEventLoop } from "@/hooks/useEditorEventLoop";
 import { useRAG } from "@/hooks/useRAG";
 import { useWebLLM } from "@/hooks/useWebLLM";
@@ -456,51 +457,60 @@ export function WorkspaceShell({
                     </div>
 
                     {/* Source editor */}
-                    <div className="flex-1 relative min-h-0">
-                      <MonacoEditor
-                        value={sourceText}
-                        onChange={() => { /* readOnly: no onChange needed */ }}
-                        readOnly
-                        enableCompletions={false}
-                        languageId="rdat-source"
-                      />
+                    <div className="flex-1 min-h-0 flex flex-col relative">
+                      <div className="flex-1 relative min-h-0">
+                        <MonacoEditor
+                          value={sourceText}
+                          onChange={() => { /* readOnly: no onChange needed */ }}
+                          readOnly
+                          enableCompletions={false}
+                          languageId="rdat-source"
+                          highlightLine={activeTargetLine}
+                        />
 
-                      {/* Source editing overlay */}
-                      {isEditingSource && (
-                        <div className="absolute inset-0 bg-[var(--ide-bg-primary)]/95 backdrop-blur-sm z-20 flex flex-col p-3 gap-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[12px] font-medium text-[var(--ide-text)]">
-                              Edit Source Text
-                            </span>
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={handleCancelSourceEdit}
-                                className="px-2.5 py-1 text-[10px] rounded text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover)] transition-colors cursor-pointer"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={handleApplySourceEdit}
-                                className="flex items-center gap-1 px-2.5 py-1 text-[10px] rounded bg-teal-500/20 text-teal-400 hover:bg-teal-500/30 transition-colors cursor-pointer"
-                              >
-                                <Check className="w-3 h-3" />
-                                Apply
-                              </button>
+                        {/* Source editing overlay */}
+                        {isEditingSource && (
+                          <div className="absolute inset-0 bg-[var(--ide-bg-primary)]/95 backdrop-blur-sm z-20 flex flex-col p-3 gap-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[12px] font-medium text-[var(--ide-text)]">
+                                Edit Source Text
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={handleCancelSourceEdit}
+                                  className="px-2.5 py-1 text-[10px] rounded text-[var(--ide-text-muted)] hover:bg-[var(--ide-hover)] transition-colors cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={handleApplySourceEdit}
+                                  className="flex items-center gap-1 px-2.5 py-1 text-[10px] rounded bg-teal-500/20 text-teal-400 hover:bg-teal-500/30 transition-colors cursor-pointer"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  Apply
+                                </button>
+                              </div>
+                            </div>
+                            <textarea
+                              value={editSourceDraft}
+                              onChange={(e) => setEditSourceDraft(e.target.value)}
+                              className="flex-1 w-full bg-[var(--ide-bg-secondary)] border border-[var(--ide-border)] rounded p-3 text-[13px] text-[var(--ide-text)] font-mono leading-relaxed resize-none focus:outline-none focus:border-teal-500/50"
+                              placeholder="Paste your source text here..."
+                              dir={langDirection === "ar-en" ? "rtl" : "ltr"}
+                              autoFocus
+                            />
+                            <div className="text-[10px] text-[var(--ide-text-dim)]">
+                              {editSourceDraft.length} chars · {editSourceDraft.split("\n").length} lines
                             </div>
                           </div>
-                          <textarea
-                            value={editSourceDraft}
-                            onChange={(e) => setEditSourceDraft(e.target.value)}
-                            className="flex-1 w-full bg-[var(--ide-bg-secondary)] border border-[var(--ide-border)] rounded p-3 text-[13px] text-[var(--ide-text)] font-mono leading-relaxed resize-none focus:outline-none focus:border-teal-500/50"
-                            placeholder="Paste your source text here..."
-                            dir={langDirection === "ar-en" ? "rtl" : "ltr"}
-                            autoFocus
-                          />
-                          <div className="text-[10px] text-[var(--ide-text-dim)]">
-                            {editSourceDraft.length} chars · {editSourceDraft.split("\n").length} lines
-                          </div>
-                        </div>
-                      )}
+                        )}
+                      </div>
+
+                      {/* Terminology Matches (RAG) Panel */}
+                      <TerminologyPanel
+                        results={rag.lastResults}
+                        ragState={rag.ragState}
+                      />
                     </div>
                   </div>
                 </Panel>

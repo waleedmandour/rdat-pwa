@@ -187,7 +187,7 @@ export function StatusBar({
           title="Click to swap translation direction"
         >
           <ArrowLeftRight className="w-3 h-3 text-teal-400" />
-          <span>{langPair.source.toUpperCase()} ← {langPair.target.toUpperCase()}</span>
+          <span>{langPair.source.toUpperCase()} → {langPair.target.toUpperCase()}</span>
         </button>
 
         <span className="text-[var(--ide-border)]">│</span>

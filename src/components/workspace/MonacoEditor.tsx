@@ -92,6 +92,21 @@ interface MonacoEditorProps {
   onCursorPositionChange?: (position: CursorPosition) => void;
   /** Optional className for the editor wrapper */
   className?: string;
+  /** Line number to highlight (used for cross-editor active sentence tracking) */
+  highlightLine?: number;
+}
+
+/**
+ * Injects a style tag for the source editor line highlight decoration.
+ * Called once on module load.
+ */
+let styleInjected = false;
+function injectHighlightStyle() {
+  if (styleInjected || typeof document === "undefined") return;
+  const style = document.createElement("style");
+  style.textContent = `.rdat-source-highlight { background: rgba(45, 212, 191, 0.08) !important; }`;
+  document.head.appendChild(style);
+  styleInjected = true;
 }
 
 /**
@@ -107,6 +122,7 @@ interface MonacoEditorProps {
  * - automaticLayout for seamless resize within WorkspaceShell
  * - Inline completions provider: real WebLLM when ready, mock fallback
  * - Cursor position tracking for source line extraction
+ * - Cross-editor line highlighting via deltaDecorations
  * - Proper disposal of providers and editor on unmount
  */
 export function MonacoEditor({
@@ -122,10 +138,18 @@ export function MonacoEditor({
   languageId,
   onCursorPositionChange,
   className,
+  highlightLine,
 }: MonacoEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof Monaco | null>(null);
   const inlineProviderRef = useRef<Monaco.IDisposable | null>(null);
   const cursorDisposableRef = useRef<Monaco.IDisposable | null>(null);
+  const highlightDecorationsRef = useRef<Monaco.editor.IEditorDecorationsCollection | string[]>([]);
+
+  // Inject the highlight style on first render
+  useEffect(() => {
+    injectHighlightStyle();
+  }, []);
 
   // Resolve the language ID
   const resolvedLanguageId = languageId || (enableCompletions ? RDAT_TARGET_LANGUAGE_ID : RDAT_SOURCE_LANGUAGE_ID);
@@ -290,6 +314,7 @@ export function MonacoEditor({
    */
   const handleMount: OnMount = useCallback((editor, monaco) => {
     editorRef.current = editor;
+    monacoRef.current = monaco;
 
     // Configure inline completions to show automatically (target only)
     if (enableCompletions) {
@@ -315,6 +340,50 @@ export function MonacoEditor({
     );
     onEditorDidMount?.(editor, monaco);
   }, [onEditorDidMount, resolvedLanguageId, readOnly, enableCompletions]);
+
+  /**
+   * Update highlight decoration when highlightLine changes.
+   * Uses deltaDecorations to add/remove the active line highlight.
+   */
+  useEffect(() => {
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
+
+    if (highlightLine === undefined || highlightLine <= 0) {
+      // Clear all highlight decorations
+      const oldDecorations = highlightDecorationsRef.current;
+      if (Array.isArray(oldDecorations) && oldDecorations.length > 0) {
+        highlightDecorationsRef.current = editor.deltaDecorations(oldDecorations, []);
+      }
+      return;
+    }
+
+    const newDecorations: Monaco.editor.IModelDeltaDecoration[] = [
+      {
+        range: {
+          startLineNumber: highlightLine,
+          startColumn: 1,
+          endLineNumber: highlightLine,
+          endColumn: 1,
+        },
+        options: {
+          isWholeLine: true,
+          className: "rdat-source-highlight",
+          overviewRuler: {
+            color: "#2dd4bf",
+            position: monaco.editor.OverviewRulerLane.Full,
+          },
+        },
+      },
+    ];
+
+    const oldDecorations = highlightDecorationsRef.current;
+    highlightDecorationsRef.current = editor.deltaDecorations(
+      Array.isArray(oldDecorations) ? oldDecorations : [],
+      newDecorations
+    );
+  }, [highlightLine]);
 
   /**
    * Cleanup: Dispose of the inline provider, cursor tracker, and editor on unmount.
