@@ -42,7 +42,7 @@ export const LOCAL_MODEL_DISPLAY_NAME = "Gemma 2 (INT4 Quantized)";
 export const LOCAL_MODEL_FAMILY = "Gemma";
 export const LOCAL_MODEL_CACHE_KEY = "rdat-local-model-cache";
 export const LOCAL_MODEL_INIT_TIMEOUT_MS = 300_000; // 5 minutes for first model download
-export const LLM_MAX_TOKENS = 50; // Ghost text should be short
+export const LLM_MAX_TOKENS = 200; // Dual-version translations need more tokens
 export const LLM_TEMPERATURE = 0.3; // Low temperature for predictable completions
 
 // ─── Language Direction ─────────────────────────────────────────────

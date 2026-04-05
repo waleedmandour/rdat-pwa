@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { LanguageDirection } from "@/types";
 import type { RAGResult } from "@/lib/rag-types";
-import { LLM_MAX_TOKENS, LLM_TEMPERATURE } from "@/lib/constants";
+import { LLM_MAX_TOKENS } from "@/lib/constants";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -13,13 +13,21 @@ export type TranslationVersions = [string, string];
 /** Cache map: sourceSentence → [Version1, Version2] */
 export type TranslationCache = Map<string, TranslationVersions>;
 
+/** A sentence extracted from the source text */
+export interface SourceSentence {
+  lineNumber: number;
+  text: string;
+}
+
 export interface PredictiveTranslationConfig {
-  /** The active source sentence to prefetch translations for */
-  activeSourceSentence: string;
+  /** FULL source document text (not just one sentence) */
+  sourceText: string;
+  /** Current line number in target editor (1-based) */
+  activeTargetLine: number;
   /** Language direction (en-ar or ar-en) */
   languageDirection: LanguageDirection;
-  /** WebLLM generate function */
-  generate: (messages: Array<{ role: string; content: string }>) => Promise<string | null>;
+  /** WebLLM generate function (now accepts optional max_tokens) */
+  generate: (messages: Array<{ role: string; content: string }>, max_tokens?: number) => Promise<string | null>;
   /** WebLLM interrupt function */
   interruptGenerate: () => void;
   /** Whether the LLM engine is ready */
@@ -32,27 +40,107 @@ export interface PredictiveTranslationConfig {
   isRAGReady: boolean;
 }
 
-export interface PredictiveTranslationState {
-  /** The translation cache */
-  cache: TranslationCache;
-  /** Whether a prefetch is currently running */
-  isPrefetching: boolean;
-  /** The last error message, if any */
-  error: string | null;
-  /** The source sentence currently being prefetched */
-  prefetchingSentence: string | null;
-}
-
 // ─── Constants ──────────────────────────────────────────────────────────
 
 /** Delimiter used in the LLM prompt/response to separate two versions */
 const VERSION_DELIMITER = "|||";
 
-/** Maximum tokens for the dual-version generation (needs more than single ghost text) */
-const PREFETCH_MAX_TOKENS = 120;
-
-/** Debounce delay before triggering a new prefetch (ms) */
+/** Debounce delay before triggering a new prefetch cycle (ms) */
 const PREFETCH_DEBOUNCE_MS = 400;
+
+/** Max tokens for full sentence dual-version translations */
+const DUAL_VERSION_MAX_TOKENS = 200;
+
+/** Max sentences to prefetch ahead (N+3 window, minus 1 lookback) */
+const PREFETCH_WINDOW_AHEAD = 3;
+const PREFETCH_WINDOW_BEHIND = 1;
+
+// ─── Sentence Splitter ─────────────────────────────────────────────────
+
+/**
+ * splitSourceIntoSentences — Splits the source text into an array of
+ * { lineNumber, text } objects. Each non-empty line becomes a sentence.
+ * Lines are joined at `.!?` boundaries to form complete sentences.
+ *
+ * @param sourceText The full source document text
+ * @returns Array of SourceSentence objects
+ */
+function splitSourceIntoSentences(sourceText: string): SourceSentence[] {
+  if (!sourceText || sourceText.trim().length === 0) return [];
+
+  const lines = sourceText.split("\n");
+  const sentences: SourceSentence[] = [];
+
+  let currentText = "";
+  let startLineNumber = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = (lines[i] ?? "").trim();
+
+    // Skip empty lines — they mark paragraph boundaries
+    if (!line) {
+      if (currentText.trim().length > 0) {
+        sentences.push({
+          lineNumber: startLineNumber + 1, // 1-based
+          text: currentText.trim(),
+        });
+        currentText = "";
+      }
+      continue;
+    }
+
+    if (currentText.trim().length === 0) {
+      startLineNumber = i;
+    }
+
+    // Append the line
+    currentText += (currentText ? " " : "") + line;
+
+    // Check if this line ends with a sentence boundary
+    if (/[.!?。！？]$/.test(line)) {
+      sentences.push({
+        lineNumber: startLineNumber + 1, // 1-based
+        text: currentText.trim(),
+      });
+      currentText = "";
+    }
+  }
+
+  // Don't forget the last accumulated text
+  if (currentText.trim().length > 0) {
+    sentences.push({
+      lineNumber: startLineNumber + 1, // 1-based
+      text: currentText.trim(),
+    });
+  }
+
+  return sentences;
+}
+
+/**
+ * findActiveSentenceIndex — Given the target line number and the list of
+ * source sentences, find which sentence the user is currently working on.
+ *
+ * Strategy: Find the sentence whose lineNumber is closest to the target line,
+ * preferring sentences that come BEFORE or AT the target line.
+ */
+function findActiveSentenceIndex(
+  activeTargetLine: number,
+  sentences: SourceSentence[]
+): number {
+  if (sentences.length === 0) return -1;
+
+  // Find the last sentence whose start lineNumber is <= activeTargetLine
+  let bestIdx = 0;
+  for (let i = 0; i < sentences.length; i++) {
+    if (sentences[i].lineNumber <= activeTargetLine) {
+      bestIdx = i;
+    } else {
+      break;
+    }
+  }
+  return bestIdx;
+}
 
 // ─── Prompt Builders ───────────────────────────────────────────────────
 
@@ -101,7 +189,8 @@ CRITICAL RULES:
 
 export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
   const {
-    activeSourceSentence,
+    sourceText,
+    activeTargetLine,
     languageDirection,
     generate,
     interruptGenerate,
@@ -125,6 +214,13 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Sentence list — derived from sourceText
+  const sentencesRef = useRef<SourceSentence[]>([]);
+  const [activeSentenceIndex, setActiveSentenceIndex] = useState(-1);
+
+  // Track which active line triggered the last prefetch cycle
+  const lastPrefetchLineRef = useRef<number>(-1);
+
   // Store the latest config in refs for the async callback
   const generateRef = useRef(generate);
   const interruptRef = useRef(interruptGenerate);
@@ -142,34 +238,44 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
   useEffect(() => { ragResultsRef.current = ragResults; }, [ragResults]);
   useEffect(() => { isRAGReadyRef.current = isRAGReady; }, [isRAGReady]);
 
+  // ─── Sentence Splitting (on sourceText change) ───────────────────────
+  useEffect(() => {
+    const sentences = splitSourceIntoSentences(sourceText ?? "");
+    sentencesRef.current = sentences;
+    console.log(`[RDAT-Prefetch] Source text split into ${sentences.length} sentences`);
+
+    // Compute active sentence index
+    const idx = findActiveSentenceIndex(activeTargetLine, sentences);
+    setActiveSentenceIndex(idx);
+    lastPrefetchLineRef.current = -1; // Force re-evaluation
+  }, [sourceText]);
+
+  // ─── Active Sentence Index (on activeTargetLine change) ──────────────
+  useEffect(() => {
+    const idx = findActiveSentenceIndex(activeTargetLine, sentencesRef.current);
+    setActiveSentenceIndex(idx);
+  }, [activeTargetLine]);
+
   /**
-   * prefetchTranslation — Background generation of dual-version translations.
-   * Aborts any in-flight generation before starting a new one.
+   * prefetchSingleSentence — Generate dual-version translation for a single sentence.
+   * Skips if already cached.
    */
-  const prefetchTranslation = useCallback(
-    async (sourceSentence: string) => {
+  const prefetchSingleSentence = useCallback(
+    async (sourceSentence: string, abortSignal: AbortSignal): Promise<boolean> => {
       const safeSentence = String(sourceSentence ?? "");
-      if (!safeSentence || safeSentence.trim().length < 3) return;
-      if (!isLLMReadyRef.current) {
-        console.log("[RDAT-Prefetch] LLM not ready — skipping prefetch");
-        return;
-      }
+      if (!safeSentence || safeSentence.trim().length < 3) return false;
 
       // Check cache first
       if (cacheRef.current.has(safeSentence)) {
-        console.log("[RDAT-Prefetch] Cache hit for:", (safeSentence ?? "").substring(0, 60));
-        return;
+        console.log("[RDAT-Prefetch] Cache hit for:", safeSentence.substring(0, 60));
+        return true; // Already cached
       }
 
-      // Abort any previous in-flight request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-        interruptRef.current();
-        console.log("[RDAT-Prefetch] Aborted previous in-flight generation");
+      if (abortSignal.aborted) return false;
+      if (!isLLMReadyRef.current) {
+        console.log("[RDAT-Prefetch] LLM not ready — skipping prefetch");
+        return false;
       }
-
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
 
       setIsPrefetching(true);
       setError(null);
@@ -187,27 +293,24 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
           }
         }
 
-        if (abortController.signal.aborted) return;
+        if (abortSignal.aborted) return false;
 
         // Build prompt and generate
         const direction = languageDirectionRef.current;
         const messages = buildDualVersionPrompt(safeSentence, direction, currentRagResults);
 
         console.log(
-          `[RDAT Debug] Requesting translation for: "${(safeSentence ?? "").substring(0, 60)}${(safeSentence?.length ?? 0) > 60 ? "…" : ""}"`
+          `[RDAT Debug] Requesting translation for: "${safeSentence.substring(0, 60)}${safeSentence.length > 60 ? "…" : ""}"`
         );
         console.log("[RDAT Debug] Language direction:", direction);
         console.log("[RDAT Debug] RAG context entries:", (currentRagResults?.length ?? 0));
         console.log("[RDAT Debug] Prompt messages:", messages.map((m) => ({ role: m.role, contentLen: m.content.length })));
 
-        // Note: We call the generate function directly. The generate function from
-        // useWebLLM uses LLM_MAX_TOKENS internally, but for prefetch we need more tokens.
-        // We'll work with what we get and parse accordingly.
-        console.log("[RDAT Debug] Calling LLM generate...");
-        const result = await generateRef.current?.(messages) ?? null;
-        console.log("[RDAT Debug] Engine responded with:", result ? `"${(result ?? "").substring(0, 120)}${(result?.length ?? 0) > 120 ? "…" : ""}"` : "null/empty");
+        console.log("[RDAT Debug] Calling LLM generate with max_tokens:", DUAL_VERSION_MAX_TOKENS);
+        const result = await generateRef.current?.(messages, DUAL_VERSION_MAX_TOKENS) ?? null;
+        console.log("[RDAT Debug] Engine responded with:", result ? `"${result.substring(0, 120)}${result.length > 120 ? "…" : ""}"` : "null/empty");
 
-        if (abortController.signal.aborted) return;
+        if (abortSignal.aborted) return false;
 
         if (result && result.trim()) {
           const parsed = parseDualVersionResponse(result.trim());
@@ -215,29 +318,32 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
             cacheRef.current.set(safeSentence, parsed);
             setCacheVersion((v) => v + 1);
             console.log(
-              `[RDAT-Prefetch] Cached ${parsed.length} versions for: "${(safeSentence ?? "").substring(0, 60)}"`,
-              parsed.map((v: string) => `"${String(v ?? "").substring(0, 40)}${(v?.length ?? 0) > 40 ? "…" : ""}"`)
+              `[RDAT-Prefetch] Cached ${parsed.length} versions for: "${safeSentence.substring(0, 60)}"`,
+              parsed.map((v: string) => `"${v.substring(0, 40)}${v.length > 40 ? "…" : ""}"`)
             );
+            return true;
           } else {
-            console.log("[RDAT-Prefetch] Could not parse dual versions from LLM output:", (result ?? "").substring(0, 100));
+            console.log("[RDAT-Prefetch] Could not parse dual versions from LLM output:", result.substring(0, 100));
             // Store the single result as both versions as fallback
             cacheRef.current.set(safeSentence, [result.trim(), result.trim()]);
             setCacheVersion((v) => v + 1);
+            return true;
           }
         } else {
           console.log("[RDAT-Prefetch] LLM returned null/empty");
+          return false;
         }
       } catch (err) {
-        if (abortController.signal.aborted) {
-          console.log("[RDAT-Prefetch] Prefetch aborted — user typed or source changed");
+        if (abortSignal.aborted) {
+          console.log("[RDAT-Prefetch] Prefetch aborted — user changed line");
         } else {
           const msg = err instanceof Error ? err.message : String(err);
           console.error("[RDAT-Prefetch] Prefetch failed:", msg);
           setError(msg);
         }
+        return false;
       } finally {
-        if (abortControllerRef.current === abortController) {
-          abortControllerRef.current = null;
+        if (abortControllerRef.current?.signal === abortSignal) {
           setIsPrefetching(false);
           setPrefetchingSentence(null);
         }
@@ -247,8 +353,65 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
   );
 
   /**
-   * interruptPrefetch — Forcefully cancel the current prefetch to free GPU.
-   * Called when the user starts typing to ensure 0ms latency.
+   * runPrefetchCycle — Process the prefetch queue sequentially.
+   * Translates sentences from max(0, N-1) to min(len-1, N+3).
+   */
+  const runPrefetchCycle = useCallback(
+    async (activeLine: number) => {
+      const sentences = sentencesRef.current;
+      if (sentences.length === 0) return;
+
+      const sentenceIdx = findActiveSentenceIndex(activeLine, sentences);
+      if (sentenceIdx < 0) return;
+
+      // Compute the window: [max(0, N-1), min(len-1, N+3)]
+      const startIdx = Math.max(0, sentenceIdx - PREFETCH_WINDOW_BEHIND);
+      const endIdx = Math.min(sentences.length - 1, sentenceIdx + PREFETCH_WINDOW_AHEAD);
+
+      console.log(
+        `[RDAT-Prefetch] Starting prefetch cycle: active line ${activeLine}, ` +
+        `sentence ${sentenceIdx}, window [${startIdx}..${endIdx}]`
+      );
+
+      // Abort any previous in-flight request (but don't clear the queue)
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        interruptRef.current();
+        console.log("[RDAT-Prefetch] Aborted previous in-flight generation");
+      }
+
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      // Process sentences sequentially
+      for (let i = startIdx; i <= endIdx; i++) {
+        if (abortController.signal.aborted) {
+          console.log("[RDAT-Prefetch] Cycle aborted at sentence", i);
+          break;
+        }
+
+        const sentence = sentences[i];
+        if (!sentence) continue;
+
+        await prefetchSingleSentence(sentence.text, abortController.signal);
+      }
+
+      if (!abortController.signal.aborted) {
+        console.log("[RDAT-Prefetch] Prefetch cycle completed");
+      }
+
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+        setIsPrefetching(false);
+        setPrefetchingSentence(null);
+      }
+    },
+    [prefetchSingleSentence]
+  );
+
+  /**
+   * interruptPrefetch — Forcefully cancel the CURRENT in-flight request only.
+   * Does NOT clear the queue — the next debounce cycle will re-evaluate.
    */
   const interruptPrefetch = useCallback(() => {
     if (abortControllerRef.current) {
@@ -279,17 +442,24 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
     console.log("[RDAT-Prefetch] Cache cleared");
   }, []);
 
-  // ─── Trigger prefetch when activeSourceSentence changes ─────────────
+  // ─── Trigger prefetch cycle when activeTargetLine changes ──────────
   useEffect(() => {
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    const safeSentence = String(activeSourceSentence ?? "");
-    if (!safeSentence || safeSentence.trim().length < 3) return;
+    const sentences = sentencesRef.current;
+    if (sentences.length === 0) return;
+
+    const sentenceIdx = findActiveSentenceIndex(activeTargetLine, sentences);
+    if (sentenceIdx < 0) return;
+
+    // Skip if the active line hasn't actually changed
+    if (lastPrefetchLineRef.current === activeTargetLine) return;
 
     debounceTimerRef.current = setTimeout(() => {
-      prefetchTranslation(safeSentence);
+      lastPrefetchLineRef.current = activeTargetLine;
+      runPrefetchCycle(activeTargetLine);
     }, PREFETCH_DEBOUNCE_MS);
 
     return () => {
@@ -297,7 +467,7 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [activeSourceSentence, isLLMReady, prefetchTranslation]);
+  }, [activeTargetLine, runPrefetchCycle]);
 
   // ─── Cleanup on unmount ─────────────────────────────────────────────
   useEffect(() => {
@@ -319,10 +489,11 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
     isPrefetching,
     error,
     prefetchingSentence,
-    prefetchTranslation,
     interruptPrefetch,
     getCachedVersions,
     clearCache,
+    allSentences: sentencesRef.current,
+    activeSentenceIndex,
   };
 }
 
@@ -383,7 +554,7 @@ function cleanVersion(raw: string | null | undefined): string {
   );
 
   // Remove surrounding quotes
-  cleaned = cleaned.replace(/^["'«]|["'»]$/g, "");
+  cleaned = cleaned.replace(/^["'\u00AB]|["'\u00BB]$/g, "");
 
   return cleaned.trim();
 }

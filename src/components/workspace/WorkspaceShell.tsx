@@ -228,12 +228,10 @@ export function WorkspaceShell({
   // ─── WebLLM Engine ─────────────────────────────────────────────
   const webllm = useWebLLM();
 
-  // ─── Active Source Sentence (for Predictive Prefetch) ──────────
-  const activeSourceSentence = getSourceSentence(sourceText, activeTargetLine) || "";
-
   // ─── Predictive Prefetch Engine ───────────────────────────────
   const predictive = usePredictiveTranslation({
-    activeSourceSentence,
+    sourceText,
+    activeTargetLine,
     languageDirection: langDirection,
     generate: webllm.generate,
     interruptGenerate: webllm.interruptGenerate,
@@ -242,6 +240,9 @@ export function WorkspaceShell({
     ragResults: rag.lastResults,
     isRAGReady: rag.isReady,
   });
+
+  // ─── Active Source Sentence (computed by predictive hook, re-derive for display) ──
+  const activeSourceSentence = getSourceSentence(sourceText, activeTargetLine) || "";
 
   // ─── Editor Event Loop (Source-Driven RAG + AMTA callback) ──────
   const ragSearchRef = useRef(rag.search);
@@ -685,7 +686,6 @@ export function WorkspaceShell({
                         isPrefetching={predictive.isPrefetching}
                         getCachedVersions={predictive.getCachedVersions}
                         activeSourceSentence={activeSourceSentence}
-                        interruptPrefetch={predictive.interruptPrefetch}
                       />
                     </div>
                   </div>

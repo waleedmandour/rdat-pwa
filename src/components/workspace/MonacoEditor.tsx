@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback, useEffect, useState } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import Editor, { type OnMount, type BeforeMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import type { RAGResult } from "@/lib/rag-types";
@@ -16,134 +16,30 @@ import { LANGUAGE_PAIRS } from "@/lib/constants";
 const RDAT_SOURCE_LANGUAGE_ID = "rdat-source";
 const RDAT_TARGET_LANGUAGE_ID = "rdat-target";
 
-// ─── ViewZone Suggestion Widget Types ───────────────────────────────────
-
-interface ViewZoneHandle {
-  zoneId: string | null;
-  domNode: HTMLElement | null;
-}
-
-interface SuggestionDisplay {
-  version1Remainder: string;
-  version2Remainder: string;
-  version1Full: string;
-  version2Full: string;
-  isPrefixMatch: boolean;
-}
-
 // ─── Style Injection ────────────────────────────────────────────────────
 
-let viewZoneStyleInjected = false;
-function injectViewZoneStyles() {
-  if (viewZoneStyleInjected || typeof document === "undefined") return;
+let editorStyleInjected = false;
+function injectEditorStyles() {
+  if (editorStyleInjected || typeof document === "undefined") return;
   const style = document.createElement("style");
   style.textContent = `
     .rdat-source-highlight {
       background: rgba(45, 212, 191, 0.08) !important;
     }
 
-    /* ── Predictive Zone Widget ───────────────────────────── */
-    .rdat-predictive-zone {
-      padding: 6px 0 6px 52px;
-      font-family: 'Geist Mono', 'Fira Code', 'Cascadia Code', monospace;
-      font-size: 13px;
-      line-height: 1.6;
-      color: #64748b;
-      pointer-events: none;
-      user-select: none;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow: visible !important;
-      display: block !important;
-      visibility: visible !important;
-      position: relative;
-      z-index: 1;
-    }
-
-    /* ── Fallback Decoration Styles ────────────────────────── */
-    .rdat-decoration-line {
-      background: rgba(45, 212, 191, 0.05);
-    }
-    .rdat-decoration-fallback {
-      color: #6b7280 !important;
-      font-style: italic !important;
-      opacity: 0.8;
-    }
-
-    .rdat-predictive-zone dir="auto" {
-      unicode-bidi: plaintext;
-    }
-
-    .rdat-suggestion-row {
-      display: flex;
-      align-items: baseline;
-      gap: 6px;
-      padding: 1px 0;
-    }
-
-    .rdat-suggestion-label {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.03em;
-      flex-shrink: 0;
-      min-width: 100px;
-    }
-
-    .rdat-suggestion-label--formal {
-      color: #f59e0b;
-    }
-
-    .rdat-suggestion-label--natural {
-      color: #38bdf8;
-    }
-
-    .rdat-suggestion-text {
-      color: #64748b;
-      opacity: 0.8;
-    }
-
-    .rdat-suggestion-text--prefix-match {
-      color: #a78bfa;
-      opacity: 1;
-    }
-
-    .rdat-suggestion-text--empty {
-      color: #475569;
-      font-style: italic;
-      opacity: 0.5;
-    }
-
-    .rdat-prefetch-indicator {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      color: #475569;
-      font-size: 11px;
-      padding: 2px 0;
-    }
-
-    .rdat-prefetch-spinner {
-      width: 12px;
-      height: 12px;
-      border: 1.5px solid #475569;
-      border-top-color: #2dd4bf;
-      border-radius: 50%;
-      animation: rdat-spin 0.8s linear infinite;
-    }
-
-    @keyframes rdat-spin {
-      to { transform: rotate(360deg); }
+    .rdat-version-hint-line {
+      background: rgba(45, 212, 191, 0.04);
     }
   `;
   document.head.appendChild(style);
-  viewZoneStyleInjected = true;
+  editorStyleInjected = true;
 }
 
 // ─── Suggestion Computation ─────────────────────────────────────────────
 
 /**
  * computeSuggestionDisplay — Given the user's current line text and the
- * cached translation versions, compute what to show in the ViewZone.
+ * cached translation versions, compute what to show.
  *
  * Dynamic Prefix Matching:
  * - If the user's text starts with the beginning of a cached version,
@@ -154,7 +50,7 @@ function injectViewZoneStyles() {
 function computeSuggestionDisplay(
   currentLineText: string,
   versions: TranslationVersions
-): SuggestionDisplay | null {
+): { version1Remainder: string; version2Remainder: string; version1Full: string; version2Full: string; isPrefixMatch: boolean } | null {
   if (!versions || !Array.isArray(versions) || (versions as unknown[]).length < 2) return null;
 
   const trimmedLine = (currentLineText ?? "").trim();
@@ -254,58 +150,6 @@ function tryPrefixMatch(userText: string | null | undefined, fullVersion: string
   return null;
 }
 
-// ─── DOM Builder ────────────────────────────────────────────────────────
-
-/**
- * buildSuggestionDOM — Creates the DOM content for the ViewZone.
- */
-function buildSuggestionDOM(display: SuggestionDisplay | null, isPrefetching: boolean): string {
-  const parts: string[] = [];
-
-  if (isPrefetching) {
-    parts.push(
-      `<div class="rdat-prefetch-indicator">` +
-      `<div class="rdat-prefetch-spinner"></div>` +
-      `<span>Predicting translations…</span>` +
-      `</div>`
-    );
-  }
-
-  if (!display) {
-    if (!isPrefetching) {
-      parts.push(
-        `<div class="rdat-suggestion-row">` +
-        `<span class="rdat-suggestion-text--empty">Start typing to see translation predictions…</span>` +
-        `</div>`
-      );
-    }
-    return parts.join("");
-  }
-
-  const textClass = display.isPrefixMatch
-    ? "rdat-suggestion-text--prefix-match"
-    : "rdat-suggestion-text";
-
-  const v1Text = (display.version1Remainder ?? "") || (display.version1Full ?? "");
-  const v2Text = (display.version2Remainder ?? "") || (display.version2Full ?? "");
-
-  parts.push(
-    `<div class="rdat-suggestion-row">` +
-    `<span class="rdat-suggestion-label rdat-suggestion-label--formal">[Tab] Formal:</span>` +
-    `<span class="${textClass}">${escapeHtml(v1Text)}</span>` +
-    `</div>`
-  );
-
-  parts.push(
-    `<div class="rdat-suggestion-row">` +
-    `<span class="rdat-suggestion-label rdat-suggestion-label--natural">[Ctrl+Tab] Natural:</span>` +
-    `<span class="${textClass}">${escapeHtml(v2Text)}</span>` +
-    `</div>`
-  );
-
-  return parts.join("");
-}
-
 function escapeHtml(text: string | null | undefined): string {
   return (text ?? "")
     .replace(/&/g, "&amp;")
@@ -339,10 +183,10 @@ interface MonacoEditorProps {
   onSuggestionModeChange?: (mode: SuggestionMode) => void;
   languageDirection?: LanguageDirection;
 
-  // ── New Predictive Translation Props ──
+  // ── Predictive Translation Props (Dual-Channel Ghost Text) ──
   /** Cached translation versions from the predictive prefetch engine */
   translationCache?: TranslationCache;
-  /** Incremented each time the cache is updated — used to trigger ViewZone re-render */
+  /** Incremented each time the cache is updated */
   cacheVersion?: number;
   /** Whether the prefetch engine is currently generating */
   isPrefetching?: boolean;
@@ -350,8 +194,6 @@ interface MonacoEditorProps {
   getCachedVersions?: (sourceSentence: string) => TranslationVersions | null;
   /** Active source sentence for the current target line */
   activeSourceSentence?: string;
-  /** Interrupt the prefetch engine to free GPU */
-  interruptPrefetch?: () => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────
@@ -360,13 +202,11 @@ interface MonacoEditorProps {
  * MonacoEditor — A thin wrapper around @monaco-editor/react configured
  * for the RDAT Copilot translation IDE.
  *
- * v4.0 — Predictive Zone Architecture:
- * - Replaces standard inlineCompletions with a custom IViewZone "Below-The-Line" widget
- * - Displays two translation versions (Formal/Literal and Natural/Standard)
- * - Dynamic prefix matching: shows only the remainder of what the user hasn't typed
- * - Custom keybindings: Tab (Version 1), Ctrl+Tab (Version 2)
- * - Proper disposal of IViewZone IDs and commands in cleanup
- * - RTL-aware: dir="auto" on the zone DOM node for native bidi support
+ * v5.0 — Dual-Channel Ghost Text Architecture:
+ * - Primary Channel: registerInlineCompletionsProvider for ghost text (Tab to accept)
+ * - Secondary Channel: deltaDecorations with "after" content for version labels
+ * - No ViewZone, no custom Tab keybinding (Monaco handles inline completions natively)
+ * - Prefetch manages its own lifecycle based on activeTargetLine changes
  */
 export function MonacoEditor({
   value,
@@ -391,26 +231,24 @@ export function MonacoEditor({
   isPrefetching = false,
   getCachedVersions,
   activeSourceSentence,
-  interruptPrefetch,
 }: MonacoEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
   const cursorDisposableRef = useRef<Monaco.IDisposable | null>(null);
   const highlightDecorationsRef = useRef<Monaco.editor.IEditorDecorationsCollection | string[]>([]);
 
-  // ── ViewZone state ───────────────────────────────────────────────────
-  const viewZoneIdRef = useRef<string | null>(null);
-  const tabCommandIdRef = useRef<string | null>(null);
-  const ctrlTabCommandIdRef = useRef<string | null>(null);
-  const changeDisposableRef = useRef<Monaco.IDisposable | null>(null);
-  const lastSuggestionRef = useRef<SuggestionDisplay | null>(null);
+  // ── Inline Completions Provider disposable ──────────────────────────
+  const inlineProviderDisposableRef = useRef<Monaco.IDisposable | null>(null);
 
-  // Track the last source sentence we displayed for, to detect changes
-  const lastSourceSentenceRef = useRef<string>("");
+  // ── Version decoration (secondary channel) ─────────────────────────
+  const versionDecorationsRef = useRef<string[]>([]);
+
+  // ── Cursor position change disposable (for version decoration) ────
+  const versionCursorDisposableRef = useRef<Monaco.IDisposable | null>(null);
 
   // Inject styles on first render
   useEffect(() => {
-    injectViewZoneStyles();
+    injectEditorStyles();
   }, []);
 
   // Resolve the language ID
@@ -429,245 +267,64 @@ export function MonacoEditor({
   const activeSourceSentenceRef = useRef(activeSourceSentence);
   useEffect(() => { activeSourceSentenceRef.current = activeSourceSentence; }, [activeSourceSentence]);
 
-  const interruptPrefetchRef = useRef(interruptPrefetch);
-  useEffect(() => { interruptPrefetchRef.current = interruptPrefetch; }, [interruptPrefetch]);
-
-  const translationCacheRef = useRef(translationCache);
-  useEffect(() => { translationCacheRef.current = translationCache; }, [translationCache]);
-
   const isPrefetchingRef = useRef(isPrefetching);
   useEffect(() => { isPrefetchingRef.current = isPrefetching; }, [isPrefetching]);
 
   const languageDirectionRef = useRef(languageDirection);
   useEffect(() => { languageDirectionRef.current = languageDirection; }, [languageDirection]);
 
-  // ─── ViewZone Management ─────────────────────────────────────────────
+  // ─── Version Decoration Updater (Secondary Channel) ─────────────────
 
-  /**
-   * updateViewZone — Creates, updates, or removes the predictive suggestion zone
-   * below the active line in the editor.
-   */
-  // Ref to track whether ViewZone rendering has failed, so we can fall back
-  const viewZoneFailedRef = useRef(false);
-  const fallbackDecorationsRef = useRef<string[]>([]);
+  const updateVersionDecoration = useCallback(
+    (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => {
+      const pos = editor.getPosition();
+      if (!pos) return;
 
-  /**
-   * updateViewZone — Creates, updates, or removes the predictive suggestion zone
-   * below the active line in the editor.
-   *
-   * Uses IViewZone as primary rendering, with deltaDecorations as fallback
-   * if ViewZone rendering fails or produces invisible output.
-   */
-  const updateViewZone = useCallback(
-    (editor: Monaco.editor.IStandaloneCodeEditor) => {
-      try {
-      const monaco = monacoRef.current;
-      const position = editor.getPosition();
-      if (!position) {
-        console.log("[RDAT Debug] updateViewZone: no cursor position");
-        return;
-      }
-
-      const model = editor.getModel();
-      if (!model) {
-        console.log("[RDAT Debug] updateViewZone: no model");
-        return;
-      }
-
-      // Source pane or disabled: remove zone
-      if (!enableCompletions) {
-        if (viewZoneIdRef.current !== null) {
-          editor.changeViewZones((changeAccessor) => {
-            changeAccessor.removeZone(viewZoneIdRef.current!);
-          });
-          viewZoneIdRef.current = null;
-        }
-        // Clear fallback decorations
-        fallbackDecorationsRef.current = editor.deltaDecorations(fallbackDecorationsRef.current, []);
-        return;
-      }
-
-      // Get the current line text for prefix matching
-      const currentLineContent = model.getLineContent(position.lineNumber) || "";
-      const lineTextBeforeCursor = currentLineContent.substring(0, position.column - 1);
-
-      // Get cached versions for the active source sentence
       const sourceSentence = activeSourceSentenceRef.current || "";
-      const versions = getCachedVersionsRef.current?.(sourceSentence) ?? null;
+      const versions = getCachedVersionsRef.current?.(sourceSentence);
       const prefetching = isPrefetchingRef.current;
 
-      console.log("[RDAT Debug] updateViewZone:", {
-        lineNumber: position.lineNumber,
-        sourceSentence: (sourceSentence ?? "").substring(0, 60),
-        hasVersions: !!versions,
-        versionsCount: versions ? versions.length : 0,
-        isPrefetching: prefetching,
-        lineTextBeforeCursor: (lineTextBeforeCursor ?? "").substring(0, 40),
-      });
-
-      // Compute the suggestion display
-      const display = versions
-        ? computeSuggestionDisplay(lineTextBeforeCursor, versions)
-        : null;
-
-      // Store for keybinding access
-      lastSuggestionRef.current = display;
-
-      // Build the suggestion text for fallback decoration
-      const fallbackText = display
-        ? `[Tab] ${display.version1Remainder || display.version1Full}  |  [Ctrl+Tab] ${display.version2Remainder || display.version2Full}`
-        : prefetching
-          ? "⏳ Predicting translations…"
-          : "";
-
-      // Clear fallback decorations when we have ViewZone content
-      if (display || prefetching) {
-        fallbackDecorationsRef.current = editor.deltaDecorations(fallbackDecorationsRef.current, []);
+      let afterText = "";
+      if (versions && versions.length >= 2) {
+        const v1 = (versions[0] || "").substring(0, 50);
+        const v2 = (versions[1] || "").substring(0, 50);
+        afterText = `  ┃ [Tab] ${v1}  ┃ [Ctrl+Tab] ${v2}`;
+      } else if (prefetching) {
+        afterText = "  ┃ ⏳ Predicting…";
       }
 
-      // Build the DOM content
-      const htmlContent = buildSuggestionDOM(display, prefetching && !versions);
-
-      // Direction attribute for RTL support
-      const dir = languageDirectionRef.current === "ar-en" ? "ltr" : "rtl";
-
-      // Change or create the view zone
-      const currentZoneId = viewZoneIdRef.current;
-
-      editor.changeViewZones((changeAccessor) => {
-        // Remove existing zone if present
-        if (currentZoneId !== null) {
-          changeAccessor.removeZone(currentZoneId);
-          viewZoneIdRef.current = null;
-        }
-
-        // Only create a zone if we have something to show
-        if ((htmlContent?.trim()?.length ?? 0) > 0 || prefetching) {
-          const domNode = document.createElement("div");
-          // Apply STRICT inline styles so it is ALWAYS visible, even if CSS injection fails
-          domNode.style.cssText = `
-            color: #6b7280;
-            font-style: italic;
-            padding: 6px 0 6px 52px;
-            font-family: 'Geist Mono', 'Fira Code', 'Cascadia Code', monospace;
-            font-size: 13px;
-            line-height: 1.6;
-            opacity: 0.8;
-            pointer-events: none;
-            user-select: none;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            overflow: visible;
-            display: block;
-            visibility: visible;
-            position: relative;
-            z-index: 1;
-          `;
-          domNode.setAttribute("dir", dir);
-          domNode.innerHTML = htmlContent;
-
-          // Dynamic height based on content rows (2 rows = suggestions, 1 row = spinner/empty)
-          const hasTwoRows = display && display.version1Full && display.version2Full;
-          const heightPx = hasTwoRows ? 48 : prefetching ? 28 : 48;
-
-          console.log("[RDAT Debug] Creating ViewZone:", { heightPx, hasTwoRows, htmlContentLen: htmlContent.length });
-
-          const newZoneId = changeAccessor.addZone({
-            afterLineNumber: position.lineNumber,
-            heightInPx: heightPx,
-            domNode: domNode,
-            onDomNodeTop: (top) => {
-              domNode.style.top = `${top}px`;
-            },
-            onComputedHeight: (_height) => {
-              // Height is managed by heightInPx
-            },
-          });
-
-          viewZoneIdRef.current = newZoneId;
-          viewZoneFailedRef.current = false;
-        }
-      });
-
-      // FALLBACK: If ViewZone has failed before and we have text, use deltaDecorations
-      if (viewZoneFailedRef.current && fallbackText && monaco) {
-        console.log("[RDAT Debug] Using deltaDecorations fallback:", (fallbackText ?? "").substring(0, 80));
-        const deco: Monaco.editor.IModelDeltaDecoration = {
-          range: new monaco.Range(position.lineNumber, 1, position.lineNumber, 1),
+      versionDecorationsRef.current = editor.deltaDecorations(
+        versionDecorationsRef.current,
+        afterText ? [{
+          range: new monaco.Range(pos.lineNumber, 1, pos.lineNumber, 1),
           options: {
             isWholeLine: true,
-            after: {
-              content: fallbackText,
-              inlineClassName: "rdat-decoration-fallback",
-            },
-            className: "rdat-decoration-line",
+            after: { content: afterText },
+            className: "rdat-version-hint-line",
           },
-        };
-        fallbackDecorationsRef.current = editor.deltaDecorations(fallbackDecorationsRef.current, [deco]);
-      }
-
-      // Notify suggestion mode based on cache availability
-      if (versions) {
-        onSuggestionModeChangeRef.current?.("gtr");
-      } else if (sourceSentence) {
-        onSuggestionModeChangeRef.current?.("zero-shot");
-      }
-      } catch (zoneErr) {
-        console.warn("[RDAT] updateViewZone error:", zoneErr);
-        viewZoneFailedRef.current = true;
-        console.log("[RDAT Debug] ViewZone failed, marking for fallback mode");
-      }
-    },
-    [enableCompletions]
-  );
-
-  // ─── Suggestion Insertion ────────────────────────────────────────────
-
-  /**
-   * insertSuggestion — Inserts the remainder of a cached version at the cursor.
-   * Smart replacement: replaces the partial last word if prefix matching.
-   */
-  const insertSuggestion = useCallback(
-    (editor: Monaco.editor.IStandaloneCodeEditor, versionIndex: 0 | 1) => {
-      const suggestion = lastSuggestionRef.current;
-      if (!suggestion) return;
-
-      const remainder = versionIndex === 0
-        ? (suggestion.version1Remainder ?? "")
-        : (suggestion.version2Remainder ?? "");
-
-      if (!remainder || (remainder?.length ?? 0) === 0) return;
-
-      const position = editor.getPosition();
-      const model = editor.getModel();
-      if (!position || !model) return;
-
-      // If it's a prefix match, we just insert the remainder at cursor
-      // (the partial word is already in the document)
-      editor.executeEdits("rdat-predictive-insert", [
-        {
-          range: {
-            startLineNumber: position.lineNumber,
-            startColumn: position.column,
-            endLineNumber: position.lineNumber,
-            endColumn: position.column,
-          },
-          text: remainder,
-          forceMoveMarkers: true,
-        },
-      ]);
-
-      // Trigger onChange with new value
-      const newValue = editor.getValue();
-      onChange(newValue ?? "");
-
-      console.log(
-        `[RDAT] Inserted ${versionIndex === 0 ? "Formal" : "Natural"} suggestion: ` +
-        `"${(remainder ?? "").substring(0, 40)}${(remainder?.length ?? 0) > 40 ? "…" : ""}"`
+        }] : []
       );
     },
-    [onChange]
+    []
   );
+
+  // ─── Update version decoration when cache/prefetching changes ──────
+
+  useEffect(() => {
+    if (!editorRef.current || !monacoRef.current || !enableCompletions) return;
+
+    const timer = setTimeout(() => {
+      try {
+        if (editorRef.current && monacoRef.current) {
+          updateVersionDecoration(editorRef.current, monacoRef.current);
+        }
+      } catch {
+        // Editor may have been disposed
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [cacheVersion, isPrefetching, updateVersionDecoration, enableCompletions]);
 
   // ─── beforeMount ─────────────────────────────────────────────────────
 
@@ -692,58 +349,81 @@ export function MonacoEditor({
       monacoRef.current = monaco;
 
       if (enableCompletions) {
-        // ── DISABLE inline suggestions (we use ViewZone instead) ──
+        // ── PRIMARY CHANNEL: Inline Completions Provider ──
+        // Enable inline suggestions in editor options
         editor.updateOptions({
           inlineSuggest: {
-            enabled: false,
+            enabled: true,
           },
         });
 
-        // ── Register custom keybindings ──
-        // Tab → Insert Version 1 (Formal/Literal)
-        // IMPORTANT: Use monaco.KeyCode.Tab (Tab is a KeyCode, NOT a KeyMod).
-        // monaco.KeyMod.Tab is undefined and will crash at runtime.
-        const tabCommandId = `rdat.insertFormalSuggestion`;
-        tabCommandIdRef.current = tabCommandId;
+        const inlineProviderDisposable = monaco.languages.registerInlineCompletionsProvider(
+          resolvedLanguageId,
+          {
+            provideInlineCompletions: async (model, position, context, token) => {
+              // 1. Get cached versions for active source sentence
+              const sourceSentence = activeSourceSentenceRef.current || "";
+              const versions = getCachedVersionsRef.current?.(sourceSentence);
+              if (!versions || versions.length < 2) return { items: [] };
 
-        editor.addCommand(
-          monaco.KeyCode.Tab,
-          () => {
-            insertSuggestion(editor, 0);
-          },
-          "!findWidgetVisible && !suggestWidgetVisible && !inSnippetMode"
+              // 2. Get current line text for prefix matching
+              const lineContent = model.getLineContent(position.lineNumber) || "";
+              const textBeforeCursor = lineContent.substring(0, position.column - 1);
+
+              // 3. Use Version 1 (Formal) as the inline suggestion
+              const v1Full = versions[0] || "";
+              const v2Full = versions[1] || "";
+
+              // 4. Compute remainder based on prefix match
+              let insertText = v1Full; // Default: show full translation
+              if (textBeforeCursor.trim() && v1Full) {
+                // If user has typed something, try to find the remainder
+                const normalizedTyped = textBeforeCursor.replace(/\s+/g, " ").trim();
+                const normalizedFull = v1Full.replace(/\s+/g, " ").trim();
+                if (normalizedFull.startsWith(normalizedTyped)) {
+                  const remainder = normalizedFull.substring(normalizedTyped.length).trim();
+                  if (remainder) insertText = remainder;
+                }
+              }
+
+              if (!insertText.trim()) return { items: [] };
+
+              console.log("[RDAT Debug] InlineCompletion provided:", insertText.substring(0, 60));
+
+              return {
+                items: [{
+                  insertText: insertText,
+                  range: new monaco.Range(
+                    position.lineNumber,
+                    position.column,
+                    position.lineNumber,
+                    position.column
+                  ),
+                  // Show a label so user knows what version this is
+                  filterText: v1Full,
+                  completionInfo: {
+                    providerId: "rdat-predictive",
+                    label: "[Tab] Formal"
+                  }
+                }]
+              };
+            },
+            freeInlineCompletions: () => {}
+          }
         );
 
-        // Ctrl+Tab → Insert Version 2 (Natural/Standard)
-        const ctrlTabCommandId = `rdat.insertNaturalSuggestion`;
-        ctrlTabCommandIdRef.current = ctrlTabCommandId;
+        inlineProviderDisposableRef.current = inlineProviderDisposable;
 
-        editor.addCommand(
-          monaco.KeyMod.CtrlCmd | monaco.KeyCode.Tab,
-          () => {
-            insertSuggestion(editor, 1);
-          },
-          "!findWidgetVisible && !suggestWidgetVisible && !inSnippetMode"
-        );
-
-        // ── Listen for content changes to update ViewZone ──
-        changeDisposableRef.current = editor.onDidChangeModelContent(() => {
-          // Interrupt prefetch to free GPU while typing
-          interruptPrefetchRef.current?.();
-          // Update the zone with new prefix match
-          updateViewZone(editor);
+        // ── SECONDARY CHANNEL: Version decoration on cursor move ──
+        versionCursorDisposableRef.current = editor.onDidChangeCursorPosition(() => {
+          updateVersionDecoration(editor, monaco);
         });
 
-        // Also update zone on cursor position changes (line changes)
-        editor.onDidChangeCursorPosition(() => {
-          updateViewZone(editor);
-        });
-
-        // Initial zone render
+        // Initial version decoration
         setTimeout(() => {
           try {
             if (editor.getModel() !== null) {
-              updateViewZone(editor);
+              updateVersionDecoration(editor, monaco);
             }
           } catch {
             // Editor may have been disposed
@@ -751,7 +431,7 @@ export function MonacoEditor({
         }, 500);
 
         console.log(
-          "[RDAT] Target editor mounted — Predictive Zone UI active (v4.0)"
+          "[RDAT] Target editor mounted — Dual-Channel Ghost Text active (v5.0)"
         );
       }
 
@@ -775,36 +455,9 @@ export function MonacoEditor({
       resolvedLanguageId,
       readOnly,
       enableCompletions,
-      insertSuggestion,
-      updateViewZone,
+      updateVersionDecoration,
     ]
   );
-
-  // ─── Update ViewZone when activeSourceSentence or cache changes ──────
-
-  useEffect(() => {
-    if (!editorRef.current || !enableCompletions) return;
-
-    // Debounce the update slightly to avoid rapid re-renders
-    const timer = setTimeout(() => {
-      const ed = editorRef.current;
-      if (ed) {
-        try {
-          if (ed.getModel() !== null) {
-            console.log("[RDAT Debug] useEffect triggering updateViewZone — sourceSentence:",
-              (activeSourceSentence ?? "").substring(0, 60),
-              "cacheVersion:", cacheVersion,
-              "isPrefetching:", isPrefetching);
-            updateViewZone(ed);
-          }
-        } catch {
-          // Editor may have been disposed
-        }
-      }
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, [activeSourceSentence, cacheVersion, isPrefetching, updateViewZone, enableCompletions]);
 
   // ─── Highlight Decoration ────────────────────────────────────────────
 
@@ -855,28 +508,16 @@ export function MonacoEditor({
         `[RDAT] Monaco editor unmounting (language: ${resolvedLanguageId}) — disposing resources`
       );
 
-      // Remove ViewZone
-      const editor = editorRef.current;
-      if (editor && viewZoneIdRef.current !== null) {
-        try {
-          if (editor.getModel() === null) {
-            viewZoneIdRef.current = null;
-          } else {
-            editor.changeViewZones((changeAccessor) => {
-              changeAccessor.removeZone(viewZoneIdRef.current!);
-            });
-            viewZoneIdRef.current = null;
-          }
-        } catch {
-          // Editor may already be disposed
-        }
-        viewZoneIdRef.current = null;
+      // Dispose inline completions provider
+      if (inlineProviderDisposableRef.current) {
+        inlineProviderDisposableRef.current.dispose();
+        inlineProviderDisposableRef.current = null;
       }
 
-      // Dispose change listener
-      if (changeDisposableRef.current) {
-        changeDisposableRef.current.dispose();
-        changeDisposableRef.current = null;
+      // Dispose version cursor listener
+      if (versionCursorDisposableRef.current) {
+        versionCursorDisposableRef.current.dispose();
+        versionCursorDisposableRef.current = null;
       }
 
       // Dispose cursor listener
@@ -890,8 +531,6 @@ export function MonacoEditor({
         editorRef.current.dispose();
         editorRef.current = null;
       }
-
-      lastSuggestionRef.current = null;
     };
   }, [resolvedLanguageId]);
 
@@ -943,9 +582,10 @@ export function MonacoEditor({
 
         // ─── Behavior ──────────────────────────────
         readOnly,
+        // For target pane: enable inline suggestions (primary ghost text channel)
+        // For source pane: disable
         inlineSuggest: {
-          // DISABLED for target pane — we use ViewZone instead
-          enabled: false,
+          enabled: enableCompletions,
         },
         quickSuggestions: false,
         suggestOnTriggerCharacters: false,
