@@ -146,6 +146,13 @@ const nextConfig: NextConfig = {
       type: "asset/resource",
     });
 
+    // Silence performance hints for large Monaco/WASM chunks on Vercel
+    config.performance = {
+      hints: false,
+      maxEntrypointSize: 512000,
+      maxAssetSize: 512000,
+    };
+
     return config;
   },
 };
