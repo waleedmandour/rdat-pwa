@@ -183,8 +183,7 @@ export async function completeGhostText(
     console.error(`[RDAT-Gemini] Ghost text failed: ${msg}`);
     // On error, return a contextual fallback instead of null
     // This ensures ghost text always fires even when Gemini has issues
-    const direction = direction || "en-ar";
-    return getContextualFallback(sourceSentence, targetDraft, direction);
+    return getContextualFallback(sourceSentence, targetDraft, "en-ar");
   }
 }
 

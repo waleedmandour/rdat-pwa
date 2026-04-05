@@ -19,6 +19,7 @@ import { useGTRBootstrapper } from "@/hooks/useGTRBootstrapper";
 import { useWebLLM } from "@/hooks/useWebLLM";
 import { useGemini } from "@/hooks/useGemini";
 import { useAMTALinter } from "@/hooks/useAMTALinter";
+import { usePredictiveTranslation } from "@/hooks/usePredictiveTranslation";
 import { buildMessages } from "@/lib/prompt-builder";
 import {
   LANGUAGE_PAIRS,
@@ -226,6 +227,21 @@ export function WorkspaceShell({
 
   // ─── WebLLM Engine ─────────────────────────────────────────────
   const webllm = useWebLLM();
+
+  // ─── Active Source Sentence (for Predictive Prefetch) ──────────
+  const activeSourceSentence = getSourceSentence(sourceText, activeTargetLine) || "";
+
+  // ─── Predictive Prefetch Engine ───────────────────────────────
+  const predictive = usePredictiveTranslation({
+    activeSourceSentence,
+    languageDirection: langDirection,
+    generate: webllm.generate,
+    interruptGenerate: webllm.interruptGenerate,
+    isLLMReady: webllm.isReady,
+    ragSearch: rag.search,
+    ragResults: rag.lastResults,
+    isRAGReady: rag.isReady,
+  });
 
   // ─── Editor Event Loop (Source-Driven RAG + AMTA callback) ──────
   const ragSearchRef = useRef(rag.search);
@@ -664,6 +680,11 @@ export function WorkspaceShell({
                         onCursorPositionChange={handleCursorPositionChange}
                         onSuggestionModeChange={setSuggestionMode}
                         languageDirection={langDirection}
+                        translationCache={predictive.cache}
+                        isPrefetching={predictive.isPrefetching}
+                        getCachedVersions={predictive.getCachedVersions}
+                        activeSourceSentence={activeSourceSentence}
+                        interruptPrefetch={predictive.interruptPrefetch}
                       />
                     </div>
                   </div>

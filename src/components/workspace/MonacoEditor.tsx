@@ -1,97 +1,304 @@
 "use client";
 
-import { useRef, useCallback, useEffect } from "react";
+import { useRef, useCallback, useEffect, useState } from "react";
 import Editor, { type OnMount, type BeforeMount } from "@monaco-editor/react";
 import type * as Monaco from "monaco-editor";
 import type { RAGResult } from "@/lib/rag-types";
 import type { SuggestionMode, LanguageDirection } from "@/types";
-import { MOCK_INFERENCE_DELAY_MS, LANGUAGE_PAIRS } from "@/lib/constants";
+import type { TranslationVersions, TranslationCache } from "@/hooks/usePredictiveTranslation";
+import { LANGUAGE_PAIRS } from "@/lib/constants";
 
 /**
  * Custom RDAT language IDs for the split-pane architecture.
- * Using separate IDs allows inline completions to be scoped to the
+ * Using separate IDs allows features to be scoped to the
  * target editor only, while the source editor remains clean.
  */
 const RDAT_SOURCE_LANGUAGE_ID = "rdat-source";
 const RDAT_TARGET_LANGUAGE_ID = "rdat-target";
-const RDAT_LANGUAGE_ID = "rdat-translation"; // Legacy fallback
 
-/**
- * Context-aware mock suggestions for ghost text.
- * These are used as fallback when no AI engine is available.
- * Each suggestion is a realistic continuation for Arabic/English translation.
- */
-const MOCK_SUGGESTIONS_AR = [
-  "وقد تم بناء الهرم الأكبر",
-  "يُعد هذا المبنى من أعظم",
-  "تتكون المنشآت القديمة من",
-  "خلال تلك الفترة الزمنية",
-  "ويعتبر هذا الاكتشاف مهمًا",
-  "تم استخدام تقنيات متقدمة في",
-  "حيث يبلغ ارتفاعه",
-  "وقد أظهرت الأبحاث أن",
-  "ويحتوي الجزء الداخلي على",
-  "وقد استغرق البناء حوالي",
-];
+// ─── ViewZone Suggestion Widget Types ───────────────────────────────────
 
-const MOCK_SUGGESTIONS_EN = [
-  "The structure was built using",
-  "This represents one of the most",
-  "During that period,",
-  "The construction required approximately",
-  "Modern research has shown that",
-  "It is estimated that",
-  "The interior contains",
-  "Archaeological evidence suggests",
-  "was constructed over a period of",
-  "remains one of the most significant",
-];
-
-function getContextualSuggestion(direction: LanguageDirection = "en-ar"): string {
-  const suggestions = direction === "en-ar" ? MOCK_SUGGESTIONS_AR : MOCK_SUGGESTIONS_EN;
-  return suggestions[Math.floor(Math.random() * suggestions.length)];
+interface ViewZoneHandle {
+  zoneId: string | null;
+  domNode: HTMLElement | null;
 }
 
-/**
- * Helper: promisify Monaco's CancellationToken with a timeout.
- * Rejects with "Aborted" if the token fires before the timer resolves.
- */
-function waitForDelayOrAbort(
-  ms: number,
-  token: Monaco.CancellationToken
-): Promise<void> {
-  return new Promise<void>((resolve, reject) => {
-    if (token.isCancellationRequested) {
-      reject(new Error("Already cancelled"));
-      return;
+interface SuggestionDisplay {
+  version1Remainder: string;
+  version2Remainder: string;
+  version1Full: string;
+  version2Full: string;
+  isPrefixMatch: boolean;
+}
+
+// ─── Style Injection ────────────────────────────────────────────────────
+
+let viewZoneStyleInjected = false;
+function injectViewZoneStyles() {
+  if (viewZoneStyleInjected || typeof document === "undefined") return;
+  const style = document.createElement("style");
+  style.textContent = `
+    .rdat-source-highlight {
+      background: rgba(45, 212, 191, 0.08) !important;
     }
 
-    const timer = setTimeout(resolve, ms);
+    /* ── Predictive Zone Widget ───────────────────────────── */
+    .rdat-predictive-zone {
+      padding: 6px 0 6px 52px;
+      font-family: 'Geist Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #64748b;
+      pointer-events: none;
+      user-select: none;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      overflow: hidden;
+    }
 
-    const disposable = token.onCancellationRequested(() => {
-      clearTimeout(timer);
-      disposable.dispose();
-      reject(new Error("Aborted"));
-    });
-  });
+    .rdat-predictive-zone dir="auto" {
+      unicode-bidi: plaintext;
+    }
+
+    .rdat-suggestion-row {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      padding: 1px 0;
+    }
+
+    .rdat-suggestion-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      flex-shrink: 0;
+      min-width: 100px;
+    }
+
+    .rdat-suggestion-label--formal {
+      color: #f59e0b;
+    }
+
+    .rdat-suggestion-label--natural {
+      color: #38bdf8;
+    }
+
+    .rdat-suggestion-text {
+      color: #64748b;
+      opacity: 0.8;
+    }
+
+    .rdat-suggestion-text--prefix-match {
+      color: #a78bfa;
+      opacity: 1;
+    }
+
+    .rdat-suggestion-text--empty {
+      color: #475569;
+      font-style: italic;
+      opacity: 0.5;
+    }
+
+    .rdat-prefetch-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #475569;
+      font-size: 11px;
+      padding: 2px 0;
+    }
+
+    .rdat-prefetch-spinner {
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid #475569;
+      border-top-color: #2dd4bf;
+      border-radius: 50%;
+      animation: rdat-spin 0.8s linear infinite;
+    }
+
+    @keyframes rdat-spin {
+      to { transform: rotate(360deg); }
+    }
+  `;
+  document.head.appendChild(style);
+  viewZoneStyleInjected = true;
+}
+
+// ─── Suggestion Computation ─────────────────────────────────────────────
+
+/**
+ * computeSuggestionDisplay — Given the user's current line text and the
+ * cached translation versions, compute what to show in the ViewZone.
+ *
+ * Dynamic Prefix Matching:
+ * - If the user's text starts with the beginning of a cached version,
+ *   show only the REMAINDER (the part not yet typed).
+ * - If the user deviates entirely, show the full versions.
+ * - If no cache hit, return null.
+ */
+function computeSuggestionDisplay(
+  currentLineText: string,
+  versions: TranslationVersions
+): SuggestionDisplay | null {
+  if (!versions || versions.length < 2) return null;
+
+  const trimmedLine = currentLineText.trim();
+  const [v1Full, v2Full] = versions;
+
+  // If the line is empty, show both full versions
+  if (!trimmedLine || trimmedLine.length === 0) {
+    return {
+      version1Remainder: v1Full,
+      version2Remainder: v2Full,
+      version1Full: v1Full,
+      version2Full: v2Full,
+      isPrefixMatch: false,
+    };
+  }
+
+  // Try prefix matching against each version
+  const v1Match = tryPrefixMatch(trimmedLine, v1Full);
+  const v2Match = tryPrefixMatch(trimmedLine, v2Full);
+
+  // Determine the best match
+  const v1IsPrefix = v1Match !== null;
+  const v2IsPrefix = v2Match !== null;
+
+  if (v1IsPrefix || v2IsPrefix) {
+    return {
+      version1Remainder: v1IsPrefix ? v1Match! : v1Full,
+      version2Remainder: v2IsPrefix ? v2Match! : v2Full,
+      version1Full: v1Full,
+      version2Full: v2Full,
+      isPrefixMatch: true,
+    };
+  }
+
+  // No prefix match — show full versions (user may be going a different direction)
+  return {
+    version1Remainder: v1Full,
+    version2Remainder: v2Full,
+    version1Full: v1Full,
+    version2Full: v2Full,
+    isPrefixMatch: false,
+  };
 }
 
 /**
- * Completion config stored in a ref to avoid re-registering the provider.
+ * tryPrefixMatch — Checks if the user's current text is a prefix of the
+ * cached version. Returns the remainder if matched, or null if no match.
+ *
+ * Handles slight variations (whitespace normalization, partial word matching).
  */
-interface CompletionConfig {
-  generateCompletion?: (editorText: string, ragResults: RAGResult[]) => Promise<string | null>;
-  interruptGeneration?: () => void;
-  ragResults: RAGResult[];
-  isLLMReady: boolean;
-  isGeminiReady: boolean;
-  languageDirection: LanguageDirection;
+function tryPrefixMatch(userText: string, fullVersion: string): string | null {
+  if (!userText || !fullVersion) return null;
+
+  // Normalize for comparison
+  const normalizedUser = userText.replace(/\s+/g, " ").trim();
+  const normalizedFull = fullVersion.replace(/\s+/g, " ").trim();
+
+  // Direct prefix check
+  if (normalizedFull.startsWith(normalizedUser)) {
+    const remainder = normalizedFull.substring(normalizedUser.length).trim();
+    return remainder.length > 0 ? remainder : null;
+  }
+
+  // Partial last-word matching: the user might be in the middle of typing
+  // the last word. Check if the user text matches up to a word boundary
+  // in the full version.
+  const userWords = normalizedUser.split(" ");
+  const fullWords = normalizedFull.split(" ");
+
+  if (userWords.length > fullWords.length) return null;
+
+  // Check if all complete words match
+  let matched = true;
+  for (let i = 0; i < userWords.length - 1; i++) {
+    if (i >= fullWords.length || userWords[i] !== fullWords[i]) {
+      matched = false;
+      break;
+    }
+  }
+
+  if (matched && userWords.length > 0) {
+    const lastUserWord = userWords[userWords.length - 1];
+    const correspondingFullWord = fullWords[userWords.length - 1];
+
+    if (correspondingFullWord && correspondingFullWord.startsWith(lastUserWord)) {
+      // Build remainder: rest of the current word + remaining words
+      const restOfCurrentWord = correspondingFullWord.substring(lastUserWord.length);
+      const remainingWords = fullWords.slice(userWords.length);
+      const remainder = [restOfCurrentWord, ...remainingWords].join(" ").trim();
+      return remainder.length > 0 ? remainder : null;
+    }
+  }
+
+  return null;
 }
 
+// ─── DOM Builder ────────────────────────────────────────────────────────
+
 /**
- * Cursor position callback for tracking the active line
- * in the target editor (used to extract the corresponding source line).
+ * buildSuggestionDOM — Creates the DOM content for the ViewZone.
  */
+function buildSuggestionDOM(display: SuggestionDisplay | null, isPrefetching: boolean): string {
+  const parts: string[] = [];
+
+  if (isPrefetching) {
+    parts.push(
+      `<div class="rdat-prefetch-indicator">` +
+      `<div class="rdat-prefetch-spinner"></div>` +
+      `<span>Predicting translations…</span>` +
+      `</div>`
+    );
+  }
+
+  if (!display) {
+    if (!isPrefetching) {
+      parts.push(
+        `<div class="rdat-suggestion-row">` +
+        `<span class="rdat-suggestion-text--empty">Start typing to see translation predictions…</span>` +
+        `</div>`
+      );
+    }
+    return parts.join("");
+  }
+
+  const textClass = display.isPrefixMatch
+    ? "rdat-suggestion-text--prefix-match"
+    : "rdat-suggestion-text";
+
+  const v1Text = display.version1Remainder || display.version1Full;
+  const v2Text = display.version2Remainder || display.version2Full;
+
+  parts.push(
+    `<div class="rdat-suggestion-row">` +
+    `<span class="rdat-suggestion-label rdat-suggestion-label--formal">[Tab] Formal:</span>` +
+    `<span class="${textClass}">${escapeHtml(v1Text)}</span>` +
+    `</div>`
+  );
+
+  parts.push(
+    `<div class="rdat-suggestion-row">` +
+    `<span class="rdat-suggestion-label rdat-suggestion-label--natural">[Ctrl+Tab] Natural:</span>` +
+    `<span class="${textClass}">${escapeHtml(v2Text)}</span>` +
+    `</div>`
+  );
+
+  return parts.join("");
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ─── Props ──────────────────────────────────────────────────────────────
+
 interface CursorPosition {
   lineNumber: number;
   column: number;
@@ -106,59 +313,41 @@ interface MonacoEditorProps {
   isLLMReady?: boolean;
   isGeminiReady?: boolean;
   onEditorDidMount?: (editor: Monaco.editor.IStandaloneCodeEditor, monaco: typeof Monaco) => void;
-  /** Whether the editor is read-only (used for source pane) */
   readOnly?: boolean;
-  /** Whether to enable inline completions / نص مخفي (ghost text) (disabled for source pane) */
   enableCompletions?: boolean;
-  /** Custom language ID — defaults to rdat-target for active editing */
   languageId?: string;
-  /** Callback when cursor position changes (used to track active line for RAG) */
   onCursorPositionChange?: (position: CursorPosition) => void;
-  /** Optional className for the editor wrapper */
   className?: string;
-  /** Line number to highlight (used for cross-editor active sentence tracking) */
   highlightLine?: number;
-  /** Callback to notify parent of the current suggestion mode (gtr vs zero-shot) */
   onSuggestionModeChange?: (mode: SuggestionMode) => void;
-  /** Current language direction for context-aware suggestions */
   languageDirection?: LanguageDirection;
+
+  // ── New Predictive Translation Props ──
+  /** Cached translation versions from the predictive prefetch engine */
+  translationCache?: TranslationCache;
+  /** Whether the prefetch engine is currently generating */
+  isPrefetching?: boolean;
+  /** Get cached versions for a given source sentence */
+  getCachedVersions?: (sourceSentence: string) => TranslationVersions | null;
+  /** Active source sentence for the current target line */
+  activeSourceSentence?: string;
+  /** Interrupt the prefetch engine to free GPU */
+  interruptPrefetch?: () => void;
 }
 
-/**
- * Injects a style tag for the source editor line highlight decoration.
- * Called once on module load.
- */
-let styleInjected = false;
-function injectHighlightStyle() {
-  if (styleInjected || typeof document === "undefined") return;
-  const style = document.createElement("style");
-  style.textContent = `.rdat-source-highlight { background: rgba(45, 212, 191, 0.08) !important; }`;
-  document.head.appendChild(style);
-  styleInjected = true;
-}
+// ─── Component ──────────────────────────────────────────────────────────
 
 /**
  * MonacoEditor — A thin wrapper around @monaco-editor/react configured
  * for the RDAT Copilot translation IDE.
  *
- * Supports the split-pane CAT architecture:
- * - Source pane: readOnly, no completions, rdat-source language
- * - Target pane: active editing, inline completions, rdat-target language
- *
- * Key features:
- * - vs-dark theme, wordWrap on, minimap off, fontSize 16
- * - automaticLayout for seamless resize within WorkspaceShell
- * - Inline completions provider: real WebLLM when ready, contextual mock fallback
- * - Cursor position tracking for source line extraction
- * - Cross-editor line highlighting via deltaDecorations
- * - Proper disposal of providers and editor on unmount
- * - Explicit ghost text triggering on editor mount
- *
- * v3.1 — Robust Ghost-Text Pipeline:
- * - Context-aware mock suggestions (Arabic/English)
- * - Explicit inline suggestion trigger after mount
- * - AI null → contextual mock fallback (never returns empty)
- * - Shorter mock delay (400ms) for responsive UX
+ * v4.0 — Predictive Zone Architecture:
+ * - Replaces standard inlineCompletions with a custom IViewZone "Below-The-Line" widget
+ * - Displays two translation versions (Formal/Literal and Natural/Standard)
+ * - Dynamic prefix matching: shows only the remainder of what the user hasn't typed
+ * - Custom keybindings: Tab (Version 1), Ctrl+Tab (Version 2)
+ * - Proper disposal of IViewZone IDs and commands in cleanup
+ * - RTL-aware: dir="auto" on the zone DOM node for native bidi support
  */
 export function MonacoEditor({
   value,
@@ -177,352 +366,341 @@ export function MonacoEditor({
   highlightLine,
   onSuggestionModeChange,
   languageDirection = "en-ar",
+  // Predictive Translation props
+  translationCache,
+  isPrefetching = false,
+  getCachedVersions,
+  activeSourceSentence,
+  interruptPrefetch,
 }: MonacoEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
-  const inlineProviderRef = useRef<Monaco.IDisposable | null>(null);
   const cursorDisposableRef = useRef<Monaco.IDisposable | null>(null);
   const highlightDecorationsRef = useRef<Monaco.editor.IEditorDecorationsCollection | string[]>([]);
-  const triggerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Inject the highlight style on first render
+  // ── ViewZone state ───────────────────────────────────────────────────
+  const viewZoneIdRef = useRef<string | null>(null);
+  const tabCommandIdRef = useRef<string | null>(null);
+  const ctrlTabCommandIdRef = useRef<string | null>(null);
+  const changeDisposableRef = useRef<Monaco.IDisposable | null>(null);
+  const lastSuggestionRef = useRef<SuggestionDisplay | null>(null);
+
+  // Track the last source sentence we displayed for, to detect changes
+  const lastSourceSentenceRef = useRef<string>("");
+
+  // Inject styles on first render
   useEffect(() => {
-    injectHighlightStyle();
+    injectViewZoneStyles();
   }, []);
 
   // Resolve the language ID
   const resolvedLanguageId = languageId || (enableCompletions ? RDAT_TARGET_LANGUAGE_ID : RDAT_SOURCE_LANGUAGE_ID);
 
-  // Store completion config in a ref so the provider callback always
-  // has the latest values without needing re-registration
-  const completionConfigRef = useRef<CompletionConfig>({
-    generateCompletion,
-    interruptGeneration,
-    ragResults,
-    isLLMReady,
-    isGeminiReady,
-    languageDirection,
-  });
-
-  useEffect(() => {
-    completionConfigRef.current = {
-      generateCompletion,
-      interruptGeneration,
-      ragResults,
-      isLLMReady,
-      isGeminiReady,
-      languageDirection,
-    };
-  }, [generateCompletion, interruptGeneration, ragResults, isLLMReady, isGeminiReady, languageDirection]);
-
-  // Store cursor callback in a ref
+  // Store callbacks in refs
   const onCursorChangeRef = useRef(onCursorPositionChange);
-  useEffect(() => {
-    onCursorChangeRef.current = onCursorPositionChange;
-  }, [onCursorPositionChange]);
+  useEffect(() => { onCursorChangeRef.current = onCursorPositionChange; }, [onCursorPositionChange]);
 
-  // Store suggestion mode callback in a ref
   const onSuggestionModeChangeRef = useRef(onSuggestionModeChange);
-  useEffect(() => {
-    onSuggestionModeChangeRef.current = onSuggestionModeChange;
-  }, [onSuggestionModeChange]);
+  useEffect(() => { onSuggestionModeChangeRef.current = onSuggestionModeChange; }, [onSuggestionModeChange]);
+
+  const getCachedVersionsRef = useRef(getCachedVersions);
+  useEffect(() => { getCachedVersionsRef.current = getCachedVersions; }, [getCachedVersions]);
+
+  const activeSourceSentenceRef = useRef(activeSourceSentence);
+  useEffect(() => { activeSourceSentenceRef.current = activeSourceSentence; }, [activeSourceSentence]);
+
+  const interruptPrefetchRef = useRef(interruptPrefetch);
+  useEffect(() => { interruptPrefetchRef.current = interruptPrefetch; }, [interruptPrefetch]);
+
+  const translationCacheRef = useRef(translationCache);
+  useEffect(() => { translationCacheRef.current = translationCache; }, [translationCache]);
+
+  const isPrefetchingRef = useRef(isPrefetching);
+  useEffect(() => { isPrefetchingRef.current = isPrefetching; }, [isPrefetching]);
+
+  const languageDirectionRef = useRef(languageDirection);
+  useEffect(() => { languageDirectionRef.current = languageDirection; }, [languageDirection]);
+
+  // ─── ViewZone Management ─────────────────────────────────────────────
 
   /**
-   * beforeMount — Register the language and inline completions provider.
-   * Only registers completions for the TARGET editor (enableCompletions=true).
-   * This runs once before the editor DOM is created.
+   * updateViewZone — Creates, updates, or removes the predictive suggestion zone
+   * below the active line in the editor.
    */
-  const handleBeforeMount: BeforeMount = useCallback((monaco) => {
-    try {
-      // Register the custom language ID
-      if (monaco?.languages?.register) {
-        monaco.languages.register({ id: resolvedLanguageId });
-      }
+  const updateViewZone = useCallback(
+    (editor: Monaco.editor.IStandaloneCodeEditor) => {
+      const position = editor.getPosition();
+      if (!position) return;
 
-      // Skip provider registration for source pane
+      const model = editor.getModel();
+      if (!model) return;
+
+      // Source pane or disabled: remove zone
       if (!enableCompletions) {
-        console.log(`[RDAT] Source editor mounted (language: ${resolvedLanguageId}) — completions disabled`);
-        return;
-      }
-
-      // Guard: ensure Monaco API is fully loaded before registering providers
-      if (
-        !monaco?.languages ||
-        typeof monaco.languages.registerInlineCompletionsProvider !== "function"
-      ) {
-        console.warn("[RDAT] Monaco inline completions API not available — نص مخفي (ghost text) disabled");
-        return;
-      }
-
-      inlineProviderRef.current = monaco.languages.registerInlineCompletionsProvider(
-        resolvedLanguageId,
-        {
-          provideInlineCompletions: async (
-            model: Monaco.editor.ITextModel,
-            position: Monaco.Position,
-            _context: Monaco.languages.InlineCompletionContext,
-            token: Monaco.CancellationToken
-          ): Promise<Monaco.languages.InlineCompletions<Monaco.languages.InlineCompletion>> => {
-            console.log(
-              `[RDAT] Ghost text provider called at line ${position.lineNumber}, col ${position.column}`
-            );
-
-            const config = completionConfigRef.current;
-
-            const hasAnyAI = config.isLLMReady || config.isGeminiReady;
-
-            // If no AI engine is available, fall back to context-aware mock
-            if (!hasAnyAI || !config.generateCompletion) {
-              try {
-                // Use shorter delay for mock to feel more responsive
-                await waitForDelayOrAbort(400, token);
-
-                const suggestion = getContextualSuggestion(config.languageDirection);
-                console.log(`[RDAT] Ghost text delivered (contextual mock): "${suggestion}"`);
-
-                // Notify parent of zero-shot mode (no GTR context in mock)
-                onSuggestionModeChangeRef.current?.("zero-shot");
-
-                return {
-                  items: [
-                    {
-                      insertText: suggestion,
-                      range: {
-                        startLineNumber: position.lineNumber,
-                        startColumn: position.column,
-                        endLineNumber: position.lineNumber,
-                        endColumn: position.column,
-                      },
-                    },
-                  ],
-                };
-              } catch (_err) {
-                console.log(
-                  `[RDAT] Ghost text generation cancelled — user typed during mock delay`
-                );
-                return { items: [] };
-              }
-            }
-
-            // ── Real WebLLM generation path (Always-On) ──
-            try {
-              if (token.isCancellationRequested) {
-                throw new Error("Already cancelled");
-              }
-
-              // Set up abort handler for the cancellation token
-              let cancelled = false;
-              const disposable = token.onCancellationRequested(() => {
-                cancelled = true;
-                config.interruptGeneration?.();
-                disposable.dispose();
-              });
-
-              // ── Ghost-Text Autocorrect: Compute word range for prefix replacement ──
-              // Get the current word boundary at the cursor position.
-              // SAFE: getWordUntilPosition returns { word: "", startColumn, endColumn }
-              // when the cursor is on whitespace/punctuation — we must guard against this.
-              const wordUntil = model.getWordUntilPosition(position);
-              const currentWord = wordUntil.word;
-              const hasActiveWord = currentWord && currentWord.length > 0;
-
-              // Build a word range ONLY if the cursor is actively inside a word.
-              // When the user hits spacebar or is on whitespace, wordUntil.word is
-              // empty and wordStartColumn === position.column, producing an invalid
-              // zero-width range that causes Monaco to silently reject the completion.
-              let wordRange: Monaco.IRange | undefined = undefined;
-              if (hasActiveWord) {
-                wordRange = {
-                  startLineNumber: position.lineNumber,
-                  startColumn: wordUntil.startColumn,
-                  endLineNumber: position.lineNumber,
-                  endColumn: position.column,
-                };
-              }
-
-              // Detect if the current word is incomplete or potentially misspelled
-              // (ends with partial Arabic diacritic, is very short, or has trailing partial chars)
-              const isIncompleteOrPartial =
-                hasActiveWord && (
-                  currentWord.length <= 2 ||                          // Very short word likely incomplete
-                  /[^\u0600-\u06FF\u0750-\u077F\u08A0-\u08FFa-zA-Z\s]$/.test(currentWord) || // Trailing non-letter char
-                  /[\u064B-\u065F\u0670]$/.test(currentWord)            // Trailing Arabic diacritic (tashkeel)
-                );
-
-              console.log(
-                `[RDAT] Ghost text autocorrect — word: "${currentWord}" (${currentWord.length} chars), ` +
-                `hasActiveWord: ${hasActiveWord}, isPartial: ${isIncompleteOrPartial}, ` +
-                `wordRange: ${wordRange ? `col ${wordRange.startColumn}→${wordRange.endColumn}` : "none (cursor append)"}`
-              );
-
-              // Get current editor text
-              const text = model.getValue();
-
-              // Notify parent about suggestion mode based on RAG results
-              const hasRAGResults = config.ragResults && config.ragResults.length > 0;
-              onSuggestionModeChangeRef.current?.(hasRAGResults ? "gtr" : "zero-shot");
-
-              // Generate completion using AI (WebLLM or Gemini) + RAG context
-              // Always-On: generation proceeds even when ragResults.length === 0
-              const generatedText = await config.generateCompletion(text, config.ragResults);
-
-              if (cancelled) {
-                console.log("[RDAT] Ghost text cancelled after generation");
-                return { items: [] };
-              }
-
-              if (generatedText && generatedText.trim().length > 0) {
-                const trimmed = generatedText.trim();
-
-                // Build the completion item with safe range logic:
-                // - If inside an incomplete/misspelled word AND wordRange is valid → replace prefix
-                // - Otherwise → standard cursor-position append (always safe)
-                const shouldUseWordRange = isIncompleteOrPartial && wordRange !== undefined;
-                const completionItem: Monaco.languages.InlineCompletion = {
-                  insertText: trimmed,
-                  range: shouldUseWordRange
-                    ? wordRange
-                    : {
-                        startLineNumber: position.lineNumber,
-                        startColumn: position.column,
-                        endLineNumber: position.lineNumber,
-                        endColumn: position.column,
-                      },
-                };
-
-                console.log(
-                  `[RDAT] Providing Ghost Text: "${trimmed.substring(0, 60)}${trimmed.length > 60 ? "…" : ""}"`,
-                  `\n  mode: ${hasRAGResults ? "GTR" : "Zero-Shot"}`,
-                  `\n  range: col ${completionItem.range!.startColumn}→${completionItem.range!.endColumn}`,
-                  `\n  autocorrect: ${shouldUseWordRange ? "yes (prefix replacement)" : "no (cursor append)"}`
-                );
-
-                return { items: [completionItem] };
-              }
-
-              // If AI returned null/empty, fall back to contextual mock
-              // CRITICAL FIX: Never return empty items — always provide a suggestion
-              const fallbackSuggestion = getContextualSuggestion(config.languageDirection);
-              console.log(`[RDAT] AI returned null — using contextual mock: "${fallbackSuggestion}"`);
-              onSuggestionModeChangeRef.current?.("zero-shot");
-
-              return {
-                items: [
-                  {
-                    insertText: fallbackSuggestion,
-                    range: {
-                      startLineNumber: position.lineNumber,
-                      startColumn: position.column,
-                      endLineNumber: position.lineNumber,
-                      endColumn: position.column,
-                    },
-                  },
-                ],
-              };
-            } catch (_err) {
-              console.log("[RDAT] Ghost text generation cancelled — user typed during inference");
-              return { items: [] };
-            }
-          },
-
-          freeInlineCompletions: () => {
-            // No-op: we don't cache completions.
-          },
+        if (viewZoneIdRef.current !== null) {
+          editor.changeViewZones((changeAccessor) => {
+            changeAccessor.removeZone(viewZoneIdRef.current!);
+          });
+          viewZoneIdRef.current = null;
         }
-      );
-    } catch (err) {
-      console.warn("[RDAT] Failed to register inline completions provider:", err);
-    }
-  }, [resolvedLanguageId, enableCompletions]);
+        return;
+      }
 
-  /**
-   * onMount — Capture the editor reference for imperative control.
-   * Sets up cursor tracking for source line extraction.
-   * Triggers the first inline suggestion automatically.
-   */
-  const handleMount: OnMount = useCallback((editor, monaco) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
+      // Get the current line text for prefix matching
+      const currentLineContent = model.getLineContent(position.lineNumber) || "";
+      const lineTextBeforeCursor = currentLineContent.substring(0, position.column - 1);
 
-    // Configure inline completions to show automatically (target only)
-    if (enableCompletions) {
-      editor.updateOptions({
-        inlineSuggest: {
-          enabled: true,
-        },
+      // Get cached versions for the active source sentence
+      const sourceSentence = activeSourceSentenceRef.current || "";
+      const versions = getCachedVersionsRef.current?.(sourceSentence) ?? null;
+      const prefetching = isPrefetchingRef.current;
+
+      // Compute the suggestion display
+      const display = versions
+        ? computeSuggestionDisplay(lineTextBeforeCursor, versions)
+        : null;
+
+      // Store for keybinding access
+      lastSuggestionRef.current = display;
+
+      // Build the DOM content
+      const htmlContent = buildSuggestionDOM(display, prefetching && !versions);
+
+      // Direction attribute for RTL support
+      const dir = languageDirectionRef.current === "ar-en" ? "ltr" : "rtl";
+
+      // Change or create the view zone
+      const currentZoneId = viewZoneIdRef.current;
+
+      editor.changeViewZones((changeAccessor) => {
+        // Remove existing zone if present
+        if (currentZoneId !== null) {
+          changeAccessor.removeZone(currentZoneId);
+          viewZoneIdRef.current = null;
+        }
+
+        // Only create a zone if we have something to show
+        if (htmlContent.trim().length > 0 || prefetching) {
+          const domNode = document.createElement("div");
+          domNode.className = "rdat-predictive-zone";
+          domNode.setAttribute("dir", dir);
+          domNode.innerHTML = htmlContent;
+
+          const newZoneId = changeAccessor.addZone({
+            afterLineNumber: position.lineNumber,
+            heightInPx: htmlContent.trim().length > 0 ? 48 : 28,
+            domNode: domNode,
+            onDomNodeTop: (top) => {
+              domNode.style.top = `${top}px`;
+            },
+            onComputedHeight: (_height) => {
+              // Height is managed by heightInPx
+            },
+          });
+
+          viewZoneIdRef.current = newZoneId;
+        }
       });
 
-      // Schedule an initial trigger of inline suggestions after mount
-      // to ensure ghost text appears when the user starts typing.
-      // This is the KEY FIX: Monaco doesn't auto-trigger on initial content;
-      // we need to nudge it so the first ghost text shows up.
-      triggerTimerRef.current = setTimeout(() => {
-        if (editorRef.current && !editorRef.current.isDisposed()) {
+      // Notify suggestion mode based on cache availability
+      if (versions) {
+        onSuggestionModeChangeRef.current?.("gtr");
+      } else if (sourceSentence) {
+        onSuggestionModeChangeRef.current?.("zero-shot");
+      }
+    },
+    [enableCompletions]
+  );
+
+  // ─── Suggestion Insertion ────────────────────────────────────────────
+
+  /**
+   * insertSuggestion — Inserts the remainder of a cached version at the cursor.
+   * Smart replacement: replaces the partial last word if prefix matching.
+   */
+  const insertSuggestion = useCallback(
+    (editor: Monaco.editor.IStandaloneCodeEditor, versionIndex: 0 | 1) => {
+      const suggestion = lastSuggestionRef.current;
+      if (!suggestion) return;
+
+      const remainder = versionIndex === 0
+        ? suggestion.version1Remainder
+        : suggestion.version2Remainder;
+
+      if (!remainder || remainder.length === 0) return;
+
+      const position = editor.getPosition();
+      const model = editor.getModel();
+      if (!position || !model) return;
+
+      // If it's a prefix match, we just insert the remainder at cursor
+      // (the partial word is already in the document)
+      editor.executeEdits("rdat-predictive-insert", [
+        {
+          range: {
+            startLineNumber: position.lineNumber,
+            startColumn: position.column,
+            endLineNumber: position.lineNumber,
+            endColumn: position.column,
+          },
+          text: remainder,
+          forceMoveMarkers: true,
+        },
+      ]);
+
+      // Trigger onChange with new value
+      const newValue = editor.getValue();
+      onChange(newValue);
+
+      console.log(
+        `[RDAT] Inserted ${versionIndex === 0 ? "Formal" : "Natural"} suggestion: ` +
+        `"${remainder.substring(0, 40)}${remainder.length > 40 ? "…" : ""}"`
+      );
+    },
+    [onChange]
+  );
+
+  // ─── beforeMount ─────────────────────────────────────────────────────
+
+  const handleBeforeMount: BeforeMount = useCallback(
+    (monaco) => {
+      try {
+        if (monaco?.languages?.register) {
+          monaco.languages.register({ id: resolvedLanguageId });
+        }
+      } catch (err) {
+        console.warn("[RDAT] beforeMount error:", err);
+      }
+    },
+    [resolvedLanguageId]
+  );
+
+  // ─── onMount ─────────────────────────────────────────────────────────
+
+  const handleMount: OnMount = useCallback(
+    (editor, monaco) => {
+      editorRef.current = editor;
+      monacoRef.current = monaco;
+
+      if (enableCompletions) {
+        // ── DISABLE inline suggestions (we use ViewZone instead) ──
+        editor.updateOptions({
+          inlineSuggest: {
+            enabled: false,
+          },
+        });
+
+        // ── Register custom keybindings ──
+        // Tab → Insert Version 1 (Formal/Literal)
+        const tabCommandId = `rdat.insertFormalSuggestion`;
+        tabCommandIdRef.current = tabCommandId;
+
+        editor.addCommand(
+          monaco.KeyMod.Tab,
+          () => {
+            insertSuggestion(editor, 0);
+          },
+          `!findWidgetVisible && !suggestWidgetVisible && !inSnippetMode`
+        );
+
+        // Ctrl+Tab → Insert Version 2 (Natural/Standard)
+        // Note: Monaco doesn't have a direct Ctrl+Tab key modifier constant
+        // that works reliably. We use KeyMod.CtrlCmd | KeyMod.Tab.
+        const ctrlTabCommandId = `rdat.insertNaturalSuggestion`;
+        ctrlTabCommandIdRef.current = ctrlTabCommandId;
+
+        editor.addCommand(
+          monaco.KeyMod.CtrlCmd | monaco.KeyCode.Tab,
+          () => {
+            insertSuggestion(editor, 1);
+          },
+          `!findWidgetVisible && !suggestWidgetVisible && !inSnippetMode`
+        );
+
+        // ── Listen for content changes to update ViewZone ──
+        changeDisposableRef.current = editor.onDidChangeModelContent(() => {
+          // Interrupt prefetch to free GPU while typing
+          interruptPrefetchRef.current?.();
+          // Update the zone with new prefix match
+          updateViewZone(editor);
+        });
+
+        // Also update zone on cursor position changes (line changes)
+        editor.onDidChangeCursorPosition(() => {
+          updateViewZone(editor);
+        });
+
+        // Initial zone render
+        setTimeout(() => {
           try {
-            // Trigger inline suggestion via Monaco's internal action
-            const triggerAction = (editorRef.current as any).getAction?.('editor.action.triggerInlineSuggestion');
-            if (triggerAction) {
-              triggerAction.run();
-              console.log('[RDAT] Initial inline suggestion trigger fired');
-            } else {
-              // Fallback: simulate a cursor move to trigger the provider
-              const pos = editorRef.current.getPosition();
-              if (pos) {
-                editorRef.current.setPosition({ lineNumber: pos.lineNumber, column: pos.column });
-                console.log('[RDAT] Inline suggestion trigger via cursor nudge');
-              }
+            if (editor.getModel() !== null) {
+              updateViewZone(editor);
             }
           } catch {
-            // Non-critical: Monaco may not have this action in all versions
-            console.log('[RDAT] Inline suggestion trigger: using default behavior');
+            // Editor may have been disposed
           }
-        }
-      }, 1000);
+        }, 500);
 
-      // Also trigger on first focus/keystroke via a listener
-      const disposable = editor.onDidChangeModelContent(() => {
-        // After first content change, trigger inline suggestions
-        setTimeout(() => {
-          if (editorRef.current && !editorRef.current.isDisposed()) {
-            try {
-              (editorRef.current as any).getAction?.('editor.action.triggerInlineSuggestion')?.run();
-            } catch {
-              // Non-critical
-            }
-          }
-        }, 200);
-        // Only listen once per focus cycle — dispose after first trigger
-        disposable.dispose();
-      });
-    }
+        console.log(
+          "[RDAT] Target editor mounted — Predictive Zone UI active (v4.0)"
+        );
+      }
 
-    // Track cursor position changes (for RAG source line extraction)
-    if (onCursorChangeRef.current) {
-      cursorDisposableRef.current = editor.onDidChangeCursorPosition((e) => {
-        onCursorChangeRef.current?.({
-          lineNumber: e.position.lineNumber,
-          column: e.position.column,
+      // Track cursor position changes for source line extraction
+      if (onCursorChangeRef.current) {
+        cursorDisposableRef.current = editor.onDidChangeCursorPosition((e) => {
+          onCursorChangeRef.current?.({
+            lineNumber: e.position.lineNumber,
+            column: e.position.column,
+          });
         });
-      });
-    }
+      }
 
-    console.log(
-      `[RDAT] Monaco editor mounted (language: ${resolvedLanguageId}, readOnly: ${readOnly}) — ${enableCompletions ? "inline completions active" : "completions disabled"}`
-    );
-    onEditorDidMount?.(editor, monaco);
-  }, [onEditorDidMount, resolvedLanguageId, readOnly, enableCompletions]);
+      console.log(
+        `[RDAT] Monaco editor mounted (language: ${resolvedLanguageId}, readOnly: ${readOnly})`
+      );
+      onEditorDidMount?.(editor, monaco);
+    },
+    [
+      onEditorDidMount,
+      resolvedLanguageId,
+      readOnly,
+      enableCompletions,
+      insertSuggestion,
+      updateViewZone,
+    ]
+  );
 
-  /**
-   * Update highlight decoration when highlightLine changes.
-   * Uses deltaDecorations to add/remove the active line highlight.
-   */
+  // ─── Update ViewZone when activeSourceSentence or cache changes ──────
+
+  useEffect(() => {
+    if (!editorRef.current || !enableCompletions) return;
+
+    // Debounce the update slightly to avoid rapid re-renders
+    const timer = setTimeout(() => {
+      const ed = editorRef.current;
+      if (ed) {
+        try {
+          if (ed.getModel() !== null) {
+            updateViewZone(ed);
+          }
+        } catch {
+          // Editor may have been disposed
+        }
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [activeSourceSentence, translationCache, isPrefetching, updateViewZone, enableCompletions]);
+
+  // ─── Highlight Decoration ────────────────────────────────────────────
+
   useEffect(() => {
     const editor = editorRef.current;
     const monaco = monacoRef.current;
     if (!editor || !monaco) return;
 
     if (highlightLine === undefined || highlightLine <= 0) {
-      // Clear all highlight decorations
       const oldDecorations = highlightDecorationsRef.current;
       if (Array.isArray(oldDecorations) && oldDecorations.length > 0) {
         highlightDecorationsRef.current = editor.deltaDecorations(oldDecorations, []);
@@ -556,34 +734,55 @@ export function MonacoEditor({
     );
   }, [highlightLine]);
 
-  /**
-   * Cleanup: Dispose of the inline provider, cursor tracker, and editor on unmount.
-   */
+  // ─── Cleanup ─────────────────────────────────────────────────────────
+
   useEffect(() => {
     return () => {
-      console.log(`[RDAT] Monaco editor unmounting (language: ${resolvedLanguageId}) — disposing resources`);
+      console.log(
+        `[RDAT] Monaco editor unmounting (language: ${resolvedLanguageId}) — disposing resources`
+      );
 
-      if (triggerTimerRef.current) {
-        clearTimeout(triggerTimerRef.current);
-        triggerTimerRef.current = null;
+      // Remove ViewZone
+      const editor = editorRef.current;
+      if (editor && viewZoneIdRef.current !== null) {
+        try {
+          if (editor.getModel() === null) {
+            viewZoneIdRef.current = null;
+          } else {
+            editor.changeViewZones((changeAccessor) => {
+              changeAccessor.removeZone(viewZoneIdRef.current!);
+            });
+            viewZoneIdRef.current = null;
+          }
+        } catch {
+          // Editor may already be disposed
+        }
+        viewZoneIdRef.current = null;
       }
 
-      if (inlineProviderRef.current) {
-        inlineProviderRef.current.dispose();
-        inlineProviderRef.current = null;
+      // Dispose change listener
+      if (changeDisposableRef.current) {
+        changeDisposableRef.current.dispose();
+        changeDisposableRef.current = null;
       }
 
+      // Dispose cursor listener
       if (cursorDisposableRef.current) {
         cursorDisposableRef.current.dispose();
         cursorDisposableRef.current = null;
       }
 
+      // Dispose editor
       if (editorRef.current) {
         editorRef.current.dispose();
         editorRef.current = null;
       }
+
+      lastSuggestionRef.current = null;
     };
   }, [resolvedLanguageId]);
+
+  // ─── Render ──────────────────────────────────────────────────────────
 
   return (
     <Editor
@@ -632,7 +831,8 @@ export function MonacoEditor({
         // ─── Behavior ──────────────────────────────
         readOnly,
         inlineSuggest: {
-          enabled: enableCompletions,
+          // DISABLED for target pane — we use ViewZone instead
+          enabled: false,
         },
         quickSuggestions: false,
         suggestOnTriggerCharacters: false,
@@ -643,8 +843,8 @@ export function MonacoEditor({
 
         // ─── IDE Chrome ─────────────────────────────
         lineNumbers: "on",
-        glyphMargin: !readOnly, // Only show glyph margin for active editor
-        folding: !readOnly,     // Disable folding for readOnly
+        glyphMargin: !readOnly,
+        folding: !readOnly,
         lineDecorationsWidth: 8,
         lineNumbersMinChars: 3,
         scrollbar: {
@@ -658,7 +858,7 @@ export function MonacoEditor({
         ...(readOnly && {
           renderLineHighlight: "none",
           cursorBlinking: "smooth" as const,
-          contextmenu: true, // Allow paste via context menu
+          contextmenu: true,
         }),
       }}
       className={className}
