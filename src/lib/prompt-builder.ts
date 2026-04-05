@@ -17,7 +17,7 @@ export function formatRAGContext(
   results: RAGResult[],
   direction: LanguageDirection = "en-ar"
 ): string {
-  if (!results || results.length === 0) return "";
+  if (!results || (results ?? []).length === 0) return "";
 
   const isForward = direction === "en-ar";
 
@@ -51,7 +51,7 @@ export function buildMessages(
   sourceSentence: string = ""
 ): { messages: Array<{ role: "system" | "user"; content: string }>; usedGTR: boolean } {
   // If RAG has results, use context-augmented prompt
-  if (ragResults && ragResults.length > 0) {
+  if (ragResults && (ragResults ?? []).length > 0) {
     return {
       messages: buildContextAugmentedMessages(editorText, ragResults, direction, sourceSentence),
       usedGTR: true,
@@ -94,7 +94,7 @@ function buildContextAugmentedMessages(
   }
 
   // Section 3: Current Target Draft
-  userMessage += `Current Target Draft:\n${editorText.trim()}\n\n`;
+  userMessage += `Current Target Draft:\n${(editorText ?? "").trim()}\n\n`;
 
   // Section 4: Explicit instruction
   userMessage += `Instruction: Provide only the next few words to complete the target draft. Output 3-15 words maximum. Do not repeat what has already been written.`;
@@ -143,7 +143,7 @@ CRITICAL RULES:
   }
 
   // Section 2: Current Target Draft
-  userMessage += `Current Target Draft (${targetLang}):\n${editorText.trim()}\n\n`;
+  userMessage += `Current Target Draft (${targetLang}):\n${(editorText ?? "").trim()}\n\n`;
 
   // Section 3: Instruction
   userMessage += `Instruction: Autocomplete the translator's current ${targetLang} draft seamlessly. Provide only the next 3-15 words. If the last word is incomplete or misspelled, output the corrected version of that word followed by the continuation. Do NOT repeat what has already been written.`;

@@ -148,7 +148,7 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
    */
   const prefetchTranslation = useCallback(
     async (sourceSentence: string) => {
-      if (!sourceSentence || sourceSentence.trim().length < 3) return;
+      if (!sourceSentence || (sourceSentence ?? "").trim().length < 3) return;
       if (!isLLMReadyRef.current) {
         console.log("[RDAT-Prefetch] LLM not ready — skipping prefetch");
         return;
@@ -176,7 +176,7 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
 
       try {
         // Perform RAG search if available and not already cached
-        let currentRagResults = ragResultsRef.current;
+        let currentRagResults: RAGResult[] = ragResultsRef.current ?? [];
         if (isRAGReadyRef.current && currentRagResults.length === 0) {
           try {
             currentRagResults = await ragSearchRef.current(sourceSentence);
@@ -279,7 +279,7 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    if (!activeSourceSentence || activeSourceSentence.trim().length < 3) return;
+    if (!activeSourceSentence || (activeSourceSentence ?? "").trim().length < 3) return;
 
     debounceTimerRef.current = setTimeout(() => {
       prefetchTranslation(activeSourceSentence);
@@ -333,8 +333,8 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
  */
 function parseDualVersionResponse(raw: string): TranslationVersions | null {
   // Try standard delimiter first
-  if (raw.includes(VERSION_DELIMITER)) {
-    const parts = raw.split(VERSION_DELIMITER).map((s) => s.trim());
+  if (raw?.includes(VERSION_DELIMITER)) {
+    const parts = raw.split(VERSION_DELIMITER).map((s) => (s ?? "").trim());
     if (parts.length >= 2) {
       const v1 = cleanVersion(parts[0]);
       const v2 = cleanVersion(parts[1]);
@@ -345,7 +345,7 @@ function parseDualVersionResponse(raw: string): TranslationVersions | null {
   }
 
   // Try newline-based separation (some LLMs output versions on separate lines)
-  const lines = raw.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+  const lines = raw.split("\n").map((l) => (l ?? "").trim()).filter((l) => (l ?? "").length > 0);
   if (lines.length >= 2) {
     const v1 = cleanVersion(lines[0]);
     const v2 = cleanVersion(lines[1]);
@@ -362,8 +362,8 @@ function parseDualVersionResponse(raw: string): TranslationVersions | null {
  * cleanVersion — Removes common prefixes from a version string.
  * Strips patterns like "1.", "2.", "Version 1:", "Formal:", "Natural:", etc.
  */
-function cleanVersion(raw: string): string {
-  let cleaned = raw.trim();
+function cleanVersion(raw: string | null | undefined): string {
+  let cleaned = (raw ?? "").trim();
 
   // Remove numbered prefixes: "1.", "2.", "1)", "2)"
   cleaned = cleaned.replace(/^\d+[\.\)]\s*/, "");

@@ -147,7 +147,7 @@ export function WorkspaceShell({
           timestamp: Date.now(),
         };
         localStorage.setItem(WORKSPACE_AUTOSAVE_KEY, JSON.stringify(state));
-        console.log(`[RDAT] Workspace autosaved (${state.sourceText.length} + ${state.targetText.length} chars)`);
+        console.log(`[RDAT] Workspace autosaved (${(state.sourceText ?? "").length} + ${(state.targetText ?? "").length} chars)`);
       } catch (err) {
         console.warn("[RDAT] Autosave failed:", err);
       }
@@ -301,7 +301,7 @@ export function WorkspaceShell({
       const sourceSentence = getSourceSentence(sourceTextRef.current, currentLine) || "";
 
       // Step 2: RAG search on SOURCE text (if not already cached from debounce)
-      let results = ragResults;
+      let results: RAGResult[] = ragResults ?? [];
       if (results.length === 0 && rag.isReady) {
         if (sourceSentence && sourceSentence.trim().length >= 3) {
           results = await rag.search(truncateForEmbedding(sourceSentence));
@@ -617,7 +617,7 @@ export function WorkspaceShell({
                               autoFocus
                             />
                             <div className="text-[10px] text-[var(--ide-text-dim)]">
-                              {editSourceDraft.length} chars · {editSourceDraft.split("\n").length} lines
+                              {(editSourceDraft ?? "").length} chars · {(editSourceDraft ?? "").split("\n").length} lines
                             </div>
                           </div>
                         )}
@@ -656,7 +656,7 @@ export function WorkspaceShell({
                       </div>
                       <div className="flex items-center gap-1">
                         <span className="text-[10px] text-[var(--ide-text-dim)]">
-                          {targetText.length > 0 ? `${targetText.split("\n").length} lines` : "Start typing…"}
+                          {(targetText ?? "").length > 0 ? `${(targetText ?? "").split("\n").length} lines` : "Start typing…"}
                         </span>
                       </div>
                     </div>

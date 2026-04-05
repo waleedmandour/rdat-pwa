@@ -141,13 +141,14 @@ function computeSuggestionDisplay(
   currentLineText: string,
   versions: TranslationVersions
 ): SuggestionDisplay | null {
-  if (!versions || versions.length < 2) return null;
+  if (!versions || !Array.isArray(versions) || (versions as unknown[]).length < 2) return null;
 
-  const trimmedLine = currentLineText.trim();
-  const [v1Full, v2Full] = versions;
+  const trimmedLine = (currentLineText ?? "").trim();
+  const v1Full = (versions[0] as string) || "";
+  const v2Full = (versions[1] as string) || "";
 
   // If the line is empty, show both full versions
-  if (!trimmedLine || trimmedLine.length === 0) {
+  if (!trimmedLine || trimmedLine.length === 0 || !v1Full || !v2Full) {
     return {
       version1Remainder: v1Full,
       version2Remainder: v2Full,
@@ -158,8 +159,8 @@ function computeSuggestionDisplay(
   }
 
   // Try prefix matching against each version
-  const v1Match = tryPrefixMatch(trimmedLine, v1Full);
-  const v2Match = tryPrefixMatch(trimmedLine, v2Full);
+  const v1Match = tryPrefixMatch(trimmedLine ?? "", v1Full);
+  const v2Match = tryPrefixMatch(trimmedLine ?? "", v2Full);
 
   // Determine the best match
   const v1IsPrefix = v1Match !== null;
@@ -191,12 +192,14 @@ function computeSuggestionDisplay(
  *
  * Handles slight variations (whitespace normalization, partial word matching).
  */
-function tryPrefixMatch(userText: string, fullVersion: string): string | null {
-  if (!userText || !fullVersion) return null;
+function tryPrefixMatch(userText: string | null | undefined, fullVersion: string | null | undefined): string | null {
+  const safeUser = userText ?? "";
+  const safeFull = fullVersion ?? "";
+  if (!safeUser || !safeFull) return null;
 
   // Normalize for comparison
-  const normalizedUser = userText.replace(/\s+/g, " ").trim();
-  const normalizedFull = fullVersion.replace(/\s+/g, " ").trim();
+  const normalizedUser = safeUser.replace(/\s+/g, " ").trim();
+  const normalizedFull = safeFull.replace(/\s+/g, " ").trim();
 
   // Direct prefix check
   if (normalizedFull.startsWith(normalizedUser)) {
@@ -269,8 +272,8 @@ function buildSuggestionDOM(display: SuggestionDisplay | null, isPrefetching: bo
     ? "rdat-suggestion-text--prefix-match"
     : "rdat-suggestion-text";
 
-  const v1Text = display.version1Remainder || display.version1Full;
-  const v2Text = display.version2Remainder || display.version2Full;
+  const v1Text = (display.version1Remainder ?? "") || (display.version1Full ?? "");
+  const v2Text = (display.version2Remainder ?? "") || (display.version2Full ?? "");
 
   parts.push(
     `<div class="rdat-suggestion-row">` +
@@ -289,8 +292,8 @@ function buildSuggestionDOM(display: SuggestionDisplay | null, isPrefetching: bo
   return parts.join("");
 }
 
-function escapeHtml(text: string): string {
-  return text
+function escapeHtml(text: string | null | undefined): string {
+  return (text ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -524,10 +527,10 @@ export function MonacoEditor({
       if (!suggestion) return;
 
       const remainder = versionIndex === 0
-        ? suggestion.version1Remainder
-        : suggestion.version2Remainder;
+        ? (suggestion.version1Remainder ?? "")
+        : (suggestion.version2Remainder ?? "");
 
-      if (!remainder || remainder.length === 0) return;
+      if (!remainder || (remainder as string).length === 0) return;
 
       const position = editor.getPosition();
       const model = editor.getModel();
@@ -550,11 +553,11 @@ export function MonacoEditor({
 
       // Trigger onChange with new value
       const newValue = editor.getValue();
-      onChange(newValue);
+      onChange(newValue ?? "");
 
       console.log(
         `[RDAT] Inserted ${versionIndex === 0 ? "Formal" : "Natural"} suggestion: ` +
-        `"${remainder.substring(0, 40)}${remainder.length > 40 ? "…" : ""}"`
+        `"${(remainder ?? "").substring(0, 40)}${(remainder ?? "").length > 40 ? "…" : ""}"`
       );
     },
     [onChange]
