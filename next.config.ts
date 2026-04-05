@@ -21,15 +21,16 @@ import withPWAInit from "@ducanh2912/next-pwa";
 
 const withPWA = withPWAInit({
   dest: "public",
-  // Increase size limit to precache larger chunks (e.g., monaco editor)
-  maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 8 MB
   register: true,
-  skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: false,
   reloadOnOnline: true,
   workboxOptions: {
+    // Increase size limit to precache larger chunks (e.g., Monaco editor)
+    maximumFileSizeToCacheInBytes: 8 * 1024 * 1024, // 8 MB
+    // skipWaiting defaults to true in @ducanh2912/next-pwa v10
+    skipWaiting: true,
     disableDevLogs: true,
     runtimeCaching: [
       {
@@ -56,7 +57,7 @@ const withPWA = withPWAInit({
       },
     ],
   },
-} as Parameters<typeof withPWAInit>[0]);
+});
 
 /* ─── Base Path ──────────────────────────────────────────────────────── */
 
