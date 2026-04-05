@@ -599,20 +599,20 @@ export function MonacoEditor({
 
         // ── Register custom keybindings ──
         // Tab → Insert Version 1 (Formal/Literal)
+        // IMPORTANT: Use monaco.KeyCode.Tab (Tab is a KeyCode, NOT a KeyMod).
+        // monaco.KeyMod.Tab is undefined and will crash at runtime.
         const tabCommandId = `rdat.insertFormalSuggestion`;
         tabCommandIdRef.current = tabCommandId;
 
         editor.addCommand(
-          monaco.KeyMod.Tab,
+          monaco.KeyCode.Tab,
           () => {
             insertSuggestion(editor, 0);
           },
-          `!findWidgetVisible && !suggestWidgetVisible && !inSnippetMode`
+          "!findWidgetVisible && !suggestWidgetVisible && !inSnippetMode"
         );
 
         // Ctrl+Tab → Insert Version 2 (Natural/Standard)
-        // Note: Monaco doesn't have a direct Ctrl+Tab key modifier constant
-        // that works reliably. We use KeyMod.CtrlCmd | KeyMod.Tab.
         const ctrlTabCommandId = `rdat.insertNaturalSuggestion`;
         ctrlTabCommandIdRef.current = ctrlTabCommandId;
 
@@ -621,7 +621,7 @@ export function MonacoEditor({
           () => {
             insertSuggestion(editor, 1);
           },
-          `!findWidgetVisible && !suggestWidgetVisible && !inSnippetMode`
+          "!findWidgetVisible && !suggestWidgetVisible && !inSnippetMode"
         );
 
         // ── Listen for content changes to update ViewZone ──
