@@ -25,15 +25,13 @@ function TermRow({ result }: { result: RAGResult }) {
     >
       {/* Type icon */}
       {isTM ? (
-        <FileText
-          className="w-3 h-3 text-sky-400/60 flex-shrink-0"
-          title="Translation Memory"
-        />
+        <span title="Translation Memory">
+          <FileText className="w-3 h-3 text-sky-400/60 flex-shrink-0" />
+        </span>
       ) : (
-        <BookOpen
-          className="w-3 h-3 text-teal-400/60 flex-shrink-0"
-          title="Terminology"
-        />
+        <span title="Terminology">
+          <BookOpen className="w-3 h-3 text-teal-400/60 flex-shrink-0" />
+        </span>
       )}
 
       {/* EN Term */}

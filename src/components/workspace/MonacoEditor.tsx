@@ -230,7 +230,7 @@ export function MonacoEditor({
           provideInlineCompletions: async (
             model: Monaco.editor.ITextModel,
             position: Monaco.Position,
-            _context: Monaco.InlineCompletionContext,
+            _context: Monaco.languages.InlineCompletionContext,
             token: Monaco.CancellationToken
           ): Promise<Monaco.languages.InlineCompletions<Monaco.languages.InlineCompletion>> => {
             console.log(
@@ -299,7 +299,7 @@ export function MonacoEditor({
               // When the user hits spacebar or is on whitespace, wordUntil.word is
               // empty and wordStartColumn === position.column, producing an invalid
               // zero-width range that causes Monaco to silently reject the completion.
-              let wordRange: Monaco.IRange | null = null;
+              let wordRange: Monaco.IRange | undefined = undefined;
               if (hasActiveWord) {
                 wordRange = {
                   startLineNumber: position.lineNumber,
@@ -346,7 +346,7 @@ export function MonacoEditor({
                 // Build the completion item with safe range logic:
                 // - If inside an incomplete/misspelled word AND wordRange is valid → replace prefix
                 // - Otherwise → standard cursor-position append (always safe)
-                const shouldUseWordRange = isIncompleteOrPartial && wordRange !== null;
+                const shouldUseWordRange = isIncompleteOrPartial && wordRange !== undefined;
                 const completionItem: Monaco.languages.InlineCompletion = {
                   insertText: trimmed,
                   range: shouldUseWordRange

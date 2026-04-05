@@ -33,7 +33,7 @@ import {
 
 // ─── Worker State ────────────────────────────────────────────────
 let db: ReturnType<typeof create> | null = null;
-let embedder: ReturnType<typeof import("@xenova/transformers").pipeline> | null = null;
+let embedder: any = null;
 let embeddingMode: "real" | "fallback" = "fallback";
 let currentState: RAGState = "idle";
 
@@ -173,7 +173,7 @@ async function initEmbeddingModel(): Promise<boolean> {
       )
     );
 
-    embedder = await Promise.race([modelPromise, timeoutPromise]);
+    embedder = await Promise.race([modelPromise, timeoutPromise]) as any;
     embeddingMode = "real";
 
     log(
@@ -313,7 +313,7 @@ async function searchQuery(
       value: queryEmbedding,
       property: "embedding",
       similarity: 0.2, // Lowered from 0.3 to allow more fuzzy semantic matches
-    },
+    } as any, // Orama's TypeScript types are incomplete for vector search options
     limit: RAG_SEARCH_LIMIT,
   });
 

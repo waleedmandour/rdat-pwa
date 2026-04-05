@@ -68,34 +68,42 @@ export function useAMTALinter() {
         // Guard: ensure monaco.languages and the method exist
         if (
           monaco?.languages &&
-          typeof monaco.languages.registerCodeActionsProvider === "function"
+          typeof monaco.languages.registerCodeActionProvider === "function"
         ) {
-          codeActionProviderRef.current = monaco.languages.registerCodeActionsProvider(
+          codeActionProviderRef.current = monaco.languages.registerCodeActionProvider(
             "rdat-target",
             {
               provideCodeActions: (model, _range, _context, _token) => {
                 const currentIssues = issuesRef.current;
-                if (currentIssues.length === 0) return { actions: [] };
+                if (currentIssues.length === 0) return { actions: [], dispose: () => {} };
 
-                const actions: Monaco.CodeAction[] = currentIssues.map((issue) => {
+                const actions: Monaco.languages.CodeAction[] = currentIssues.map((issue) => {
                   const { title, edit } = buildAMTACodeAction(issue);
                   return {
                     title,
-                    kind: "quickfix" as Monaco.CodeActionKind,
+                    kind: "quickfix" as string,
                     edit: {
                       edits: [
                         {
                           resource: model.uri,
-                          edit,
-                        },
+                          edit: {
+                            range: {
+                              startLineNumber: edit.range.startLineNumber,
+                              startColumn: edit.range.startColumn,
+                              endLineNumber: edit.range.endLineNumber,
+                              endColumn: edit.range.endColumn,
+                            },
+                            text: edit.text,
+                          },
+                        } as any,
                       ],
                     },
                     diagnostics: [],
                     isPreferred: true,
-                  };
+                  } as any;
                 });
 
-                return { actions };
+                return { actions, dispose: () => {} };
               },
             }
           );
@@ -131,13 +139,13 @@ export function useAMTALinter() {
         const model = editorRef.current?.getModel();
         if (!model || !monacoRef.current?.editor?.setModelMarkers) return;
 
-        const markers: LintMarker[] = newIssues.map((issue) => ({
+        const markers: Monaco.editor.IMarkerData[] = newIssues.map((issue) => ({
           startLineNumber: issue.startLineNumber,
           startColumn: issue.startColumn,
           endLineNumber: issue.endLineNumber,
           endColumn: issue.endColumn,
           message: issue.message,
-          severity: "warning" as const,
+          severity: 4 as Monaco.MarkerSeverity, // MarkerSeverity.Warning
           source: "AMTA Linter",
         }));
 

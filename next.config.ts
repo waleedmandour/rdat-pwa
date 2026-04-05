@@ -56,7 +56,7 @@ const withPWA = withPWAInit({
       },
     ],
   },
-});
+} as Parameters<typeof withPWAInit>[0]);
 
 /* ─── Base Path ──────────────────────────────────────────────────────── */
 
