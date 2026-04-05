@@ -57,8 +57,9 @@ export function useEditorEventLoop(options?: UseEditorEventLoopOptions) {
       const signal = controller.signal;
 
       setInferenceState("running");
+      const safeText = String(text ?? "");
       console.log(
-        `[RDAT] Mock inference started — text preview: "${text.substring(0, 50)}${text.length > 50 ? "…" : ""}"`
+        `[RDAT] Mock inference started — text preview: "${safeText.substring(0, 50)}${(safeText?.length ?? 0) > 50 ? "…" : ""}"`
       );
 
       inferenceTimerRef.current = setTimeout(() => {
@@ -66,7 +67,7 @@ export function useEditorEventLoop(options?: UseEditorEventLoopOptions) {
 
         setInferenceState("completed");
         console.log(
-          `[RDAT] Mock inference completed — text preview: "${text.substring(0, 50)}${text.length > 50 ? "…" : ""}"`
+          `[RDAT] Mock inference completed — text preview: "${safeText.substring(0, 50)}${(safeText?.length ?? 0) > 50 ? "…" : ""}"`
         );
 
         // Reset to idle after a brief visual feedback window

@@ -17,7 +17,7 @@ export function formatRAGContext(
   results: RAGResult[],
   direction: LanguageDirection = "en-ar"
 ): string {
-  if (!results || (results ?? []).length === 0) return "";
+  if (!results || (results?.length ?? 0) === 0) return "";
 
   const isForward = direction === "en-ar";
 
@@ -51,7 +51,7 @@ export function buildMessages(
   sourceSentence: string = ""
 ): { messages: Array<{ role: "system" | "user"; content: string }>; usedGTR: boolean } {
   // If RAG has results, use context-augmented prompt
-  if (ragResults && (ragResults ?? []).length > 0) {
+  if (ragResults && (ragResults?.length ?? 0) > 0) {
     return {
       messages: buildContextAugmentedMessages(editorText, ragResults, direction, sourceSentence),
       usedGTR: true,

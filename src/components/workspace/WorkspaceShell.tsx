@@ -80,7 +80,7 @@ export function WorkspaceShell({
       if (saved) {
         const parsed: AutosaveState = JSON.parse(saved);
         if (parsed.sourceText && parsed.timestamp) {
-          console.log(`[RDAT] Restored autosaved workspace (source: ${parsed.sourceText.length} chars, ${new Date(parsed.timestamp).toLocaleTimeString()})`);
+          console.log(`[RDAT] Restored autosaved workspace (source: ${(parsed.sourceText ?? "").length} chars, ${new Date(parsed.timestamp).toLocaleTimeString()})`);
           return parsed.sourceText;
         }
       }
@@ -168,7 +168,7 @@ export function WorkspaceShell({
   const handleApplySourceEdit = useCallback(() => {
     setSourceText(editSourceDraft);
     setIsEditingSource(false);
-    console.log(`[RDAT] Source text updated (${editSourceDraft.length} chars, ${editSourceDraft.split("\n").length} lines)`);
+    console.log(`[RDAT] Source text updated (${(editSourceDraft ?? "").length} chars, ${(editSourceDraft ?? "").split("\n").length} lines)`);
   }, [editSourceDraft]);
 
   const handleCancelSourceEdit = useCallback(() => {
@@ -257,10 +257,10 @@ export function WorkspaceShell({
         const currentLine = activeTargetLineRef.current;
         const sourceSentence = getSourceSentence(sourceTextRef.current, currentLine);
 
-        if (sourceSentence && sourceSentence.trim().length >= 3) {
+        if (sourceSentence && (sourceSentence?.trim()?.length ?? 0) >= 3) {
           const query = truncateForEmbedding(sourceSentence);
           console.log(
-            `[RDAT] RAG query triggered (source-driven) — source line ${currentLine}: "${sourceSentence.substring(0, 80)}${sourceSentence.length > 80 ? "…" : ""}"`
+            `[RDAT] RAG query triggered (source-driven) — source line ${currentLine}: "${(sourceSentence ?? "").substring(0, 80)}${(sourceSentence?.length ?? 0) > 80 ? "…" : ""}"`
           );
 
           // Fire RAG search on SOURCE text (not target draft)
@@ -302,8 +302,8 @@ export function WorkspaceShell({
 
       // Step 2: RAG search on SOURCE text (if not already cached from debounce)
       let results: RAGResult[] = ragResults ?? [];
-      if (results.length === 0 && rag.isReady) {
-        if (sourceSentence && sourceSentence.trim().length >= 3) {
+      if ((results?.length ?? 0) === 0 && rag.isReady) {
+        if (sourceSentence && (sourceSentence?.trim()?.length ?? 0) >= 3) {
           results = await rag.search(truncateForEmbedding(sourceSentence));
           console.log(`[RDAT] Ghost text RAG fallback — searched source line ${currentLine}`);
         }
@@ -317,7 +317,7 @@ export function WorkspaceShell({
 
       console.log(
         `[RDAT] Ghost text pipeline — mode: ${usedGTR ? "GTR (Context-Augmented)" : "Zero-Shot (Fallback)"}, ` +
-        `RAG results: ${results.length}`
+        `RAG results: ${(results?.length ?? 0)}`
       );
 
       // Step 4a: Try WebLLM first (Sovereign Track — local GPU)
@@ -392,7 +392,7 @@ export function WorkspaceShell({
     if (!selection || !model) return;
 
     const selectedText = model.getValueInRange(selection);
-    if (!selectedText || selectedText.trim().length === 0) return;
+    if (!selectedText || (selectedText?.trim()?.length ?? 0) === 0) return;
 
     // Extract corresponding source sentence for accuracy evaluation
     const currentLine = activeTargetLineRef.current;
@@ -404,7 +404,7 @@ export function WorkspaceShell({
     setRewriteSourceSentence(sourceSentence);
 
     console.log(
-      `[RDAT] Rewrite requested — ${selectedText.length} chars target, ${sourceSentence.length} chars source`
+      `[RDAT] Rewrite requested — ${(selectedText ?? "").length} chars target, ${(sourceSentence ?? "").length} chars source`
     );
 
     // Send BOTH source and target to Gemini for accuracy-aware rewriting
@@ -784,7 +784,7 @@ export function WorkspaceShell({
         ragTiming={rag.lastTiming}
         embeddingMode={rag.embeddingMode}
         ragStatusMessage={rag.statusMessage}
-        ragResultCount={rag.lastResults.length}
+        ragResultCount={(rag?.lastResults?.length ?? 0)}
         webllmState={webllm.engineState}
         webllmProgress={webllm.progress}
         geminiState={gemini.geminiState}

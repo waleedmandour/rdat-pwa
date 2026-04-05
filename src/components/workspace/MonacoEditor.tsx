@@ -144,11 +144,11 @@ function computeSuggestionDisplay(
   if (!versions || !Array.isArray(versions) || (versions as unknown[]).length < 2) return null;
 
   const trimmedLine = (currentLineText ?? "").trim();
-  const v1Full = (versions[0] as string) || "";
-  const v2Full = (versions[1] as string) || "";
+  const v1Full = String(versions[0] ?? "");
+  const v2Full = String(versions[1] ?? "");
 
   // If the line is empty, show both full versions
-  if (!trimmedLine || trimmedLine.length === 0 || !v1Full || !v2Full) {
+  if (!trimmedLine || (trimmedLine?.length ?? 0) === 0 || !v1Full || !v2Full) {
     return {
       version1Remainder: v1Full,
       version2Remainder: v2Full,
@@ -193,8 +193,8 @@ function computeSuggestionDisplay(
  * Handles slight variations (whitespace normalization, partial word matching).
  */
 function tryPrefixMatch(userText: string | null | undefined, fullVersion: string | null | undefined): string | null {
-  const safeUser = userText ?? "";
-  const safeFull = fullVersion ?? "";
+  const safeUser = String(userText ?? "");
+  const safeFull = String(fullVersion ?? "");
   if (!safeUser || !safeFull) return null;
 
   // Normalize for comparison
@@ -203,8 +203,8 @@ function tryPrefixMatch(userText: string | null | undefined, fullVersion: string
 
   // Direct prefix check
   if (normalizedFull.startsWith(normalizedUser)) {
-    const remainder = normalizedFull.substring(normalizedUser.length).trim();
-    return remainder.length > 0 ? remainder : null;
+    const remainder = normalizedFull.substring(normalizedUser.length ?? 0).trim();
+    return (remainder?.length ?? 0) > 0 ? remainder : null;
   }
 
   // Partial last-word matching: the user might be in the middle of typing
@@ -230,10 +230,10 @@ function tryPrefixMatch(userText: string | null | undefined, fullVersion: string
 
     if (correspondingFullWord && correspondingFullWord.startsWith(lastUserWord)) {
       // Build remainder: rest of the current word + remaining words
-      const restOfCurrentWord = correspondingFullWord.substring(lastUserWord.length);
-      const remainingWords = fullWords.slice(userWords.length);
+      const restOfCurrentWord = correspondingFullWord.substring(lastUserWord?.length ?? 0);
+      const remainingWords = fullWords.slice(userWords?.length ?? 0);
       const remainder = [restOfCurrentWord, ...remainingWords].join(" ").trim();
-      return remainder.length > 0 ? remainder : null;
+      return (remainder?.length ?? 0) > 0 ? remainder : null;
     }
   }
 
@@ -432,6 +432,7 @@ export function MonacoEditor({
    */
   const updateViewZone = useCallback(
     (editor: Monaco.editor.IStandaloneCodeEditor) => {
+      try {
       const position = editor.getPosition();
       if (!position) return;
 
@@ -511,6 +512,9 @@ export function MonacoEditor({
       } else if (sourceSentence) {
         onSuggestionModeChangeRef.current?.("zero-shot");
       }
+      } catch (zoneErr) {
+        console.warn("[RDAT] updateViewZone error:", zoneErr);
+      }
     },
     [enableCompletions]
   );
@@ -530,7 +534,7 @@ export function MonacoEditor({
         ? (suggestion.version1Remainder ?? "")
         : (suggestion.version2Remainder ?? "");
 
-      if (!remainder || (remainder as string).length === 0) return;
+      if (!remainder || (remainder?.length ?? 0) === 0) return;
 
       const position = editor.getPosition();
       const model = editor.getModel();

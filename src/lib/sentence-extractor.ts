@@ -11,7 +11,7 @@
  * This gives us the "in-progress" sentence for RAG queries.
  */
 export function extractCurrentSentence(text: string): string {
-  if (!text || text.trim().length === 0) return "";
+  if (!text || (text?.trim()?.length ?? 0) === 0) return "";
 
   const lines = text.split("\n");
   // Find the last non-empty line
@@ -49,8 +49,9 @@ export function extractCurrentSentence(text: string): string {
  * As a rough heuristic, we truncate to ~2000 characters.
  */
 export function truncateForEmbedding(text: string, maxChars = 2000): string {
-  if (text.length <= maxChars) return text;
-  return text.substring(0, maxChars) + "…";
+  const safeText = String(text ?? "");
+  if (safeText.length <= maxChars) return safeText;
+  return safeText.substring(0, maxChars) + "…";
 }
 
 /**
@@ -64,9 +65,9 @@ export function truncateForEmbedding(text: string, maxChars = 2000): string {
  */
 export function getSourceLine(sourceText: string, lineNumber: number): string {
   if (!sourceText || lineNumber < 1) return "";
-  const lines = sourceText.split("\n");
-  if (lineNumber > lines.length) return "";
-  return lines[lineNumber - 1]; // Convert 1-based to 0-based index
+  const lines = (sourceText ?? "").split("\n");
+  if (lineNumber > (lines?.length ?? 0)) return "";
+  return lines[lineNumber - 1] ?? ""; // Convert 1-based to 0-based index
 }
 
 /**
@@ -84,8 +85,8 @@ export function getSourceLine(sourceText: string, lineNumber: number): string {
  */
 export function getSourceSentence(sourceText: string, lineNumber: number, maxLines = 5): string {
   if (!sourceText || lineNumber < 1) return "";
-  const lines = sourceText.split("\n");
-  const startIdx = Math.min(lineNumber - 1, lines.length - 1);
+  const lines = (sourceText ?? "").split("\n");
+  const startIdx = Math.min(lineNumber - 1, (lines?.length ?? 1) - 1);
 
   // Find the sentence start: look backwards from startIdx for a sentence boundary
   let sentenceStart = startIdx;

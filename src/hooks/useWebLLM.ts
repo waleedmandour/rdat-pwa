@@ -118,7 +118,8 @@ export function useWebLLM() {
 
         const content = reply.choices?.[0]?.message?.content;
         if (content) {
-          console.log(`[RDAT-LLM] Generated: "${content.substring(0, 80)}${content.length > 80 ? "…" : ""}"`);
+          const safeContent = String(content ?? "");
+          console.log(`[RDAT-LLM] Generated: "${safeContent.substring(0, 80)}${(safeContent?.length ?? 0) > 80 ? "…" : ""}"`);
         }
         setEngineState("ready");
         return content || null;

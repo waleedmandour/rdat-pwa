@@ -66,7 +66,7 @@ export async function rewriteText(
   let userMessage = "";
 
   // Section 1: Original Source Text (from the source pane)
-  if (sourceText && sourceText.trim().length > 0) {
+  if (sourceText && (sourceText?.trim()?.length ?? 0) > 0) {
     userMessage += `Original Source Text:\n${sourceText.trim()}\n\n`;
   }
 
@@ -84,7 +84,7 @@ export async function rewriteText(
 
   try {
     console.log(
-      `[RDAT-Gemini] Sending rewrite request (${text.length} chars, direction: ${direction}${sourceText ? `, source: ${sourceText.length} chars` : ""})`
+      `[RDAT-Gemini] Sending rewrite request (${(text ?? "").length} chars, direction: ${direction}${sourceText ? `, source: ${(sourceText ?? "").length} chars` : ""})`
     );
 
     const result = await model.generateContent({
@@ -101,8 +101,8 @@ export async function rewriteText(
     const response = result.response;
     const rewritten = response.text();
 
-    if (rewritten && rewritten.trim().length > 0) {
-      console.log(`[RDAT-Gemini] Rewrite complete (${rewritten.length} chars)`);
+    if (rewritten && (rewritten?.trim()?.length ?? 0) > 0) {
+      console.log(`[RDAT-Gemini] Rewrite complete (${(rewritten ?? "").length} chars)`);
       return rewritten.trim();
     }
 
@@ -144,18 +144,18 @@ export async function completeGhostText(
 
   // Build the user message (same structure as WebLLM ghost text prompt)
   let userMessage = "";
-  if (sourceSentence && sourceSentence.trim().length > 0) {
+  if (sourceSentence && (sourceSentence?.trim()?.length ?? 0) > 0) {
     userMessage += `Source Sentence:\n${sourceSentence.trim()}\n\n`;
   }
   if (ragContext) {
     userMessage += `${ragContext}\n\n`;
   }
-  userMessage += `Current Target Draft:\n${targetDraft.trim()}\n\n`;
+  userMessage += `Current Target Draft:\n${(targetDraft ?? "").trim()}\n\n`;
   userMessage += `Instruction: Provide only the next few words to complete the target draft. Output 3-15 words maximum. Do not repeat what has already been written.`;
 
   try {
     console.log(
-      `[RDAT-Gemini] Ghost text request (${targetDraft.length} chars target, ${sourceSentence.length} chars source)`
+      `[RDAT-Gemini] Ghost text request (${(targetDraft ?? "").length} chars target, ${(sourceSentence ?? "").length} chars source)`
     );
 
     const result = await genAI.getGenerativeModel({ model: GEMINI_MODEL_ID }).generateContent({
@@ -170,11 +170,11 @@ export async function completeGhostText(
     });
 
     const text = result.response.text();
-    if (text && text.trim().length > 0) {
+    if (text && (text?.trim()?.length ?? 0) > 0) {
       // Truncate to ghost-text length (3-15 words)
       const words = text.trim().split(/\s+/);
       const truncated = words.slice(0, 15).join(" ");
-      console.log(`[RDAT-Gemini] Ghost text delivered (${truncated.length} chars): "${truncated.substring(0, 60)}…"`);
+      console.log(`[RDAT-Gemini] Ghost text delivered (${(truncated ?? "").length} chars): "${(truncated ?? "").substring(0, 60)}…"`);
       return truncated;
     }
     return null;
@@ -202,20 +202,20 @@ function getContextualFallback(
   const isAr = direction === "en-ar";
 
   // If we have a source sentence, try to provide a generic translation continuation
-  if (sourceSentence && sourceSentence.trim().length > 0) {
+  if (sourceSentence && (sourceSentence?.trim()?.length ?? 0) > 0) {
     // Check if the target draft already has substantial content
-    const draftLines = targetDraft.trim().split(/\n+/);
-    const lastLine = draftLines[draftLines.length - 1]?.trim() || "";
+    const draftLines = (targetDraft ?? "").trim().split(/\n+/);
+    const lastLine = draftLines[(draftLines?.length ?? 0) - 1]?.trim() || "";
 
     if (isAr) {
       // Arabic continuation suggestions based on context
-      if (lastLine.length > 10) {
+      if ((lastLine?.length ?? 0) > 10) {
         return "ويُعد هذا من أهم";
       }
       return "يُعد هذا المبنى من أعظم المنشآت";
     } else {
       // English continuation suggestions
-      if (lastLine.length > 10) {
+      if ((lastLine?.length ?? 0) > 10) {
         return "This represents one of the most significant";
       }
       return "The structure was built using";

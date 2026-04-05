@@ -79,8 +79,8 @@ CRITICAL RULES:
   let userMessage = `Translate the following ${sourceLang} text into ${targetLang}. Provide exactly 2 versions separated by "${VERSION_DELIMITER}". Version 1: Formal/Literal. Version 2: Natural/Standard.\n\nSource Text (${sourceLang}):\n${sourceSentence}`;
 
   // Add RAG context if available
-  if (ragResults && ragResults.length > 0) {
-    const tmEntries = ragResults
+  if (ragResults && (ragResults?.length ?? 0) > 0) {
+    const tmEntries = (ragResults ?? [])
       .map((r, i) => {
         const src = isForward ? r.en : r.ar;
         const tgt = isForward ? r.ar : r.en;
@@ -148,15 +148,16 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
    */
   const prefetchTranslation = useCallback(
     async (sourceSentence: string) => {
-      if (!sourceSentence || (sourceSentence ?? "").trim().length < 3) return;
+      const safeSentence = String(sourceSentence ?? "");
+      if (!safeSentence || safeSentence.trim().length < 3) return;
       if (!isLLMReadyRef.current) {
         console.log("[RDAT-Prefetch] LLM not ready — skipping prefetch");
         return;
       }
 
       // Check cache first
-      if (cacheRef.current.has(sourceSentence)) {
-        console.log("[RDAT-Prefetch] Cache hit for:", sourceSentence.substring(0, 60));
+      if (cacheRef.current.has(safeSentence)) {
+        console.log("[RDAT-Prefetch] Cache hit for:", (safeSentence ?? "").substring(0, 60));
         return;
       }
 
@@ -172,14 +173,14 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
 
       setIsPrefetching(true);
       setError(null);
-      setPrefetchingSentence(sourceSentence);
+      setPrefetchingSentence(safeSentence);
 
       try {
         // Perform RAG search if available and not already cached
         let currentRagResults: RAGResult[] = ragResultsRef.current ?? [];
-        if (isRAGReadyRef.current && currentRagResults.length === 0) {
+        if (isRAGReadyRef.current && (currentRagResults?.length ?? 0) === 0) {
           try {
-            currentRagResults = await ragSearchRef.current(sourceSentence);
+            currentRagResults = await ragSearchRef.current?.(safeSentence) ?? [];
           } catch {
             // RAG search failed — proceed without it
             console.log("[RDAT-Prefetch] RAG search failed — proceeding without context");
@@ -190,32 +191,32 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
 
         // Build prompt and generate
         const direction = languageDirectionRef.current;
-        const messages = buildDualVersionPrompt(sourceSentence, direction, currentRagResults);
+        const messages = buildDualVersionPrompt(safeSentence, direction, currentRagResults);
 
         console.log(
-          `[RDAT-Prefetch] Generating dual-version translation for: "${sourceSentence.substring(0, 60)}${sourceSentence.length > 60 ? "…" : ""}"`
+          `[RDAT-Prefetch] Generating dual-version translation for: "${(safeSentence ?? "").substring(0, 60)}${(safeSentence?.length ?? 0) > 60 ? "…" : ""}"`
         );
 
         // Note: We call the generate function directly. The generate function from
         // useWebLLM uses LLM_MAX_TOKENS internally, but for prefetch we need more tokens.
         // We'll work with what we get and parse accordingly.
-        const result = await generateRef.current(messages);
+        const result = await generateRef.current?.(messages) ?? null;
 
         if (abortController.signal.aborted) return;
 
         if (result && result.trim()) {
           const parsed = parseDualVersionResponse(result.trim());
-          if (parsed) {
-            cacheRef.current.set(sourceSentence, parsed);
+          if (parsed && parsed.length >= 2) {
+            cacheRef.current.set(safeSentence, parsed);
             setCacheVersion((v) => v + 1);
             console.log(
-              `[RDAT-Prefetch] Cached ${parsed.length} versions for: "${sourceSentence.substring(0, 60)}"`,
-              parsed.map((v) => `"${v.substring(0, 40)}${v.length > 40 ? "…" : ""}"`)
+              `[RDAT-Prefetch] Cached ${parsed.length} versions for: "${(safeSentence ?? "").substring(0, 60)}"`,
+              parsed.map((v: string) => `"${String(v ?? "").substring(0, 40)}${(v?.length ?? 0) > 40 ? "…" : ""}"`)
             );
           } else {
-            console.log("[RDAT-Prefetch] Could not parse dual versions from LLM output:", result.substring(0, 100));
+            console.log("[RDAT-Prefetch] Could not parse dual versions from LLM output:", (result ?? "").substring(0, 100));
             // Store the single result as both versions as fallback
-            cacheRef.current.set(sourceSentence, [result.trim(), result.trim()]);
+            cacheRef.current.set(safeSentence, [result.trim(), result.trim()]);
             setCacheVersion((v) => v + 1);
           }
         } else {
@@ -279,10 +280,11 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
       clearTimeout(debounceTimerRef.current);
     }
 
-    if (!activeSourceSentence || (activeSourceSentence ?? "").trim().length < 3) return;
+    const safeSentence = String(activeSourceSentence ?? "");
+    if (!safeSentence || safeSentence.trim().length < 3) return;
 
     debounceTimerRef.current = setTimeout(() => {
-      prefetchTranslation(activeSourceSentence);
+      prefetchTranslation(safeSentence);
     }, PREFETCH_DEBOUNCE_MS);
 
     return () => {
@@ -333,23 +335,24 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
  */
 function parseDualVersionResponse(raw: string): TranslationVersions | null {
   // Try standard delimiter first
-  if (raw?.includes(VERSION_DELIMITER)) {
-    const parts = raw.split(VERSION_DELIMITER).map((s) => (s ?? "").trim());
-    if (parts.length >= 2) {
+  const safeRaw = String(raw ?? "");
+  if (safeRaw.includes(VERSION_DELIMITER)) {
+    const parts = safeRaw.split(VERSION_DELIMITER).map((s) => String(s ?? "").trim());
+    if ((parts?.length ?? 0) >= 2) {
       const v1 = cleanVersion(parts[0]);
       const v2 = cleanVersion(parts[1]);
-      if (v1 && v2 && v1.length > 0 && v2.length > 0) {
+      if (v1 && v2 && (v1?.length ?? 0) > 0 && (v2?.length ?? 0) > 0) {
         return [v1, v2];
       }
     }
   }
 
   // Try newline-based separation (some LLMs output versions on separate lines)
-  const lines = raw.split("\n").map((l) => (l ?? "").trim()).filter((l) => (l ?? "").length > 0);
-  if (lines.length >= 2) {
+  const lines = safeRaw.split("\n").map((l) => String(l ?? "").trim()).filter((l) => (l ?? "").length > 0);
+  if ((lines?.length ?? 0) >= 2) {
     const v1 = cleanVersion(lines[0]);
     const v2 = cleanVersion(lines[1]);
-    if (v1 && v2 && v1.length > 0 && v2.length > 0) {
+    if (v1 && v2 && (v1?.length ?? 0) > 0 && (v2?.length ?? 0) > 0) {
       return [v1, v2];
     }
   }
