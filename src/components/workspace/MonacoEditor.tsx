@@ -53,7 +53,21 @@ function injectViewZoneStyles() {
       user-select: none;
       white-space: pre-wrap;
       word-wrap: break-word;
-      overflow: hidden;
+      overflow: visible !important;
+      display: block !important;
+      visibility: visible !important;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ── Fallback Decoration Styles ────────────────────────── */
+    .rdat-decoration-line {
+      background: rgba(45, 212, 191, 0.05);
+    }
+    .rdat-decoration-fallback {
+      color: #6b7280 !important;
+      font-style: italic !important;
+      opacity: 0.8;
     }
 
     .rdat-predictive-zone dir="auto" {
@@ -328,6 +342,8 @@ interface MonacoEditorProps {
   // ── New Predictive Translation Props ──
   /** Cached translation versions from the predictive prefetch engine */
   translationCache?: TranslationCache;
+  /** Incremented each time the cache is updated — used to trigger ViewZone re-render */
+  cacheVersion?: number;
   /** Whether the prefetch engine is currently generating */
   isPrefetching?: boolean;
   /** Get cached versions for a given source sentence */
@@ -371,6 +387,7 @@ export function MonacoEditor({
   languageDirection = "en-ar",
   // Predictive Translation props
   translationCache,
+  cacheVersion = 0,
   isPrefetching = false,
   getCachedVersions,
   activeSourceSentence,
@@ -430,14 +447,32 @@ export function MonacoEditor({
    * updateViewZone — Creates, updates, or removes the predictive suggestion zone
    * below the active line in the editor.
    */
+  // Ref to track whether ViewZone rendering has failed, so we can fall back
+  const viewZoneFailedRef = useRef(false);
+  const fallbackDecorationsRef = useRef<string[]>([]);
+
+  /**
+   * updateViewZone — Creates, updates, or removes the predictive suggestion zone
+   * below the active line in the editor.
+   *
+   * Uses IViewZone as primary rendering, with deltaDecorations as fallback
+   * if ViewZone rendering fails or produces invisible output.
+   */
   const updateViewZone = useCallback(
     (editor: Monaco.editor.IStandaloneCodeEditor) => {
       try {
+      const monaco = monacoRef.current;
       const position = editor.getPosition();
-      if (!position) return;
+      if (!position) {
+        console.log("[RDAT Debug] updateViewZone: no cursor position");
+        return;
+      }
 
       const model = editor.getModel();
-      if (!model) return;
+      if (!model) {
+        console.log("[RDAT Debug] updateViewZone: no model");
+        return;
+      }
 
       // Source pane or disabled: remove zone
       if (!enableCompletions) {
@@ -447,6 +482,8 @@ export function MonacoEditor({
           });
           viewZoneIdRef.current = null;
         }
+        // Clear fallback decorations
+        fallbackDecorationsRef.current = editor.deltaDecorations(fallbackDecorationsRef.current, []);
         return;
       }
 
@@ -459,6 +496,15 @@ export function MonacoEditor({
       const versions = getCachedVersionsRef.current?.(sourceSentence) ?? null;
       const prefetching = isPrefetchingRef.current;
 
+      console.log("[RDAT Debug] updateViewZone:", {
+        lineNumber: position.lineNumber,
+        sourceSentence: (sourceSentence ?? "").substring(0, 60),
+        hasVersions: !!versions,
+        versionsCount: versions ? versions.length : 0,
+        isPrefetching: prefetching,
+        lineTextBeforeCursor: (lineTextBeforeCursor ?? "").substring(0, 40),
+      });
+
       // Compute the suggestion display
       const display = versions
         ? computeSuggestionDisplay(lineTextBeforeCursor, versions)
@@ -466,6 +512,18 @@ export function MonacoEditor({
 
       // Store for keybinding access
       lastSuggestionRef.current = display;
+
+      // Build the suggestion text for fallback decoration
+      const fallbackText = display
+        ? `[Tab] ${display.version1Remainder || display.version1Full}  |  [Ctrl+Tab] ${display.version2Remainder || display.version2Full}`
+        : prefetching
+          ? "⏳ Predicting translations…"
+          : "";
+
+      // Clear fallback decorations when we have ViewZone content
+      if (display || prefetching) {
+        fallbackDecorationsRef.current = editor.deltaDecorations(fallbackDecorationsRef.current, []);
+      }
 
       // Build the DOM content
       const htmlContent = buildSuggestionDOM(display, prefetching && !versions);
@@ -486,13 +544,37 @@ export function MonacoEditor({
         // Only create a zone if we have something to show
         if ((htmlContent?.trim()?.length ?? 0) > 0 || prefetching) {
           const domNode = document.createElement("div");
-          domNode.className = "rdat-predictive-zone";
+          // Apply STRICT inline styles so it is ALWAYS visible, even if CSS injection fails
+          domNode.style.cssText = `
+            color: #6b7280;
+            font-style: italic;
+            padding: 6px 0 6px 52px;
+            font-family: 'Geist Mono', 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            opacity: 0.8;
+            pointer-events: none;
+            user-select: none;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            overflow: visible;
+            display: block;
+            visibility: visible;
+            position: relative;
+            z-index: 1;
+          `;
           domNode.setAttribute("dir", dir);
           domNode.innerHTML = htmlContent;
 
+          // Dynamic height based on content rows (2 rows = suggestions, 1 row = spinner/empty)
+          const hasTwoRows = display && display.version1Full && display.version2Full;
+          const heightPx = hasTwoRows ? 48 : prefetching ? 28 : 48;
+
+          console.log("[RDAT Debug] Creating ViewZone:", { heightPx, hasTwoRows, htmlContentLen: htmlContent.length });
+
           const newZoneId = changeAccessor.addZone({
             afterLineNumber: position.lineNumber,
-            heightInPx: (htmlContent?.trim()?.length ?? 0) > 0 ? 48 : 28,
+            heightInPx: heightPx,
             domNode: domNode,
             onDomNodeTop: (top) => {
               domNode.style.top = `${top}px`;
@@ -503,8 +585,26 @@ export function MonacoEditor({
           });
 
           viewZoneIdRef.current = newZoneId;
+          viewZoneFailedRef.current = false;
         }
       });
+
+      // FALLBACK: If ViewZone has failed before and we have text, use deltaDecorations
+      if (viewZoneFailedRef.current && fallbackText && monaco) {
+        console.log("[RDAT Debug] Using deltaDecorations fallback:", (fallbackText ?? "").substring(0, 80));
+        const deco: Monaco.editor.IModelDeltaDecoration = {
+          range: new monaco.Range(position.lineNumber, 1, position.lineNumber, 1),
+          options: {
+            isWholeLine: true,
+            after: {
+              content: fallbackText,
+              inlineClassName: "rdat-decoration-fallback",
+            },
+            className: "rdat-decoration-line",
+          },
+        };
+        fallbackDecorationsRef.current = editor.deltaDecorations(fallbackDecorationsRef.current, [deco]);
+      }
 
       // Notify suggestion mode based on cache availability
       if (versions) {
@@ -514,6 +614,8 @@ export function MonacoEditor({
       }
       } catch (zoneErr) {
         console.warn("[RDAT] updateViewZone error:", zoneErr);
+        viewZoneFailedRef.current = true;
+        console.log("[RDAT Debug] ViewZone failed, marking for fallback mode");
       }
     },
     [enableCompletions]
@@ -689,6 +791,10 @@ export function MonacoEditor({
       if (ed) {
         try {
           if (ed.getModel() !== null) {
+            console.log("[RDAT Debug] useEffect triggering updateViewZone — sourceSentence:",
+              (activeSourceSentence ?? "").substring(0, 60),
+              "cacheVersion:", cacheVersion,
+              "isPrefetching:", isPrefetching);
             updateViewZone(ed);
           }
         } catch {
@@ -698,7 +804,7 @@ export function MonacoEditor({
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [activeSourceSentence, translationCache, isPrefetching, updateViewZone, enableCompletions]);
+  }, [activeSourceSentence, cacheVersion, isPrefetching, updateViewZone, enableCompletions]);
 
   // ─── Highlight Decoration ────────────────────────────────────────────
 

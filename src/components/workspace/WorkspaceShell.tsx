@@ -681,6 +681,7 @@ export function WorkspaceShell({
                         onSuggestionModeChange={setSuggestionMode}
                         languageDirection={langDirection}
                         translationCache={predictive.cache}
+                        cacheVersion={predictive.cacheVersion}
                         isPrefetching={predictive.isPrefetching}
                         getCachedVersions={predictive.getCachedVersions}
                         activeSourceSentence={activeSourceSentence}

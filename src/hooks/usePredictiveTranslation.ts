@@ -194,13 +194,18 @@ export function usePredictiveTranslation(config: PredictiveTranslationConfig) {
         const messages = buildDualVersionPrompt(safeSentence, direction, currentRagResults);
 
         console.log(
-          `[RDAT-Prefetch] Generating dual-version translation for: "${(safeSentence ?? "").substring(0, 60)}${(safeSentence?.length ?? 0) > 60 ? "…" : ""}"`
+          `[RDAT Debug] Requesting translation for: "${(safeSentence ?? "").substring(0, 60)}${(safeSentence?.length ?? 0) > 60 ? "…" : ""}"`
         );
+        console.log("[RDAT Debug] Language direction:", direction);
+        console.log("[RDAT Debug] RAG context entries:", (currentRagResults?.length ?? 0));
+        console.log("[RDAT Debug] Prompt messages:", messages.map((m) => ({ role: m.role, contentLen: m.content.length })));
 
         // Note: We call the generate function directly. The generate function from
         // useWebLLM uses LLM_MAX_TOKENS internally, but for prefetch we need more tokens.
         // We'll work with what we get and parse accordingly.
+        console.log("[RDAT Debug] Calling LLM generate...");
         const result = await generateRef.current?.(messages) ?? null;
+        console.log("[RDAT Debug] Engine responded with:", result ? `"${(result ?? "").substring(0, 120)}${(result?.length ?? 0) > 120 ? "…" : ""}"` : "null/empty");
 
         if (abortController.signal.aborted) return;
 
