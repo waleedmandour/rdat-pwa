@@ -20,6 +20,7 @@ import { useWebLLM } from "@/hooks/useWebLLM";
 import { useGemini } from "@/hooks/useGemini";
 import { useAMTALinter } from "@/hooks/useAMTALinter";
 import { usePredictiveTranslation } from "@/hooks/usePredictiveTranslation";
+import { useBurstContinuation } from "@/hooks/useBurstContinuation";
 import { buildMessages } from "@/lib/prompt-builder";
 import {
   LANGUAGE_PAIRS,
@@ -228,7 +229,7 @@ export function WorkspaceShell({
   // ─── WebLLM Engine ─────────────────────────────────────────────
   const webllm = useWebLLM();
 
-  // ─── Predictive Prefetch Engine ───────────────────────────────
+  // ─── Channel 3: Predictive Prefetch Engine (N+3 Bounded Queue) ─────
   const predictive = usePredictiveTranslation({
     sourceText,
     activeTargetLine,
@@ -243,6 +244,19 @@ export function WorkspaceShell({
 
   // ─── Active Source Sentence (computed by predictive hook, re-derive for display) ──
   const activeSourceSentence = getSourceSentence(sourceText, activeTargetLine) || "";
+
+  // ─── Channel 5: 3-5 Word Burst Continuation ──────────────────────
+  // Compute the current target line text for the burst hook
+  const currentTargetLine = targetText.split("\n")[activeTargetLine - 1] || "";
+
+  const burst = useBurstContinuation({
+    currentTargetLine,
+    getCachedVersions: predictive.getCachedVersions,
+    activeSourceSentence,
+    languageDirection: langDirection,
+    generate: webllm.generate,
+    isLLMReady: webllm.isReady,
+  });
 
   // ─── Editor Event Loop (Source-Driven RAG + AMTA callback) ──────
   const ragSearchRef = useRef(rag.search);
@@ -686,6 +700,8 @@ export function WorkspaceShell({
                         isPrefetching={predictive.isPrefetching}
                         getCachedVersions={predictive.getCachedVersions}
                         activeSourceSentence={activeSourceSentence}
+                        burstSuggestion={burst.burstSuggestion}
+                        burstSuggestionRef={burst.burstSuggestionRef}
                       />
                     </div>
                   </div>

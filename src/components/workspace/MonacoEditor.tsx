@@ -183,17 +183,21 @@ interface MonacoEditorProps {
   onSuggestionModeChange?: (mode: SuggestionMode) => void;
   languageDirection?: LanguageDirection;
 
-  // ── Predictive Translation Props (Dual-Channel Ghost Text) ──
-  /** Cached translation versions from the predictive prefetch engine */
+  // ── Predictive Translation Props (5-Channel Ghost Text) ──
+  /** Cached translation versions from the predictive prefetch engine (Channel 3) */
   translationCache?: TranslationCache;
-  /** Incremented each time the cache is updated */
+  /** Incremented each time the cache is updated (Channel 3) */
   cacheVersion?: number;
-  /** Whether the prefetch engine is currently generating */
+  /** Whether the prefetch engine is currently generating (Channel 3) */
   isPrefetching?: boolean;
-  /** Get cached versions for a given source sentence */
+  /** Get cached versions for a given source sentence (Channel 3) */
   getCachedVersions?: (sourceSentence: string) => TranslationVersions | null;
-  /** Active source sentence for the current target line */
+  /** Active source sentence for the current target line (Channel 3) */
   activeSourceSentence?: string;
+  /** Channel 5 burst suggestion (3-5 word continuation) */
+  burstSuggestion?: string | null;
+  /** Ref to burst suggestion for inline completions provider */
+  burstSuggestionRef?: React.RefObject<string | null>;
 }
 
 // ─── Component ──────────────────────────────────────────────────────────
@@ -231,6 +235,9 @@ export function MonacoEditor({
   isPrefetching = false,
   getCachedVersions,
   activeSourceSentence,
+  // Channel 5 burst continuation
+  burstSuggestion,
+  burstSuggestionRef,
 }: MonacoEditorProps) {
   const editorRef = useRef<Monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof Monaco | null>(null);
@@ -273,6 +280,9 @@ export function MonacoEditor({
   const languageDirectionRef = useRef(languageDirection);
   useEffect(() => { languageDirectionRef.current = languageDirection; }, [languageDirection]);
 
+  const burstSuggestionLocalRef = useRef(burstSuggestion);
+  useEffect(() => { burstSuggestionLocalRef.current = burstSuggestion; }, [burstSuggestion]);
+
   // ─── Version Decoration Updater (Secondary Channel) ─────────────────
 
   const updateVersionDecoration = useCallback(
@@ -290,7 +300,7 @@ export function MonacoEditor({
         const v2 = (versions[1] || "").substring(0, 50);
         afterText = `  ┃ [Tab] ${v1}  ┃ [Ctrl+Tab] ${v2}`;
       } else if (prefetching) {
-        afterText = "  ┃ ⏳ Predicting…";
+        afterText = "  ┃ ⏳ Predicting (N+3)…";
       }
 
       versionDecorationsRef.current = editor.deltaDecorations(
@@ -361,23 +371,60 @@ export function MonacoEditor({
           resolvedLanguageId,
           {
             provideInlineCompletions: async (model, position, context, token) => {
-              // 1. Get cached versions for active source sentence
+              // ═══════════════════════════════════════════════════════════
+              // CHANNEL 5 PRIORITY: Burst Suggestion (3-5 word continuation)
+              // ═══════════════════════════════════════════════════════════
+              const burst = burstSuggestionRef?.current ?? burstSuggestionLocalRef.current;
+              if (burst && burst.trim()) {
+                const lineContent = model.getLineContent(position.lineNumber) || "";
+                const textBeforeCursor = lineContent.substring(0, position.column - 1);
+                const normalizedTyped = textBeforeCursor.replace(/\s+/g, " ").trim();
+                const normalizedBurst = burst.replace(/\s+/g, " ").trim();
+
+                // Ensure we don't duplicate text the user already typed
+                let burstInsert = normalizedBurst;
+                if (normalizedTyped && normalizedBurst.startsWith(normalizedTyped)) {
+                  const remainder = normalizedBurst.substring(normalizedTyped.length).trim();
+                  if (remainder) burstInsert = remainder;
+                  else return { items: [] }; // User already typed the full burst
+                }
+
+                console.log("[RDAT Debug] Channel 5 burst ghost text:", burstInsert.substring(0, 60));
+
+                return {
+                  items: [{
+                    insertText: burstInsert,
+                    range: new monaco.Range(
+                      position.lineNumber,
+                      position.column,
+                      position.lineNumber,
+                      position.column
+                    ),
+                    filterText: burst,
+                    completionInfo: {
+                      providerId: "rdat-burst",
+                      label: "[Tab] Autocomplete"
+                    }
+                  }]
+                };
+              }
+
+              // ═══════════════════════════════════════════════════════════
+              // CHANNEL 3 FALLBACK: Cached full translation (prefix match)
+              // ═══════════════════════════════════════════════════════════
               const sourceSentence = activeSourceSentenceRef.current || "";
               const versions = getCachedVersionsRef.current?.(sourceSentence);
               if (!versions || versions.length < 2) return { items: [] };
 
-              // 2. Get current line text for prefix matching
               const lineContent = model.getLineContent(position.lineNumber) || "";
               const textBeforeCursor = lineContent.substring(0, position.column - 1);
 
-              // 3. Use Version 1 (Formal) as the inline suggestion
               const v1Full = versions[0] || "";
               const v2Full = versions[1] || "";
 
-              // 4. Compute remainder based on prefix match
-              let insertText = v1Full; // Default: show full translation
+              // Compute remainder based on prefix match
+              let insertText = v1Full;
               if (textBeforeCursor.trim() && v1Full) {
-                // If user has typed something, try to find the remainder
                 const normalizedTyped = textBeforeCursor.replace(/\s+/g, " ").trim();
                 const normalizedFull = v1Full.replace(/\s+/g, " ").trim();
                 if (normalizedFull.startsWith(normalizedTyped)) {
@@ -388,7 +435,7 @@ export function MonacoEditor({
 
               if (!insertText.trim()) return { items: [] };
 
-              console.log("[RDAT Debug] InlineCompletion provided:", insertText.substring(0, 60));
+              console.log("[RDAT Debug] Channel 3 cached ghost text:", insertText.substring(0, 60));
 
               return {
                 items: [{
@@ -399,7 +446,6 @@ export function MonacoEditor({
                     position.lineNumber,
                     position.column
                   ),
-                  // Show a label so user knows what version this is
                   filterText: v1Full,
                   completionInfo: {
                     providerId: "rdat-predictive",
@@ -499,6 +545,32 @@ export function MonacoEditor({
       newDecorations
     );
   }, [highlightLine]);
+
+  // ─── Channel 5: Trigger inline suggestions when burst arrives ──
+  useEffect(() => {
+    if (!burstSuggestion || !editorRef.current || !monacoRef.current) return;
+    const editor = editorRef.current;
+    const monaco = monacoRef.current;
+
+    // Force Monaco to re-evaluate inline completions when burst suggestion arrives
+    // by moving the cursor to trigger a re-evaluation cycle
+    const pos = editor.getPosition();
+    if (!pos) return;
+
+    try {
+      // Trigger inline suggestion action (available in Monaco >= 0.40)
+      const action = editor.getAction("editor.action.inlineSuggest.trigger");
+      if (action) {
+        action.run();
+        console.log("[RDAT Debug] Channel 5: triggered inline suggestion refresh");
+      } else {
+        // Fallback: simulate a cursor nudge to force re-evaluation
+        editor.setPosition(new monaco.Position(pos.lineNumber, pos.column));
+      }
+    } catch {
+      // Silent fail — the provider will be called on next user interaction
+    }
+  }, [burstSuggestion]);
 
   // ─── Cleanup ─────────────────────────────────────────────────────────
 
