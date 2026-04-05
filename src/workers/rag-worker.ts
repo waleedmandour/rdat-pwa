@@ -312,7 +312,7 @@ async function searchQuery(
     vector: {
       value: queryEmbedding,
       property: "embedding",
-      similarity: 0.2, // Lowered from 0.3 to allow more fuzzy semantic matches
+      similarity: 0.1, // Lowered from 0.2 to match more results with fallback embeddings
     } as any, // Orama's TypeScript types are incomplete for vector search options
     limit: RAG_SEARCH_LIMIT,
   });
@@ -321,7 +321,7 @@ async function searchQuery(
   const totalMs = performance.now() - totalStart;
 
   // ── Step 3: Format results ──
-  const ragResults: RAGResult[] = (results.hits || []).map(
+  let ragResults: RAGResult[] = (results.hits || []).map(
     (hit: { id: string; score: number; document: any }) => ({
       id: hit.document.id,
       en: hit.document.en,
@@ -332,6 +332,35 @@ async function searchQuery(
       amta_enforcement: hit.document.amta_enforcement,
     })
   );
+
+  // ── Step 3b: Keyword fallback when vector search returns 0 results ──
+  // When using fallback (hash) embeddings, semantic similarity is unreliable.
+  // We supplement with a keyword-based full-text search to ensure matches.
+  if (ragResults.length === 0) {
+    log("info", "[RAG] Vector search returned 0 results — trying keyword fallback");
+    const keywordResults = await search(db as any, {
+      term: query,
+      properties: ["en", "ar", "context"],
+      limit: Math.ceil(RAG_SEARCH_LIMIT / 2),
+      tolerance: 2, // Allow 2 edit distance for fuzzy matching
+    } as any);
+
+    ragResults = (keywordResults.hits || []).map(
+      (hit: { id: string; score: number; document: any }) => ({
+        id: hit.document.id,
+        en: hit.document.en,
+        ar: hit.document.ar,
+        context: hit.document.context,
+        score: hit.score * 0.7, // Slightly lower score for keyword matches
+        type: hit.document.type,
+        amta_enforcement: hit.document.amta_enforcement,
+      })
+    );
+
+    if (ragResults.length > 0) {
+      log("info", `[RAG] Keyword fallback found ${ragResults.length} matches`);
+    }
+  }
 
   // ── Step 4: Log detailed results ──
   log(

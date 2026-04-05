@@ -663,6 +663,7 @@ export function WorkspaceShell({
                         languageId="rdat-target"
                         onCursorPositionChange={handleCursorPositionChange}
                         onSuggestionModeChange={setSuggestionMode}
+                        languageDirection={langDirection}
                       />
                     </div>
                   </div>

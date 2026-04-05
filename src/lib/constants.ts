@@ -154,7 +154,7 @@ export const GEMINI_SYSTEM_PROMPTS: Record<LanguageDirection, string> = {
 };
 
 export const GEMINI_API_ENDPOINT =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 // ─── UI Labels (Bilingual) ──────────────────────────────────────────
 export const MODE_LABELS = {
@@ -218,7 +218,7 @@ export const WEBLLM_STATE_LABELS_AR = {
 } as const;
 
 // ─── Cloud AI (Reasoning Track) ─────────────────────────────────────
-export const GEMINI_MODEL_ID = "gemini-3.1-flash-lite-preview";
+export const GEMINI_MODEL_ID = "gemini-2.0-flash";
 export const GEMINI_API_KEY_STORAGE = "rdat-gemini-api-key";
 
 // ─── AMTA Linter ───────────────────────────────────────────────────
