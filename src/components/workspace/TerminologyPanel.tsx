@@ -96,7 +96,7 @@ export function TerminologyPanel({ results, ragState }: TerminologyPanelProps) {
 
   // Auto-scroll to top when new results arrive
   useEffect(() => {
-    if (scrollRef.current && results.length > 0 && isOpen) {
+    if (scrollRef.current && (results?.length ?? 0) > 0 && isOpen) {
       scrollRef.current.scrollTop = 0;
     }
   }, [results, isOpen]);
@@ -106,7 +106,7 @@ export function TerminologyPanel({ results, ragState }: TerminologyPanelProps) {
     return null;
   }
 
-  const hasResults = results.length > 0;
+  const hasResults = (results?.length ?? 0) > 0;
 
   return (
     <div className="border-t border-[var(--ide-border)] bg-[var(--ide-bg-secondary)]">
@@ -128,7 +128,7 @@ export function TerminologyPanel({ results, ragState }: TerminologyPanelProps) {
           </span>
           {hasResults && (
             <span className="text-[10px] px-1.5 py-0 rounded-full bg-teal-500/15 text-teal-400 font-medium tabular-nums">
-              {results.length}
+              {results?.length ?? 0}
             </span>
           )}
         </div>

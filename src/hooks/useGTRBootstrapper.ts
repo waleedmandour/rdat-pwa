@@ -77,12 +77,12 @@ export function useGTRBootstrapper() {
         return null;
       }
 
-      if (!Array.isArray(parsed.corpus) || parsed.corpus.length === 0) {
+      if (!Array.isArray(parsed.corpus) || (parsed?.corpus?.length ?? 0) === 0) {
         return null;
       }
 
       console.log(
-        `[RDAT-GTR] Loaded ${parsed.corpus.length} entries from localStorage cache`
+        `[RDAT-GTR] Loaded ${parsed?.corpus?.length ?? 0} entries from localStorage cache`
       );
       return parsed.corpus;
     } catch {

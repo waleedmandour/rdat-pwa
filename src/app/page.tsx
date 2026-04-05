@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import type { GPUStatus } from "@/types";
 import { useAppMode } from "@/hooks/useAppMode";
 import { useState, useCallback, useSyncExternalStore } from "react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 // ─── Hydration-Safe Client Shell ─────────────────────────────────
 // We use useSyncExternalStore to detect client-side mount without
@@ -101,7 +102,11 @@ function RDATClientShell() {
   }
 
   // Import WorkspaceShell dynamically to keep the initial bundle small
-  return <WorkspaceShell gpuStatus={gpuStatus} appMode={appMode} />;
+  return (
+    <ErrorBoundary>
+      <WorkspaceShell gpuStatus={gpuStatus} appMode={appMode} />
+    </ErrorBoundary>
+  );
 }
 
 // ─── Dynamic import for WorkspaceShell ────────────────────────────

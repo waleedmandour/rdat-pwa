@@ -73,7 +73,7 @@ function isWholeWordMatch(line: string, idx: number, termLength: number): boolea
 
   // Check right boundary: the character after the match must be non-alphanumeric
   const endIdx = idx + termLength;
-  if (endIdx < line.length) {
+  if (endIdx < (line?.length ?? 0)) {
     const charAfter = line[endIdx];
     if (/[a-zA-Z0-9\u0600-\u06FF]/.test(charAfter)) {
       return false;
@@ -96,7 +96,7 @@ export function lintText(
   glossary: CorpusEntry[],
   direction: LanguageDirection = "en-ar"
 ): AMTALintIssue[] {
-  if (!text || text.trim().length === 0 || !glossary || glossary.length === 0) {
+  if (!text || (text?.trim()?.length ?? 0) === 0 || !glossary || (glossary?.length ?? 0) === 0) {
     return [];
   }
 
@@ -113,7 +113,7 @@ export function lintText(
     const checkTerm = isForward ? arTerm : enTerm;
 
     // Skip very short terms
-    if (searchTerm.length < AMTA_MIN_TERM_LENGTH) continue;
+    if ((searchTerm?.length ?? 0) < AMTA_MIN_TERM_LENGTH) continue;
 
     // Sanitize the search term (strip smart quotes, invisible chars)
     const sanitizedSearchTerm = sanitizeText(searchTerm).toLowerCase();
@@ -121,7 +121,7 @@ export function lintText(
     const sanitizedCheckTerm = sanitizeText(checkTerm).toLowerCase();
 
     // Search for the term in each line
-    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+    for (let lineIdx = 0; lineIdx < (lines?.length ?? 0); lineIdx++) {
       const line = lines[lineIdx];
       // Sanitize the line being searched
       const sanitizedLine = sanitizeText(line).toLowerCase();

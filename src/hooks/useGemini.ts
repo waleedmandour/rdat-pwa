@@ -50,7 +50,7 @@ export function useGemini() {
     () => "" // SSR fallback
   );
 
-  const hasApiKey = storedKey.length > 0;
+  const hasApiKey = (storedKey?.length ?? 0) > 0;
 
   // Derive geminiState from independent state — no override/ref needed.
   const geminiState: GeminiState = hasError
@@ -79,7 +79,7 @@ export function useGemini() {
    */
   const setApiKey = useCallback((key: string) => {
     setHasError(false);
-    if (!key || key.trim().length === 0) {
+    if (!key || (key?.trim()?.length ?? 0) === 0) {
       try { localStorage.removeItem(GEMINI_API_KEY_STORAGE); } catch { /* noop */ }
       disposeGemini();
       notifyStorageChange();
@@ -105,7 +105,7 @@ export function useGemini() {
     try {
       const key = localStorage.getItem(GEMINI_API_KEY_STORAGE);
       if (!key) return "";
-      if (key.length <= 8) return "••••";
+      if ((key?.length ?? 0) <= 8) return "••••";
       return "••••" + key.slice(-4);
     } catch {
       return "";

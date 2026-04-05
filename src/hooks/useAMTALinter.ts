@@ -40,7 +40,7 @@ export function useAMTALinter() {
       })
       .then((data: CorpusEntry[]) => {
         setGlossary(data);
-        console.log(`[RDAT-AMTA] Loaded ${data.length} glossary entries for linting`);
+        console.log(`[RDAT-AMTA] Loaded ${data?.length ?? 0} glossary entries for linting`);
       })
       .catch((err) => {
         console.warn("[RDAT-AMTA] Failed to load glossary:", err);
@@ -75,7 +75,7 @@ export function useAMTALinter() {
             {
               provideCodeActions: (model, _range, _context, _token) => {
                 const currentIssues = issuesRef.current;
-                if (currentIssues.length === 0) return { actions: [], dispose: () => {} };
+                if ((currentIssues?.length ?? 0) === 0) return { actions: [], dispose: () => {} };
 
                 const actions: Monaco.languages.CodeAction[] = currentIssues.map((issue) => {
                   const { title, edit } = buildAMTACodeAction(issue);
@@ -128,11 +128,11 @@ export function useAMTALinter() {
    */
   const runLint = useCallback(
     (text: string) => {
-      if (!editorRef.current || !monacoRef.current || glossary.length === 0) return;
+      if (!editorRef.current || !monacoRef.current || (glossary?.length ?? 0) === 0) return;
 
       const newIssues = lintText(text, glossary);
       setIssues(newIssues);
-      setLintCount(newIssues.length);
+      setLintCount(newIssues?.length ?? 0);
 
       // Apply Monaco markers (yellow squiggly warnings)
       try {
@@ -155,8 +155,8 @@ export function useAMTALinter() {
           markers
         );
 
-        if (newIssues.length > 0) {
-          console.log(`[RDAT-AMTA] Applied ${newIssues.length} markers to editor`);
+        if ((newIssues?.length ?? 0) > 0) {
+          console.log(`[RDAT-AMTA] Applied ${newIssues?.length ?? 0} markers to editor`);
         }
       } catch (err) {
         console.warn("[RDAT-AMTA] Failed to apply markers:", err);
@@ -219,7 +219,7 @@ export function useAMTALinter() {
     debouncedLint,
     runLint,
     clearMarkers,
-    isGlossaryLoaded: glossary.length > 0,
-    glossarySize: glossary.length,
+    isGlossaryLoaded: (glossary?.length ?? 0) > 0,
+    glossarySize: glossary?.length ?? 0,
   };
 }

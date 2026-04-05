@@ -75,7 +75,7 @@ export function formatGPULabel(info: GPUAdapterInfo | null): string {
   const parts = [info.vendor, info.architecture, info.device].filter(
     (p) => p && p !== "Unknown"
   );
-  return parts.length > 0 ? parts.join(" · ") : "WebGPU Adapter";
+  return (parts?.length ?? 0) > 0 ? parts.join(" · ") : "WebGPU Adapter";
 }
 
 /**

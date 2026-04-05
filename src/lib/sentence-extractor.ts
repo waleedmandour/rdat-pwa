@@ -16,8 +16,8 @@ export function extractCurrentSentence(text: string): string {
   const lines = text.split("\n");
   // Find the last non-empty line
   let lastLine = "";
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].trim().length > 0) {
+  for (let i = (lines?.length ?? 1) - 1; i >= 0; i--) {
+    if ((lines[i]?.trim()?.length ?? 0) > 0) {
       lastLine = lines[i];
       break;
     }
@@ -99,7 +99,7 @@ export function getSourceSentence(sourceText: string, lineNumber: number, maxLin
 
   // Accumulate lines until we find a sentence boundary or exceed maxLines
   let result = "";
-  for (let i = sentenceStart; i < Math.min(lines.length, sentenceStart + maxLines); i++) {
+  for (let i = sentenceStart; i < Math.min(lines?.length ?? 0, sentenceStart + maxLines); i++) {
     result += (result ? " " : "") + lines[i].trim();
     if (/[.!?。！？]/.test(lines[i].trim())) {
       break;

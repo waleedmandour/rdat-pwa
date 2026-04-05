@@ -213,20 +213,20 @@ function tryPrefixMatch(userText: string | null | undefined, fullVersion: string
   const userWords = normalizedUser.split(" ");
   const fullWords = normalizedFull.split(" ");
 
-  if (userWords.length > fullWords.length) return null;
+  if ((userWords?.length ?? 0) > (fullWords?.length ?? 0)) return null;
 
   // Check if all complete words match
   let matched = true;
-  for (let i = 0; i < userWords.length - 1; i++) {
-    if (i >= fullWords.length || userWords[i] !== fullWords[i]) {
+  for (let i = 0; i < (userWords?.length ?? 0) - 1; i++) {
+    if (i >= (fullWords?.length ?? 0) || userWords[i] !== fullWords[i]) {
       matched = false;
       break;
     }
   }
 
   if (matched && userWords.length > 0) {
-    const lastUserWord = userWords[userWords.length - 1];
-    const correspondingFullWord = fullWords[userWords.length - 1];
+    const lastUserWord = userWords[(userWords?.length ?? 0) - 1];
+    const correspondingFullWord = fullWords[(userWords?.length ?? 0) - 1];
 
     if (correspondingFullWord && correspondingFullWord.startsWith(lastUserWord)) {
       // Build remainder: rest of the current word + remaining words
@@ -484,7 +484,7 @@ export function MonacoEditor({
         }
 
         // Only create a zone if we have something to show
-        if (htmlContent.trim().length > 0 || prefetching) {
+        if ((htmlContent?.trim()?.length ?? 0) > 0 || prefetching) {
           const domNode = document.createElement("div");
           domNode.className = "rdat-predictive-zone";
           domNode.setAttribute("dir", dir);
@@ -492,7 +492,7 @@ export function MonacoEditor({
 
           const newZoneId = changeAccessor.addZone({
             afterLineNumber: position.lineNumber,
-            heightInPx: htmlContent.trim().length > 0 ? 48 : 28,
+            heightInPx: (htmlContent?.trim()?.length ?? 0) > 0 ? 48 : 28,
             domNode: domNode,
             onDomNodeTop: (top) => {
               domNode.style.top = `${top}px`;
@@ -561,7 +561,7 @@ export function MonacoEditor({
 
       console.log(
         `[RDAT] Inserted ${versionIndex === 0 ? "Formal" : "Natural"} suggestion: ` +
-        `"${(remainder ?? "").substring(0, 40)}${(remainder ?? "").length > 40 ? "…" : ""}"`
+        `"${(remainder ?? "").substring(0, 40)}${(remainder?.length ?? 0) > 40 ? "…" : ""}"`
       );
     },
     [onChange]
@@ -709,7 +709,7 @@ export function MonacoEditor({
 
     if (highlightLine === undefined || highlightLine <= 0) {
       const oldDecorations = highlightDecorationsRef.current;
-      if (Array.isArray(oldDecorations) && oldDecorations.length > 0) {
+      if (Array.isArray(oldDecorations) && (oldDecorations?.length ?? 0) > 0) {
         highlightDecorationsRef.current = editor.deltaDecorations(oldDecorations, []);
       }
       return;
