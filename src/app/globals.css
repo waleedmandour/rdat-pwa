@@ -1,26 +1,64 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  /* RDAT Copilot IDE Dark Theme Palette */
+  --color-background: #0f172a; /* slate-950 - Deep navy background */
+  --color-foreground: #e2e8f0; /* slate-200 - Muted text */
+  --color-sidebar: #0b1120; /* navy-950 - Sidebar background */
+  --color-surface: #1e293b; /* slate-800 - Panel/card surfaces */
+  --color-surface-hover: #273548; /* slate-750 - Hover states */
+  --color-border: #334155; /* slate-700 - Borders/dividers */
+  --color-border-muted: #1e293b; /* slate-800 - Subtle borders */
+  --color-primary: #10b981; /* emerald-500 - Active states, success */
+  --color-primary-hover: #059669; /* emerald-600 */
+  --color-primary-muted: #064e3b; /* emerald-900 - Subtle active bg */
+  --color-accent: #3b82f6; /* blue-500 - Links, highlights */
+  --color-accent-hover: #2563eb; /* blue-600 */
+  --color-warning: #d97706; /* amber-600 - Warnings */
+  --color-warning-bg: #451a03; /* amber-950 - Warning backgrounds */
+  --color-error: #ef4444; /* red-500 - Errors */
+  --color-error-bg: #450a0a; /* red-950 - Error backgrounds */
+  --color-ghost-text: #64748b; /* slate-500 - Ghost text/inline completions */
+  --color-selection: #1e3a5f; /* Custom blue for editor selection */
+  
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), var(--font-noto-arabic), system-ui, sans-serif;
+  overflow: hidden; /* IDE-like fixed viewport */
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Arabic text rendering */
+[lang="ar"],
+[dir="rtl"] {
+  font-family: var(--font-noto-arabic), var(--font-sans), system-ui, sans-serif;
+}
+
+/* Scrollbar styling for a polished IDE feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-muted);
+}
+
+/* Selection color matching IDE theme */
+::selection {
+  background: var(--color-selection);
+  color: var(--color-foreground);
 }

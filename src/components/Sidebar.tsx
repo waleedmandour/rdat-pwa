@@ -1,0 +1,176 @@
+"use client";
+
+import React, { useState } from "react";
+import {
+  BookOpen,
+  Languages,
+  Database,
+  Cpu,
+  KeyRound,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings,
+  Globe,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { useLanguage } from "@/context/LanguageContext";
+
+export type NavItem =
+  | "translator"
+  | "glossary"
+  | "vectordb"
+  | "models"
+  | "api-keys"
+  | "settings";
+
+interface SidebarProps {
+  activeItem?: NavItem;
+  onNavItemChange?: (item: NavItem) => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+}
+
+const navIconMap: Record<NavItem, React.ElementType> = {
+  translator: Languages,
+  glossary: BookOpen,
+  vectordb: Database,
+  models: Cpu,
+  "api-keys": KeyRound,
+  settings: Settings,
+};
+
+export function Sidebar({
+  activeItem = "translator",
+  onNavItemChange,
+  collapsed = false,
+  onToggleCollapse,
+}: SidebarProps) {
+  const { t, locale, toggleLocale } = useLanguage();
+  const [hoveredItem, setHoveredItem] = useState<NavItem | null>(null);
+
+  const navItems: { id: NavItem; label: string; icon: React.ElementType }[] = [
+    { id: "translator", label: t("nav.translator"), icon: navIconMap.translator },
+    { id: "glossary", label: t("nav.glossary"), icon: navIconMap.glossary },
+    { id: "vectordb", label: t("nav.vectordb"), icon: navIconMap.vectordb },
+    { id: "models", label: t("nav.models"), icon: navIconMap.models },
+    { id: "api-keys", label: t("nav.apiKeys"), icon: navIconMap["api-keys"] },
+    { id: "settings", label: t("nav.settings"), icon: navIconMap.settings },
+  ];
+
+  return (
+    <aside
+      className={cn(
+        "flex flex-col h-full bg-sidebar border-r border-border transition-all duration-300 ease-in-out",
+        collapsed ? "w-14" : "w-60"
+      )}
+      dir={locale === "ar" ? "rtl" : undefined}
+    >
+      {/* Logo / Header */}
+      <div className="flex items-center justify-between px-3 py-4 border-b border-border">
+        {!collapsed && (
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
+              <Languages className="w-4 h-4 text-background" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-foreground tracking-wide">
+                RDAT
+              </span>
+              <span className="text-[10px] text-muted-foreground -mt-0.5">
+                {t("sidebar.copilot")} v1.0
+              </span>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={onToggleCollapse}
+          className={cn(
+            "p-1.5 rounded-md transition-colors",
+            "hover:bg-surface-hover text-muted-foreground hover:text-foreground"
+          )}
+          title={
+            collapsed ? t("sidebar.expand") : t("sidebar.collapse")
+          }
+        >
+          {collapsed ? (
+            <PanelLeftOpen className="w-4 h-4" />
+          ) : (
+            <PanelLeftClose className="w-4 h-4" />
+          )}
+        </button>
+      </div>
+
+      {/* Navigation Items */}
+      <nav className="flex-1 py-2 overflow-y-auto">
+        {navItems.map(({ id, label, icon: Icon }) => {
+          const isActive = id === activeItem;
+          const isHovered = id === hoveredItem;
+
+          return (
+            <button
+              key={id}
+              onClick={() => onNavItemChange?.(id)}
+              onMouseEnter={() => setHoveredItem(id)}
+              onMouseLeave={() => setHoveredItem(null)}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 transition-colors",
+                "text-sm",
+                collapsed ? "justify-center px-0" : "",
+                isActive
+                  ? "bg-primary-muted/30 text-primary border-r-2 border-primary"
+                  : isHovered
+                    ? "bg-surface-hover text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+              )}
+              title={collapsed ? label : undefined}
+            >
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              {!collapsed && (
+                <span className="truncate">{label}</span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Language Toggle + Footer */}
+      <div className="border-t border-border">
+        <button
+          onClick={toggleLocale}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2.5 transition-colors",
+            "text-sm text-muted-foreground hover:text-foreground hover:bg-surface-hover"
+          )}
+          title={locale === "en" ? "التبديل إلى العربية" : "Switch to English"}
+        >
+          <Globe className="w-4 h-4 flex-shrink-0" />
+          {!collapsed && (
+            <span className="truncate flex items-center gap-2">
+              {locale === "en" ? "العربية" : "English"}
+              <span
+                className={cn(
+                  "px-1.5 py-0.5 rounded text-[9px] font-bold",
+                  "bg-primary/20 text-primary"
+                )}
+              >
+                {locale === "en" ? "AR" : "EN"}
+              </span>
+            </span>
+          )}
+        </button>
+
+        {/* User Area */}
+        {!collapsed && (
+          <div className="px-3 py-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-6 h-6 rounded-full bg-surface flex items-center justify-center">
+                <span className="text-[10px] font-medium text-primary">WM</span>
+              </div>
+              <span className="truncate">Waleed Mandour</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
