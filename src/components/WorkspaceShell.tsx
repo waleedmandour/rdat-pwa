@@ -1,14 +1,20 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { Sidebar, NavItem } from "./Sidebar";
 import { StatusBar, EngineMode, GTRStatus } from "./StatusBar";
 import type { WebGPUInfo } from "./StatusBar";
 import { WelcomeTab } from "./WelcomeTab";
 import { TranslationWorkspace } from "./editors/TranslationWorkspace";
 import { SettingsPanel } from "./Settings";
+import { AiModelsView } from "./AiModelsView";
+import { GlossaryView } from "./GlossaryView";
+import { QuickGuideModal, hasSeenGuide } from "./QuickGuideModal";
+import { InstallPWAButton } from "./InstallPWAButton";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
+import { useTheme } from "next-themes";
+import { Sun, Moon, HelpCircle } from "lucide-react";
 
 interface WorkspaceShellProps {
   children?: React.ReactNode;
@@ -17,12 +23,23 @@ interface WorkspaceShellProps {
 
 export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
   const { t, locale } = useLanguage();
+  const { theme, setTheme } = useTheme();
   const [activeNav, setActiveNav] = useState<NavItem>("translator");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
-  // AI engine state (will be wired from child components via callbacks in Phase 5)
+  // AI engine state
   const [webgpuInfo, setWebgpuInfo] = useState<WebGPUInfo>({ state: "loading" });
   const [geminiAvailable, setGeminiAvailable] = useState(false);
+
+  // Auto-open guide on first visit
+  useEffect(() => {
+    if (!hasSeenGuide()) {
+      setShowGuide(true);
+    }
+  }, []);
+
+  const isDark = theme === "dark";
 
   // Placeholder status props
   const engineMode: EngineMode = "hybrid";
@@ -37,16 +54,28 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
     settings: t("workspace.title.settings"),
   };
 
-  // Memoize the translation workspace with status callbacks
-  const workspace = useMemo(
-    () => (
-      <TranslationWorkspace
-        onWebgpuStateChange={setWebgpuInfo}
-        onGeminiAvailableChange={setGeminiAvailable}
-      />
-    ),
-    [setWebgpuInfo, setGeminiAvailable]
-  );
+  // Render active view
+  const renderView = () => {
+    switch (activeNav) {
+      case "translator":
+        return (
+          <TranslationWorkspace
+            onWebgpuStateChange={setWebgpuInfo}
+            onGeminiAvailableChange={setGeminiAvailable}
+          />
+        );
+      case "glossary":
+        return <GlossaryView />;
+      case "vectordb":
+        return <GlossaryView />;
+      case "models":
+        return <AiModelsView />;
+      case "settings":
+        return <SettingsPanel />;
+      default:
+        return <WelcomeTab />;
+    }
+  };
 
   return (
     <div
@@ -64,6 +93,7 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
           onNavItemChange={setActiveNav}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+          onOpenGuide={() => setShowGuide(true)}
         />
 
         {/* Main Workspace */}
@@ -76,33 +106,44 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-              <span className="text-xs text-muted-foreground">
-                {t("status.ready")}
-              </span>
+              {/* PWA Install Button */}
+              <InstallPWAButton />
+
+              {/* Theme Toggle */}
+              <button
+                onClick={() => setTheme(isDark ? "light" : "dark")}
+                className="p-1.5 rounded-md hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
+                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+              >
+                {isDark ? (
+                  <Sun className="w-4 h-4" />
+                ) : (
+                  <Moon className="w-4 h-4" />
+                )}
+              </button>
+
+              {/* Help Button */}
+              <button
+                onClick={() => setShowGuide(true)}
+                className="p-1.5 rounded-md hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
+                title={locale === "en" ? "Quick Guide" : "دليل سريع"}
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+
+              {/* Ready Indicator */}
+              <div className="flex items-center gap-1.5 ml-1">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                <span className="text-xs text-muted-foreground">
+                  {t("status.ready")}
+                </span>
+              </div>
             </div>
           </header>
 
           {/* Workspace Content */}
           <div className="flex-1 overflow-hidden bg-background">
-            {activeNav === "translator"
-              ? workspace
-              : activeNav === "settings"
-                ? <SettingsPanel />
-                : (
-                  <div className="flex items-center justify-center h-full text-muted-foreground">
-                    <div className="text-center">
-                      <p className="text-lg font-medium mb-1">
-                        {navTitleMap[activeNav]}
-                      </p>
-                      <p className="text-sm">
-                        {locale === "ar"
-                          ? "هذه الوحدة قيد التطوير"
-                          : "This module is under development"}
-                      </p>
-                    </div>
-                  </div>
-                )}
+            {renderView()}
           </div>
         </main>
       </div>
@@ -116,6 +157,9 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
         segmentCount={0}
         wordCount={0}
       />
+
+      {/* Quick Guide Modal */}
+      <QuickGuideModal open={showGuide} onClose={() => setShowGuide(false)} />
     </div>
   );
 }

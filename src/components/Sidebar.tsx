@@ -28,6 +28,7 @@ interface SidebarProps {
   onNavItemChange?: (item: NavItem) => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  onOpenGuide?: () => void;
 }
 
 const navIconMap: Record<NavItem, React.ElementType> = {
@@ -44,6 +45,7 @@ export function Sidebar({
   onNavItemChange,
   collapsed = false,
   onToggleCollapse,
+  onOpenGuide,
 }: SidebarProps) {
   const { t, locale, toggleLocale } = useLanguage();
   const [hoveredItem, setHoveredItem] = useState<NavItem | null>(null);
@@ -159,14 +161,38 @@ export function Sidebar({
           )}
         </button>
 
-        {/* User Area */}
+        {/* Help/Guide Button */}
+        {!collapsed && onOpenGuide && (
+          <button
+            onClick={onOpenGuide}
+            className={cn(
+              "w-full flex items-center gap-3 px-3 py-2 transition-colors",
+              "text-sm text-muted-foreground hover:text-foreground hover:bg-surface-hover"
+            )}
+            title={locale === "en" ? "Quick Guide" : "دليل سريع"}
+          >
+            <BookOpen className="w-4 h-4 flex-shrink-0" />
+            <span>{locale === "en" ? "Quick Guide" : "دليل سريع"}</span>
+          </button>
+        )}
+
+        {/* User Area + Signature */}
         {!collapsed && (
-          <div className="px-3 py-3">
+          <div className="px-3 py-3 space-y-2">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <div className="w-6 h-6 rounded-full bg-surface flex items-center justify-center">
                 <span className="text-[10px] font-medium text-primary">WM</span>
               </div>
               <span className="truncate">Waleed Mandour</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground/40 leading-relaxed">
+              Created by{" "}
+              <a
+                href="mailto:w.abumandour@squ.edu.om"
+                className="text-muted-foreground/60 hover:text-primary transition-colors"
+              >
+                Dr. Waleed Mandour
+              </a>
             </div>
           </div>
         )}

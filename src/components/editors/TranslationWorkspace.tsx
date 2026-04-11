@@ -11,6 +11,8 @@ import { usePrefetchStore } from "@/stores/prefetch-store";
 import { SourceEditor } from "./SourceEditor";
 import { TargetEditor } from "./TargetEditor";
 import { SegmentHighlighter } from "./SegmentHighlighter";
+import { SourceToolbar } from "./SourceToolbar";
+import { TargetToolbar } from "./TargetToolbar";
 
 // Sample default content for demonstration
 const DEFAULT_SOURCE = `The future of translation technology lies in the seamless integration of artificial intelligence with human expertise. Computer-assisted translation tools have evolved significantly, moving from simple terminology management to sophisticated neural machine translation systems.
@@ -113,6 +115,12 @@ export function TranslationWorkspace({
     [onTargetChange]
   );
 
+  // Clear both panes
+  const handleClear = useCallback(() => {
+    setSourceValue("");
+    setTargetValue("");
+  }, []);
+
   // Calculate line counts for status bar
   const sourceLineCount = sourceValue.split("\n").filter((l) => l.trim()).length;
   const targetLineCount = targetValue.split("\n").filter((l) => l.trim()).length;
@@ -159,16 +167,17 @@ export function TranslationWorkspace({
         </div>
       </div>
 
-      {/* Split Pane Editors */}
+      {/* Split Pane Editors with Toolbars */}
       <div className="flex-1 flex overflow-hidden">
         {/* Source Pane (English, LTR, Read-Only) */}
         <div
           className={cn(
-            "flex-1 border-r border-border overflow-hidden",
+            "flex-1 border-r border-border overflow-hidden flex flex-col",
             locale === "ar" ? "border-r-0 border-l" : ""
           )}
         >
-          <div className="h-full" style={{ minHeight: 0 }}>
+          <SourceToolbar sourceText={sourceValue} onTextChange={(t) => setSourceValue(t)} />
+          <div className="flex-1" style={{ minHeight: 0 }}>
             <SourceEditor
               value={sourceValue}
               onChange={handleSourceChange}
@@ -179,8 +188,9 @@ export function TranslationWorkspace({
         </div>
 
         {/* Target Pane (Arabic, RTL, Editable) */}
-        <div className="flex-1 overflow-hidden">
-          <div className="h-full" style={{ minHeight: 0 }}>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <TargetToolbar targetText={targetValue} onClear={handleClear} />
+          <div className="flex-1" style={{ minHeight: 0 }}>
             <TargetEditor
               value={targetValue}
               onChange={handleTargetChange}

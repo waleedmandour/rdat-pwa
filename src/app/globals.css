@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme inline {
-  /* RDAT Copilot IDE Dark Theme Palette */
+  /* RDAT Copilot IDE Dark Theme Palette (default) */
   --color-background: #0f172a; /* slate-950 - Deep navy background */
   --color-foreground: #e2e8f0; /* slate-200 - Muted text */
   --color-sidebar: #0b1120; /* navy-950 - Sidebar background */
@@ -23,6 +23,25 @@
   
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* Light mode overrides */
+.dark {
+  /* Same as default — dark is the default */
+}
+
+.light {
+  --color-background: #f8fafc; /* slate-50 */
+  --color-foreground: #0f172a; /* slate-900 */
+  --color-sidebar: #f1f5f9; /* slate-100 */
+  --color-surface: #ffffff; /* white */
+  --color-surface-hover: #f1f5f9; /* slate-100 */
+  --color-border: #e2e8f0; /* slate-200 */
+  --color-border-muted: #f1f5f9; /* slate-100 */
+  --color-primary-muted: #d1fae5; /* emerald-100 */
+  --color-warning-bg: #fef3c7; /* amber-100 */
+  --color-error-bg: #fee2e2; /* red-100 */
+  --color-selection: #bfdbfe; /* blue-200 */
 }
 
 body {
