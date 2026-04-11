@@ -70,9 +70,14 @@ export function Sidebar({
       {/* Logo / Header */}
       <div className="flex items-center justify-between px-3 py-4 border-b border-border">
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-md bg-primary flex items-center justify-center">
-              <Languages className="w-4 h-4 text-background" />
+          <div className="flex items-center gap-2.5">
+            {/* App Logo */}
+            <div className="w-9 h-9 rounded-lg overflow-hidden flex-shrink-0">
+              <img
+                src="/logo.svg"
+                alt="RDAT Copilot"
+                className="w-full h-full object-cover"
+              />
             </div>
             <div className="flex flex-col">
               <span className="text-sm font-bold text-foreground tracking-wide">

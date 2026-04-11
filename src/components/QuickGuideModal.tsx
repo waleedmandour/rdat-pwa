@@ -151,7 +151,14 @@ export function QuickGuideModal({ open, onClose }: QuickGuideModalProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div
+          className={cn(
+            "flex-1 overflow-y-auto px-6 py-5 space-y-5",
+            activeTab === "ar" ? "text-right" : ""
+          )}
+          dir={activeTab === "ar" ? "rtl" : undefined}
+          lang={activeTab === "ar" ? "ar" : undefined}
+        >
           {features.map((feature, i) => {
             const Icon = feature.icon;
             return (
@@ -193,7 +200,12 @@ export function QuickGuideModal({ open, onClose }: QuickGuideModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-surface/50">
+        <div
+          className={cn(
+            "flex items-center justify-between px-6 py-4 border-t border-border bg-surface/50",
+            activeTab === "ar" ? "text-right" : ""
+          )}
+        >
           <p className="text-[10px] text-muted-foreground/50">
             {activeTab === "en"
               ? "You can reopen this guide anytime from the Help button in the sidebar."

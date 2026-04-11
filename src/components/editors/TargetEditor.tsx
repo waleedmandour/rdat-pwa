@@ -394,7 +394,10 @@ export function TargetEditor({
         language="plaintext"
         value={value}
         onChange={onChange}
-        options={EDITOR_OPTIONS as any}
+        options={{
+          ...(EDITOR_OPTIONS as any),
+          direction: "rtl",
+        }}
         onMount={handleEditorDidMount}
         theme="vs-dark"
       />
