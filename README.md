@@ -34,7 +34,7 @@ RDAT Copilot uses a cascading multi-channel architecture that delivers instant s
 │                   Ghost Text Provider (Monaco)                    │
 │                                                                   │
 │  0ms ───────▶  Channel 0: LTE (Local Translation Engine)         │
-│                 • Synchronous, <5ms                               │
+│                 • Synchronous, <50ms                              │
 │                 • Exact → Partial → N-gram matching               │
 │                 • Smart Remainder prefix completion               │
 │                                                                   │
@@ -43,7 +43,7 @@ RDAT Copilot uses a cascading multi-channel architecture that delivers instant s
 │                 • Lines N+1, N+2 translated in background         │
 │                                                                   │
 │  800ms ──────▶ Channel 1: WebLLM (WebGPU)                         │
-│                 • gemma-2b-it-q4f32_1-MLC                        │
+│                 • Support for Gemma 2B, 4B, Llama 3, Phi-3        │
 │                 • CreateWebWorkerMLCEngine (off-thread)           │
 │                 • 3-5 word burst continuation                     │
 │                                                                   │
@@ -60,11 +60,11 @@ RDAT Copilot uses a cascading multi-channel architecture that delivers instant s
 
 | Channel | Engine | Latency | Quality | Offline? |
 |---------|--------|---------|---------|----------|
-| **0** | LTE (Phrase Table) | <5ms | Good (exact matches) | ✅ Yes |
+| **0** | LTE (Phrase Table) | <50ms | Good (exact matches) | ✅ Yes |
 | **1** | WebLLM (WebGPU) | 800ms+ | Excellent (neural) | ✅ Yes* |
 | **2** | Gemini (Cloud) | 800ms+ | Excellent (neural) | ❌ No |
-| **3** | Prefetch Cache | <1ms | Good (cached) | ✅ Yes |
-| **4** | RAG (Vector DB) | 50-200ms | Very Good (contextual) | ✅ Yes* |
+| **3** | Prefetch Cache | <50ms | Good (cached) | ✅ Yes |
+| **4** | RAG (Vector DB) | 50-150ms | Very Good (contextual) | ✅ Yes* |
 
 *\*Requires initial model download during first session.*
 
@@ -111,7 +111,7 @@ rdat-copilot/
 ├── public/
 │   ├── data/
 │   │   └── default-corpus-en-ar.json   # 15 bilingual sentence pairs
-│   ├── icons/                          # PWA icons (SVG)
+│   ├── icons/                          # PWA 3D SVG & PNG icons
 │   ├── manifest.json                   # PWA manifest
 │   └── sw.js                           # Service Worker (generated)
 ├── src/
@@ -126,10 +126,12 @@ rdat-copilot/
 │   │   │   ├── SegmentHighlighter.tsx  # Cross-pane line sync
 │   │   │   └── TranslationWorkspace.tsx# Split-pane orchestrator
 │   │   ├── Sidebar.tsx                 # Navigation explorer
-│   │   ├── StatusBar.tsx               # Dynamic AI state badges
+│   │   ├── StatusBar.tsx               # Dynamic AI state badges & Progress bars
 │   │   ├── WorkspaceShell.tsx          # Main IDE layout
 │   │   ├── WelcomeTab.tsx              # Bilingual welcome screen
-│   │   └── Settings.tsx                # API keys + model params
+│   │   ├── GlossaryView.tsx            # Open-Source DBs & Terminologies
+│   │   ├── AiModelsView.tsx            # AI Models configurations
+│   │   └── Settings.tsx                # DB, API keys + model params
 │   ├── context/
 │   │   └── LanguageContext.tsx         # EN/AR i18n context
 │   ├── hooks/
@@ -141,6 +143,7 @@ rdat-copilot/
 │   │   └── translations.ts             # EN/AR translation dicts
 │   ├── lib/
 │   │   ├── local-translation-engine.ts # Channel 0: LTE class
+│   │   ├── monaco-suggestion-provider.ts # Monaco async pipelines
 │   │   └── utils.ts                    # cn() utility
 │   ├── stores/
 │   │   ├── prefetch-store.ts           # Translation cache (Zustand)
@@ -149,6 +152,7 @@ rdat-copilot/
 │       └── rag-worker.ts               # Web Worker (Orama + Transformers.js)
 ├── next.config.mjs                     # Next.js + PWA + webpack config
 ├── tailwind.config.js                  # Tailwind CSS configuration
+├── vitest.config.ts                    # Vitest test orchestrator
 ├── LICENSE                             # MIT License
 ├── CITATION.cff                        # Academic citation metadata
 └── README.md                           # This file
@@ -184,10 +188,13 @@ RDAT Copilot is fully bilingual (English / Arabic) with a built-in language togg
 2. Paste your API key from [Google AI Studio](https://aistudio.google.com/apikey)
 3. Enable "Use cloud fallback" to activate Gemini when WebGPU is unavailable
 
-### WebGPU Requirements
+### WebGPU & Local WebLLM Requirements
 - Chrome 113+ or Edge 113+
-- GPU with WebGPU support (most modern GPUs)
-- ~1.5GB download for the initial model (cached in browser)
+- Hardware-backed WebGPU context
+- ~1.5GB to ~4.5GB download for local Neural Models (e.g. Gemma 4) cached in `IndexedDB`.
+
+### GTR Glossaries & Vector DB Corpora
+- Open-source Vector DB sets (like OPUS Wikipedia En-Ar) are available for one-click downloading right from the `Settings` or `GTR Glossary` screens. These directly upgrade your Channel 0 and RAG pipelines for superior Contextual matches locally.
 
 ---
 
