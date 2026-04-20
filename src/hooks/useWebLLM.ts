@@ -11,7 +11,8 @@ export type WebLLMState =
   | "loading"
   | "ready"
   | "generating"
-  | "error";
+  | "error"
+  | "recovering";
 
 interface WebLLMProgress {
   text: string;
@@ -23,17 +24,21 @@ interface WebLLMResult {
   aborted: boolean;
 }
 
+interface WebLLMRecoveryState {
+  retryCount: number;
+  lastRetryTime: number;
+  backoffDelays: number[]; // [1s, 2s, 4s, 8s, 16s, 30s]
+}
+
 /**
- * useWebLLM — WebGPU Neural Network Integration.
- * 
- * Uses CreateWebWorkerMLCEngine to keep the main UI thread smooth.
- * Model: gemma-2b-it-q4f32_1-MLC (fast, quantized, ~1.5GB download).
+ * useWebLLM — WebGPU Neural Network with Exponential Backoff Recovery.
  * 
  * Features:
- *  - interruptGenerate() cancels on new keystrokes
- *  - generateBurst() for 3-5 word completions
- *  - Progress tracking for download/loading UI
- *  - Strictly client-side only (SSR safe)
+ *  - Exponential backoff on initialization failure (1s → 30s)
+ *  - Health check to verify engine still works
+ *  - Auto-recovery on generation failure
+ *  - Max 5 retries before giving up
+ *  - Proper cleanup on unmount
  */
 export function useWebLLM() {
   const [state, setState] = useState<WebLLMState>("unavailable");
@@ -43,6 +48,12 @@ export function useWebLLM() {
   const engineRef = useRef<MLCEngineInterface | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isClientRef = useRef(false);
+  
+  const recoveryStateRef = useRef<WebLLMRecoveryState>({
+    retryCount: 0,
+    lastRetryTime: 0,
+    backoffDelays: [1000, 2000, 4000, 8000, 16000, 30000], // ms
+  });
   
   const selectedModel = useSettingsStore((s) => s.webLLMModel);
 
@@ -77,14 +88,56 @@ export function useWebLLM() {
     );
   }, []);
 
-  // Initialize the engine lazily (first call to generate)
+  /**
+   * Health check: Verify engine still works.
+   */
+  const healthCheck = useCallback(async (): Promise<boolean> => {
+    if (!engineRef.current) return false;
+    
+    try {
+      const response = await engineRef.current.chat.completions.create({
+        messages: [{ role: "user", content: "OK" }],
+        max_tokens: 1,
+        temperature: 0.1,
+      });
+      return !!response.choices[0]?.message?.content;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  /**
+   * Initialize the engine with exponential backoff retry.
+   */
   const initEngine = useCallback(async () => {
     if (!isClientRef.current) return null;
-    if (engineRef.current) return engineRef.current;
+    if (engineRef.current) {
+      // Verify engine is still healthy
+      const healthy = await healthCheck();
+      if (healthy) return engineRef.current;
+    }
+
+    const recovery = recoveryStateRef.current;
+    
+    // Check max retries
+    if (recovery.retryCount >= 5) {
+      setState("error");
+      setError("Max initialization retries exceeded");
+      return null;
+    }
+
+    // Exponential backoff wait
+    if (recovery.retryCount > 0) {
+      const delay = recovery.backoffDelays[recovery.retryCount - 1];
+      console.log(`[WebLLM] Retrying in ${delay}ms (attempt ${recovery.retryCount + 1}/5)`);
+      setState("recovering");
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
 
     try {
       setState("initializing");
       setProgress({ text: "Initializing WebLLM...", percentage: 0 });
+      setError(null);
 
       // Dynamic import to prevent SSR bundling
       const { CreateWebWorkerMLCEngine } = await import("@mlc-ai/web-llm");
@@ -116,29 +169,42 @@ export function useWebLLM() {
       );
 
       engineRef.current = engine;
+      recovery.retryCount = 0; // Reset on success
       setState("ready");
       console.log("[WebLLM] Engine initialized successfully");
       return engine;
     } catch (err: any) {
-      console.error("[WebLLM] Initialization failed:", err);
-      setState("error");
-      setError(err.message || "Failed to initialize WebLLM");
+      recovery.retryCount += 1;
+      recovery.lastRetryTime = Date.now();
+      
+      console.error(`[WebLLM] Initialization failed (attempt ${recovery.retryCount}/5):`, err);
+      
+      if (recovery.retryCount >= 5) {
+        setState("error");
+        setError(err.message || "Failed to initialize WebLLM after 5 attempts");
+      } else {
+        setState("recovering");
+        // Auto-retry
+        const nextDelay = recovery.backoffDelays[recovery.retryCount - 1];
+        setTimeout(() => initEngine(), nextDelay);
+      }
+      
       return null;
     }
-  }, [selectedModel]);
+  }, [selectedModel, healthCheck]);
 
   /**
-   * Generate a burst of 3-5 Arabic words.
-   * 
-   * Prompt: "Translate the source to Arabic. Continue from the prefix.
-   *          Output ONLY the next 3 to 5 words."
-   * Config: max_tokens: 10, temperature: 0.3
+   * Generate a burst of 3-5 Arabic words with auto-recovery.
    */
   const generateBurst = useCallback(
     async (source: string, prefix: string): Promise<WebLLMResult> => {
-      const engine = engineRef.current || await initEngine();
+      let engine = engineRef.current;
+      
       if (!engine) {
-        return { text: "", aborted: true };
+        engine = await initEngine();
+        if (!engine) {
+          return { text: "", aborted: true };
+        }
       }
 
       // Cancel any ongoing generation
@@ -165,7 +231,7 @@ export function useWebLLM() {
         // Generate response
         const response = await engine.chat.completions.create({
           messages: prompt as any,
-          max_tokens: burstTokens * 3, // ~3 tokens per word
+          max_tokens: burstTokens * 3,
           temperature: temperature,
           top_p: 0.9,
           stream: false,
@@ -180,9 +246,22 @@ export function useWebLLM() {
         if (err.name === "AbortError") {
           return { text: "", aborted: true };
         }
-        console.error("[WebLLM] Generation failed:", err);
-        setState("error");
-        setError(err.message);
+        console.error("[WebLLM] Generation failed, attempting recovery:", err);
+        
+        // Auto-recovery: reset engine and retry
+        engineRef.current = null;
+        setState("recovering");
+        
+        // Don't retry immediately if we just retried initialization
+        if (Date.now() - recoveryStateRef.current.lastRetryTime > 5000) {
+          const retryEngine = await initEngine();
+          if (retryEngine) {
+            // Don't retry the same generation, just fail gracefully
+            setState("error");
+            setError("Generation failed, please try again");
+          }
+        }
+        
         return { text: "", aborted: true };
       }
     },
@@ -190,13 +269,17 @@ export function useWebLLM() {
   );
 
   /**
-   * Full sentence translation (for 1200ms pause completion).
+   * Full sentence translation with auto-recovery.
    */
   const generateFullTranslation = useCallback(
     async (source: string): Promise<WebLLMResult> => {
-      const engine = engineRef.current || await initEngine();
+      let engine = engineRef.current;
+      
       if (!engine) {
-        return { text: "", aborted: true };
+        engine = await initEngine();
+        if (!engine) {
+          return { text: "", aborted: true };
+        }
       }
 
       // Cancel any ongoing generation
@@ -230,9 +313,20 @@ export function useWebLLM() {
         if (err.name === "AbortError") {
           return { text: "", aborted: true };
         }
-        console.error("[WebLLM] Full translation failed:", err);
-        setState("error");
-        setError(err.message);
+        console.error("[WebLLM] Full translation failed, attempting recovery:", err);
+        
+        // Auto-recovery
+        engineRef.current = null;
+        setState("recovering");
+        
+        if (Date.now() - recoveryStateRef.current.lastRetryTime > 5000) {
+          const retryEngine = await initEngine();
+          if (retryEngine) {
+            setState("error");
+            setError("Full translation failed, please try again");
+          }
+        }
+        
         return { text: "", aborted: true };
       }
     },
@@ -252,13 +346,21 @@ export function useWebLLM() {
     }
   }, [state]);
 
+  /**
+   * Manual retry trigger.
+   */
+  const retry = useCallback(async () => {
+    engineRef.current = null;
+    recoveryStateRef.current.retryCount = 0;
+    await initEngine();
+  }, [initEngine]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
-      // Don't destroy engine on unmount — it's expensive to reinitialize
     };
   }, []);
 
@@ -269,6 +371,7 @@ export function useWebLLM() {
     generateBurst,
     generateFullTranslation,
     interruptGenerate,
+    retry,
     isReady: state === "ready",
     isGenerating: state === "generating",
   };
