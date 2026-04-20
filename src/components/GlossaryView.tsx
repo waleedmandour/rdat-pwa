@@ -27,6 +27,9 @@ export function GlossaryView() {
   const { state: ragState, lteSearch } = useRAG();
   const [searchTerm, setSearchTerm] = useState("");
   const [uploadStatus, setUploadStatus] = useState<"idle" | "success" | "error">("idle");
+  const [downloadedDBs, setDownloadedDBs] = useState<string[]>([]);
+  const [selectedDB, setSelectedDB] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   // Get corpus stats from LTE
   const stats = getLTE().getStats();
@@ -61,6 +64,53 @@ export function GlossaryView() {
     []
   );
 
+  const handleDownload = (dbId: string) => {
+    setDownloading(dbId);
+    setTimeout(() => {
+      setDownloadedDBs((prev) => [...prev, dbId]);
+      setSelectedDB(dbId);
+      setDownloading(null);
+    }, 1500); // Simulate download
+  };
+
+  const renderDbItem = (id: string, name: string) => {
+    const isDownloaded = downloadedDBs.includes(id);
+    const isSelected = selectedDB === id;
+
+    return (
+      <div className={cn(
+        "flex justify-between items-center text-xs bg-background p-2 rounded border",
+        isSelected ? "border-primary bg-primary/5" : "border-border"
+      )}>
+        <span className="flex items-center gap-2">
+          {name}
+          {isSelected && (
+            <span className="text-[10px] bg-primary text-primary-foreground px-1.5 rounded">
+              {isRTL ? "محدد" : "Selected"}
+            </span>
+          )}
+        </span>
+        {downloading === id ? (
+          <span className="text-muted-foreground animate-pulse">
+            {isRTL ? "جاري التنزيل..." : "Downloading..."}
+          </span>
+        ) : isDownloaded ? (
+          <button 
+            onClick={() => setSelectedDB(id)}
+            className={cn("hover:underline", isSelected ? "text-muted-foreground cursor-default" : "text-primary")}
+            disabled={isSelected}
+          >
+            {isSelected ? (isRTL ? "مفعل" : "Active") : (isRTL ? "تحديد" : "Select")}
+          </button>
+        ) : (
+          <button onClick={() => handleDownload(id)} className="text-primary hover:underline">
+            {isRTL ? "تنزيل" : "Download"}
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div
       className={cn(
@@ -74,7 +124,7 @@ export function GlossaryView() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              {isRTL ? "مسرد GTR وقاعدة البيانات" : "GTR Glossary & Vector DB"}
+              {isRTL ? "المسارد وقواعد البيانات" : "Glossaries & Vector DBs"}
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
               {isRTL
@@ -151,14 +201,8 @@ export function GlossaryView() {
               {isRTL ? "تحميل معاجم دقيقة للمصطلحات المحددة." : "Download strict term-to-term glossaries."}
             </p>
             <div className="space-y-2">
-              <div className="flex justify-between items-center text-xs bg-background p-2 rounded border border-border">
-                <span>WIPO Pearl (UN)</span>
-                <button onClick={() => alert("Downloading WIPO...")} className="text-primary hover:underline">Download</button>
-              </div>
-              <div className="flex justify-between items-center text-xs bg-background p-2 rounded border border-border">
-                <span>Microsoft Terminology</span>
-                <button onClick={() => alert("Downloading Microsoft Terminology...")} className="text-primary hover:underline">Download</button>
-              </div>
+              {renderDbItem("wipo", "WIPO Pearl (UN)")}
+              {renderDbItem("microsoft", "Microsoft Terminology")}
             </div>
           </div>
           
@@ -171,14 +215,8 @@ export function GlossaryView() {
               {isRTL ? "تحميل نصوص ضخمة للبحث الدلالي." : "Download large parallel corpora for semantic search."}
             </p>
             <div className="space-y-2">
-              <div className="flex justify-between items-center text-xs bg-background p-2 rounded border border-border">
-                <span>OPUS Wikipedia (~120MB)</span>
-                <button onClick={() => alert("Downloading OPUS...")} className="text-primary hover:underline">Download</button>
-              </div>
-              <div className="flex justify-between items-center text-xs bg-background p-2 rounded border border-border">
-                <span>UN Parallel Corpus (~250MB)</span>
-                <button onClick={() => alert("Downloading UNPC...")} className="text-primary hover:underline">Download</button>
-              </div>
+              {renderDbItem("opus", "OPUS Wikipedia (~120MB)")}
+              {renderDbItem("unpc", "UN Parallel Corpus (~250MB)")}
             </div>
           </div>
         </div>

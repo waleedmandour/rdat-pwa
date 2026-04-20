@@ -3,8 +3,7 @@ export const translations = {
     // Sidebar
     nav: {
       translator: "Translation Editor",
-      glossary: "GTR Glossary",
-      vectordb: "Vector Database",
+      glossary: "Glossaries & Vector DBs",
       models: "AI Models",
       apiKeys: "API Keys",
       settings: "Settings",
@@ -39,8 +38,7 @@ export const translations = {
     workspace: {
       title: {
         translator: "Translation Editor",
-        glossary: "GTR Glossary",
-        vectordb: "Vector Database",
+        glossary: "Glossaries & Vector DBs",
         models: "AI Models",
         apiKeys: "API Keys",
         settings: "Settings",
@@ -107,8 +105,7 @@ export const translations = {
     // Sidebar
     nav: {
       translator: "محرر الترجمة",
-      glossary: "مسرد GTR",
-      vectordb: "قاعدة بيانات المتجهات",
+      glossary: "المسارد وقواعد البيانات",
       models: "نماذج الذكاء الاصطناعي",
       apiKeys: "مفاتيح API",
       settings: "الإعدادات",
@@ -143,8 +140,7 @@ export const translations = {
     workspace: {
       title: {
         translator: "محرر الترجمة",
-        glossary: "مسرد GTR",
-        vectordb: "قاعدة بيانات المتجهات",
+        glossary: "المسارد وقواعد البيانات",
         models: "نماذج الذكاء الاصطناعي",
         apiKeys: "مفاتيح API",
         settings: "الإعدادات",

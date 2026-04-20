@@ -21,7 +21,6 @@ import { useTheme } from "next-themes";
 export type NavItem =
   | "translator"
   | "glossary"
-  | "vectordb"
   | "models"
   | "api-keys"
   | "settings";
@@ -37,7 +36,6 @@ interface SidebarProps {
 const navIconMap: Record<NavItem, React.ElementType> = {
   translator: Languages,
   glossary: BookOpen,
-  vectordb: Database,
   models: Cpu,
   "api-keys": KeyRound,
   settings: Settings,
@@ -57,7 +55,6 @@ export function Sidebar({
   const navItems: { id: NavItem; label: string; icon: React.ElementType }[] = [
     { id: "translator", label: t("nav.translator"), icon: navIconMap.translator },
     { id: "glossary", label: t("nav.glossary"), icon: navIconMap.glossary },
-    { id: "vectordb", label: t("nav.vectordb"), icon: navIconMap.vectordb },
     { id: "models", label: t("nav.models"), icon: navIconMap.models },
     { id: "api-keys", label: t("nav.apiKeys"), icon: navIconMap["api-keys"] },
     { id: "settings", label: t("nav.settings"), icon: navIconMap.settings },

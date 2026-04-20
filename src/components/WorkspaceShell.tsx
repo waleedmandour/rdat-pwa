@@ -50,7 +50,6 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
   const navTitleMap: Record<NavItem, string> = {
     translator: t("workspace.title.translator"),
     glossary: t("workspace.title.glossary"),
-    vectordb: t("workspace.title.vectordb"),
     models: t("workspace.title.models"),
     "api-keys": t("workspace.title.apiKeys"),
     settings: t("workspace.title.settings"),
@@ -67,8 +66,6 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
           />
         );
       case "glossary":
-        return <GlossaryView />;
-      case "vectordb":
         return <GlossaryView />;
       case "models":
         return <AiModelsView />;
@@ -87,6 +84,7 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
       )}
       dir={locale === "ar" ? "rtl" : undefined}
     >
+      <InstallPWAButton />
       {/* Main Content Area: Sidebar + Workspace */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar (Explorer) */}
@@ -108,9 +106,6 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
               </span>
             </div>
             <div className="flex items-center gap-2">
-              {/* PWA Install Button */}
-              <InstallPWAButton />
-
               {/* Theme Toggle */}
               {mounted && (
                 <button
