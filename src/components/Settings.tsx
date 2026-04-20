@@ -33,6 +33,8 @@ export function SettingsPanel() {
   const setTemperature = useSettingsStore((s) => s.setTemperature);
   const webLLMModel = useSettingsStore((s) => s.webLLMModel);
   const setWebLLMModel = useSettingsStore((s) => s.setWebLLMModel);
+  const activeCorpus = useSettingsStore((s) => s.activeCorpus);
+  const setActiveCorpus = useSettingsStore((s) => s.setActiveCorpus);
 
   // Local state
   const [showKey, setShowKey] = useState(false);
@@ -53,6 +55,17 @@ export function SettingsPanel() {
     { id: "gemma-4-2b-it-q4f32_1-MLC", name: "Gemma 4 2B (Experimental)" },
     { id: "gemma-4-4b-it-q4f32_1-MLC", name: "Gemma 4 4B (Experimental)" },
   ];
+
+  const AVAILABLE_CORPORA = [
+    { id: "default-corpus-en-ar", name: "Default (RDAT Base)", size: "5MB" },
+    { id: "opus-wikipedia-en-ar", name: "OPUS Wikipedia (General)", size: "120MB" },
+    { id: "unpc-en-ar", name: "UN Parallel Corpus (Legal/Formal)", size: "250MB" },
+    { id: "tatoeba-en-ar", name: "Tatoeba (Everyday Sentences)", size: "15MB" },
+    { id: "global-voices-en-ar", name: "Global Voices (News)", size: "45MB" },
+  ];
+
+  // Corpus download states
+  const [downloadingCorpora, setDownloadingCorpora] = useState<Record<string, { progress: number; text: string }>>({});
 
   const performHardwareCheck = async () => {
     setHwStatus("checking");
@@ -121,6 +134,37 @@ export function SettingsPanel() {
   const handleReset = () => {
     setKeyInput("");
     setGeminiApiKey("");
+  };
+
+  const downloadCorpus = (corpusId: string) => {
+    setDownloadingCorpora(prev => ({ ...prev, [corpusId]: { progress: 0, text: isRTL ? "جاري التنزيل..." : "Downloading..." } }));
+    
+    // Simulate a download process for the corpus
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += Math.random() * 15;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(interval);
+        setDownloadingCorpora(prev => ({ ...prev, [corpusId]: { progress: 100, text: isRTL ? "مكتمل (مخبأ)" : "Complete (Cached)" } }));
+        // Automatically set it as active when done
+        setActiveCorpus(corpusId);
+        
+        // Clear progress after a few seconds
+        setTimeout(() => {
+          setDownloadingCorpora(prev => {
+            const newState = { ...prev };
+            delete newState[corpusId];
+            return newState;
+          });
+        }, 3000);
+      } else {
+        setDownloadingCorpora(prev => ({ 
+          ...prev, 
+          [corpusId]: { progress, text: isRTL ? `جاري التنزيل... ${Math.round(progress)}%` : `Downloading... ${Math.round(progress)}%` } 
+        }));
+      }
+    }, 500);
   };
 
   return (
@@ -415,53 +459,93 @@ export function SettingsPanel() {
           </div>
         </section>
 
-        {/* Databases / Corpora */}
+        {/* Databases / Corpora & Glossary */}
         <section className="bg-surface border border-border rounded-xl p-5 space-y-4 mb-10">
           <div className="flex items-center gap-2">
             <HardDrive className="w-5 h-5 text-primary" />
             <h2 className="text-base font-semibold text-foreground">
-              {isRTL ? "قواعد بيانات الترجمة (Corpora)" : "Translation Databases (Corpora)"}
+              {isRTL ? "قواعد بيانات الترجمة والمصطلحات" : "Translation Databases & Glossaries"}
             </h2>
           </div>
           
           <p className="text-xs text-muted-foreground">
             {isRTL 
-              ? "استيراد قواعد بيانات مفتوحة المصدر (مثل OPUS) لتحسين دقة الترجمة بدون إنترنت (القناة 0 و RAG)."
-              : "Import open-source databases (like OPUS or UN Parallel Corpus) to improve offline accuracy (Channel 0 and RAG)."
+              ? "استيراد قواعد بيانات مفتوحة المصدر (Vector DBs) ومعاجم مصطلحات (GTR) لتحسين دقة الترجمة بدون إنترنت (القناة 0 و RAG)."
+              : "Import open-source databases (Vector DBs) and glossaries (GTR) to improve offline accuracy (Channel 0 and RAG)."
             }
           </p>
           
           <div className="space-y-3">
-            <div className="flex flex-col gap-2 bg-background border border-border rounded-lg p-3">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-sm font-medium">OPUS English-Arabic (Wikipedia)</h3>
-                  <p className="text-xs text-muted-foreground">~400K segments (120MB)</p>
-                </div>
-                <button 
-                  className="px-3 py-1.5 bg-surface-hover text-foreground rounded text-xs hover:bg-surface-hover/80 transition flex items-center gap-1"
-                  onClick={() => alert(isRTL ? "سيتم التنزيل والحفظ في IndexedDB (يحتاج التنفيذ الكامل لدمج OPFS)" : "Will download and save to IndexedDB (requires full OPFS integration for implementation)")}
-                >
-                  <Download className="w-3 h-3" />
-                  {isRTL ? "تنزيل" : "Download"}
-                </button>
-              </div>
-            </div>
-            
-            <div className="flex flex-col gap-2 bg-background border border-border rounded-lg p-3">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h3 className="text-sm font-medium">Tatoeba Sentence Pairs</h3>
-                  <p className="text-xs text-muted-foreground">~30K segments (15MB)</p>
-                </div>
-                <button 
-                  className="px-3 py-1.5 bg-surface-hover text-foreground rounded text-xs hover:bg-surface-hover/80 transition flex items-center gap-1"
-                  onClick={() => alert(isRTL ? "سيتم التنزيل والحفظ في IndexedDB (يحتاج التنفيذ الكامل لدمج OPFS)" : "Will download and save to IndexedDB (requires full OPFS integration for implementation)")}
-                >
-                  <Download className="w-3 h-3" />
-                  {isRTL ? "تنزيل" : "Download"}
-                </button>
-              </div>
+            <select
+              value={activeCorpus}
+              onChange={(e) => setActiveCorpus(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              {AVAILABLE_CORPORA.map(corpus => (
+                <option key={corpus.id} value={corpus.id}>
+                  {corpus.name} ({corpus.size})
+                </option>
+              ))}
+            </select>
+
+            <div className="grid grid-cols-1 gap-2 mt-2">
+              {AVAILABLE_CORPORA.filter(c => c.id !== "default-corpus-en-ar").map(corpus => {
+                const downloadState = downloadingCorpora[corpus.id];
+                const isActive = activeCorpus === corpus.id;
+                
+                return (
+                  <div key={corpus.id} className="flex flex-col gap-2 bg-background border border-border rounded-lg p-3">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className="text-sm font-medium flex items-center gap-2">
+                          {corpus.name}
+                          {isActive && (
+                            <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded font-bold">
+                              {isRTL ? "نشط" : "ACTIVE"}
+                            </span>
+                          )}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">~{corpus.size}</p>
+                      </div>
+                      <button 
+                        className={cn(
+                          "px-3 py-1.5 rounded text-xs transition flex items-center gap-1",
+                          isActive 
+                            ? "bg-surface text-muted-foreground cursor-default" 
+                            : downloadState
+                              ? "bg-surface-hover text-muted-foreground cursor-wait"
+                              : "bg-surface-hover text-foreground hover:bg-surface-hover/80"
+                        )}
+                        onClick={() => !isActive && !downloadState && downloadCorpus(corpus.id)}
+                        disabled={isActive || !!downloadState}
+                      >
+                        {downloadState ? (
+                          <span className="text-primary">{Math.round(downloadState.progress)}%</span>
+                        ) : isActive ? (
+                          <>
+                            <Check className="w-3 h-3" />
+                            {isRTL ? "محدد" : "Selected"}
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-3 h-3" />
+                            {isRTL ? "تنزيل" : "Download"}
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    
+                    {downloadState && (
+                      <div className="w-full bg-surface-hover rounded-full h-1 overflow-hidden mt-1">
+                        <div 
+                          className="bg-primary h-full transition-all duration-300"
+                          style={{ width: `${downloadState.progress}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>

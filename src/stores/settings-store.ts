@@ -18,6 +18,9 @@ interface SettingsState {
   webLLMModel: string;
   setWebLLMModel: (model: string) => void;
   
+  activeCorpus: string;
+  setActiveCorpus: (corpus: string) => void;
+  
   useCloudFallback: boolean;
   setUseCloudFallback: (enabled: boolean) => void;
   
@@ -37,6 +40,9 @@ export const useSettingsStore = create<SettingsState>()(
       webLLMModel: "gemma-2b-it-q4f32_1-MLC",
       setWebLLMModel: (model) => set({ webLLMModel: model }),
       
+      activeCorpus: "default-corpus-en-ar",
+      setActiveCorpus: (corpus) => set({ activeCorpus: corpus }),
+      
       useCloudFallback: true,
       setUseCloudFallback: (enabled) => set({ useCloudFallback: enabled }),
       
@@ -51,6 +57,7 @@ export const useSettingsStore = create<SettingsState>()(
       partialize: (state) => ({
         geminiApiKey: state.geminiApiKey,
         webLLMModel: state.webLLMModel,
+        activeCorpus: state.activeCorpus,
         useCloudFallback: state.useCloudFallback,
         burstTokens: state.burstTokens,
         temperature: state.temperature,
