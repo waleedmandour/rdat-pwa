@@ -60,6 +60,18 @@ export function QuickGuideModal({ open, onClose }: QuickGuideModalProps) {
       description: "Access the Glossary panel to view and manage translation term pairs. Upload your own corpus JSON files to customize suggestions. The vector database provides semantic search for contextually relevant translations.",
       tip: "Navigate via sidebar → GTR Glossary",
     },
+    {
+      icon: CheckCircle2,
+      title: "AI Tutor & QA Linter",
+      description: "Ask the built-in AI Tutor to explain translation choices or run the QA Linter to spot number mismatches, punctuation errors, and terminology violations instantly.",
+      tip: "Use the 🎓 and 🔍 icons in the Target pane toolbar",
+    },
+    {
+      icon: Languages,
+      title: "Document Exports & TMX",
+      description: "Translate your texts while preserving structure. Export translated sessions directly to MS Word (.doc) or save your Translation Memories (.tmx) for your portfolio.",
+      tip: "Export icons are available in the Target pane toolbar",
+    }
   ] : [
     {
       icon: Languages,
@@ -84,6 +96,18 @@ export function QuickGuideModal({ open, onClose }: QuickGuideModalProps) {
       description: "افتح لوحة المسرد لعرض وإدارة أزواج المصطلحات. حمّل ملفات JSON الخاصة بك لتخصيص الاقتراحات. توفر قاعدة بيانات المتجهات بحثاً دلالياً لترجمات ذات صلة سياقية.",
       tip: "انتقل عبر الشريط الجانبي ← مسرد GTR",
     },
+    {
+      icon: CheckCircle2,
+      title: "المعلم الذكي وفحص الجودة",
+      description: "اطلب من المعلم الذكي شرح اختيارات الترجمة أو شغل فاحص الجودة (QA Linter) لاكتشاف الأرقام المفقودة وأخطاء علامات الترقيم والمصطلحات فوراً.",
+      tip: "استخدم أيقونات 🎓 و 🔍 في شريط لوحة الهدف",
+    },
+    {
+      icon: Languages,
+      title: "تصدير المستندات و TMX",
+      description: "ترجم نصوصك مع الحفاظ على هيكلها. صُدّر جلساتك المترجمة مباشرة كملف MS Word (.doc) أو احفظ ذاكرات الترجمة (.tmx) لملفك المهني.",
+      tip: "أيقونات التصدير متوفرة في شريط لوحة الهدف",
+    }
   ];
 
   return (

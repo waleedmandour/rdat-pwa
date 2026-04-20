@@ -11,9 +11,12 @@ import {
   PanelLeftOpen,
   Settings,
   Globe,
+  Moon,
+  Sun
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
+import { useTheme } from "next-themes";
 
 export type NavItem =
   | "translator"
@@ -49,6 +52,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { t, locale, toggleLocale } = useLanguage();
   const [hoveredItem, setHoveredItem] = useState<NavItem | null>(null);
+  const { theme, setTheme } = useTheme();
 
   const navItems: { id: NavItem; label: string; icon: React.ElementType }[] = [
     { id: "translator", label: t("nav.translator"), icon: navIconMap.translator },
@@ -142,6 +146,22 @@ export function Sidebar({
 
       {/* Language Toggle + Footer */}
       <div className="border-t border-border">
+        <button
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          className={cn(
+            "w-full flex items-center gap-3 px-3 py-2.5 transition-colors",
+            "text-sm text-muted-foreground hover:text-foreground hover:bg-surface-hover"
+          )}
+          title={theme === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode"}
+        >
+          {theme === "dark" ? <Sun className="w-4 h-4 flex-shrink-0" /> : <Moon className="w-4 h-4 flex-shrink-0" />}
+          {!collapsed && (
+            <span className="truncate">
+              {theme === "dark" ? (locale === "ar" ? "الوضع الفاتح" : "Light Mode") : (locale === "ar" ? "الوضع الداكن" : "Dark Mode")}
+            </span>
+          )}
+        </button>
+
         <button
           onClick={toggleLocale}
           className={cn(

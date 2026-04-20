@@ -27,6 +27,7 @@ interface TargetEditorProps {
   onWebgpuStateChange?: (state: WebGPUInfo) => void;
   onGeminiAvailableChange?: (available: boolean) => void;
   className?: string;
+  direction?: "ltr" | "rtl";
 }
 
 const EDITOR_OPTIONS = {
@@ -278,6 +279,7 @@ export function TargetEditor({
   onWebgpuStateChange,
   onGeminiAvailableChange,
   className,
+  direction = "rtl",
 }: TargetEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
@@ -305,15 +307,22 @@ export function TargetEditor({
     onGeminiAvailableChange?.(gemini.isAvailable);
   }, [gemini.isAvailable, onGeminiAvailableChange]);
 
+  // Update direction if it changes
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.updateOptions({ direction } as any);
+    }
+  }, [direction]);
+
   const handleEditorDidMount: OnMount = useCallback(
     (editor, monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
 
-      // CRITICAL: Native RTL for Arabic
+      // CRITICAL: Dynamic RTL/LTR support
       editor.updateOptions({
         ...(EDITOR_OPTIONS as any),
-        direction: "rtl",
+        direction,
       });
 
       // Register provider ONCE (not on every render) to fix memory leak
@@ -338,6 +347,12 @@ export function TargetEditor({
         );
 
         providerRegisteredRef.current = true;
+      }
+
+      // Update direction if it changes
+      const currentDirection = editor.getOptions().get(monaco.editor.EditorOption.direction);
+      if (currentDirection !== direction) {
+        editor.updateOptions({ direction } as any);
       }
 
       // ── Word-by-Word Acceptance (Ctrl+RightArrow) ──────────

@@ -17,6 +17,7 @@ interface SourceEditorProps {
   onChange?: (value: string | undefined) => void;
   highlightedLine?: number | null;
   className?: string;
+  direction?: "ltr" | "rtl";
 }
 
 const EDITOR_OPTIONS = {
@@ -48,6 +49,7 @@ export function SourceEditor({
   onChange,
   highlightedLine,
   className,
+  direction = "ltr",
 }: SourceEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
@@ -57,12 +59,19 @@ export function SourceEditor({
     editorRef.current = editor;
     monacoRef.current = monaco;
 
-    // LTR is default for English — explicit cast since Monaco types
-    // don't include 'direction' but the runtime supports it
+    // Explicit cast since Monaco types don't include 'direction'
     editor.updateOptions({
       ...(EDITOR_OPTIONS as any),
+      direction,
     });
   };
+
+  // Update direction if it changes
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.updateOptions({ direction } as any);
+    }
+  }, [direction]);
 
   // Update line highlight decorations
   useEffect(() => {
