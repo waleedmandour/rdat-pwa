@@ -96,8 +96,8 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
     },
     initializing: {
       icon: <Cpu className="w-3 h-3 animate-pulse" />,
-      bg: "bg-blue-900/40 text-blue-400",
-      label: isRTL ? "جاري التهيئة..." : "Initializing...",
+      bg: "bg-surface-hover text-muted-foreground",
+      label: isRTL ? "تهيئة..." : "Initializing...",
     },
     downloading: {
       icon: <Cpu className="w-3 h-3 animate-pulse" />,
@@ -119,9 +119,17 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
   const { icon, bg } = config[info.state] ?? config.unavailable;
 
   // For downloading state, show progress
-  let label: string;
+  let label: React.ReactNode;
   if (info.state === "downloading" && info.progress) {
-    label = `WebGPU ${info.progress.percentage.toFixed(0)}%`;
+    label = (
+      <div className="flex items-center gap-2">
+        <span>WebGPU</span>
+        <div className="w-16 h-1.5 bg-background rounded-full overflow-hidden">
+          <div className="bg-primary h-full" style={{ width: `${info.progress.percentage}%` }} />
+        </div>
+        <span>{info.progress.percentage.toFixed(0)}%</span>
+      </div>
+    );
   } else if (info.state === "error" && info.error) {
     label = info.error.substring(0, 30);
   } else {
@@ -131,8 +139,9 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
   return (
     <div
       className={cn(
-        "flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold max-w-[200px]",
-        bg
+        "flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold",
+        bg,
+        info.state === "initializing" && "opacity-60 grayscale"
       )}
     >
       {icon}

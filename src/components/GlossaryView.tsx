@@ -71,7 +71,7 @@ export function GlossaryView() {
     >
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">
               {isRTL ? "مسرد GTR وقاعدة البيانات" : "GTR Glossary & Vector DB"}
@@ -83,20 +83,29 @@ export function GlossaryView() {
             </p>
           </div>
 
-          {/* Upload Button */}
-          <div className="flex items-center gap-3">
+          {/* Action Buttons */}
+          <div className="flex items-center gap-2">
             {uploadStatus === "success" && (
-              <span className="flex items-center gap-1 text-xs text-primary">
+              <span className="flex items-center gap-1 text-xs text-primary mr-2">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 {isRTL ? "تم التحميل" : "Uploaded"}
               </span>
             )}
             {uploadStatus === "error" && (
-              <span className="flex items-center gap-1 text-xs text-error">
+              <span className="flex items-center gap-1 text-xs text-error mr-2">
                 <XCircle className="w-3.5 h-3.5" />
                 {isRTL ? "فشل التحميل" : "Upload failed"}
               </span>
             )}
+            
+            <button
+              onClick={() => alert(isRTL ? "سيتم جلب المسارد المفتوحة وتنزيلها (التنفيذ الكامل يتطلب OPFS)" : "Will fetch open-source glossaries and download (full OPFS integration needed)")}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors bg-surface-hover text-foreground hover:bg-surface-hover/80"
+            >
+              <Database className="w-3.5 h-3.5" />
+              <span>{isRTL ? "تنزيل قواعد البيانات المفتوحة" : "Download Open DBs"}</span>
+            </button>
+            
             <label
               className={cn(
                 "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer transition-colors",
@@ -104,7 +113,7 @@ export function GlossaryView() {
               )}
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>{isRTL ? "تحميل Corpus" : "Upload Corpus"}</span>
+              <span>{isRTL ? "تحميل ملف JSON مخصص" : "Upload Custom JSON"}</span>
               <input
                 type="file"
                 accept=".json"
@@ -129,6 +138,49 @@ export function GlossaryView() {
               "focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50"
             )}
           />
+        </div>
+
+        {/* Database Selection for GTR & Vector DB */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <Database className="w-4 h-4 text-primary" />
+              {isRTL ? "معاجم المصطلحات (GTR)" : "GTR Glossaries"}
+            </h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              {isRTL ? "تحميل معاجم دقيقة للمصطلحات المحددة." : "Download strict term-to-term glossaries."}
+            </p>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs bg-background p-2 rounded border border-border">
+                <span>WIPO Pearl (UN)</span>
+                <button onClick={() => alert("Downloading WIPO...")} className="text-primary hover:underline">Download</button>
+              </div>
+              <div className="flex justify-between items-center text-xs bg-background p-2 rounded border border-border">
+                <span>Microsoft Terminology</span>
+                <button onClick={() => alert("Downloading Microsoft Terminology...")} className="text-primary hover:underline">Download</button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-surface border border-border rounded-xl p-4">
+            <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+              <Database className="w-4 h-4 text-blue-400" />
+              {isRTL ? "قواعد بيانات المتجهات (Vector DBs)" : "Vector Databases"}
+            </h3>
+            <p className="text-xs text-muted-foreground mb-3">
+              {isRTL ? "تحميل نصوص ضخمة للبحث الدلالي." : "Download large parallel corpora for semantic search."}
+            </p>
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-xs bg-background p-2 rounded border border-border">
+                <span>OPUS Wikipedia (~120MB)</span>
+                <button onClick={() => alert("Downloading OPUS...")} className="text-primary hover:underline">Download</button>
+              </div>
+              <div className="flex justify-between items-center text-xs bg-background p-2 rounded border border-border">
+                <span>UN Parallel Corpus (~250MB)</span>
+                <button onClick={() => alert("Downloading UNPC...")} className="text-primary hover:underline">Download</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Format hint */}
