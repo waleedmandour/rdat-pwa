@@ -17,7 +17,6 @@ describe("MonacoSuggestionProvider", () => {
 
   beforeEach(() => {
     provider = new MonacoSuggestionProvider();
-    vi.useFakeTimers();
   });
 
   describe("synchronous LTE", () => {
@@ -59,9 +58,6 @@ describe("MonacoSuggestionProvider", () => {
       };
 
       const promise = provider.getSuggestions("Hello", "السلام", handlers);
-      
-      // Flush micro tasks but not timers
-      await vi.runAllTimersAsync();
       
       const suggestions = await promise;
 

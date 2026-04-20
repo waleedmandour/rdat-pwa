@@ -117,21 +117,32 @@ export function useRAG() {
             if (cancelled) return;
 
             switch (msgType) {
+              case "READY":
               case "WORKER_READY":
-                console.log("[RAG] Worker ready");
+                console.log("[RAG] Worker ready, initializing models...");
                 setState((prev) => ({ ...prev, isWorkerReady: true }));
                 // Send initialization signal
                 worker.postMessage({ type: "INIT_MODELS", payload: {} });
                 break;
 
               case "MODELS_READY":
-                console.log("[RAG] Models loaded");
+                console.log("[RAG] Models loaded, sending corpus for indexing...");
                 setState((prev) => ({ ...prev, modelsLoaded: true }));
                 // Send corpus for indexing
-                worker.postMessage({
-                  type: "INGEST_CORPUS",
-                  payload: { entries: corpus },
-                });
+                if (corpus.length > 0) {
+                  worker.postMessage({
+                    type: "INGEST_CORPUS",
+                    payload: { entries: corpus },
+                  });
+                } else {
+                  console.warn("[RAG] No corpus data to index");
+                  setState((prev) => ({
+                    ...prev,
+                    isCorpusLoaded: true,
+                    isLoading: false,
+                    error: "No corpus data available",
+                  }));
+                }
                 break;
 
               case "STATE_CHANGE":

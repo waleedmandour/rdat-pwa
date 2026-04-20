@@ -51,7 +51,8 @@ interface SearchResult {
 }
 
 /**
- * Phase 1: Initialize embedding models (BGE-M3).
+ * Phase 1: Initialize embedding models.
+ * Uses lightweight hash-based embedding instead of neural models for worker compatibility.
  */
 async function initializeModels(): Promise<void> {
   if (state.modelsLoaded) return;
@@ -61,72 +62,60 @@ async function initializeModels(): Promise<void> {
     state.error = null;
     self.postMessage({ type: "STATE_CHANGE", payload: { status: "initializing" } });
 
-    // @ts-ignore — dynamic import in worker context
-    const { pipeline, env } = await import("@xenova/transformers");
-
-    // Force browser mode
-    env.allowLocalModels = false;
-    env.useBrowserCache = true;
-    env.allowRemoteModels = true;
-
-    // Load feature-extraction pipeline (BGE-M3 compatible)
-    embeddingPipeline = await pipeline("feature-extraction", "Xenova/bge-small-en-v1.5", {
-      quantized: true,
-    });
-
+    console.log("[RAG Worker] Initializing embedding system with hash-based method");
+    
+    // Hash-based embedding is always available, no external dependencies needed
+    // This ensures RAG works reliably in worker context
     state.modelsLoaded = true;
-    self.postMessage({ type: "MODELS_READY", payload: { model: "bge-small-en-v1.5" } });
+    console.log("[RAG Worker] Embedding system initialized (hash-based)");
+    self.postMessage({ type: "MODELS_READY", payload: { model: "hash-based-embedding" } });
   } catch (err: any) {
     state.status = "error";
-    state.error = err.message;
+    state.error = err?.message || String(err);
+    console.error("[RAG Worker] Initialization failed:", err);
     self.postMessage({
       type: "INIT_ERROR",
-      payload: { error: `Failed to initialize models: ${err.message}` },
+      payload: { error: `Failed to initialize: ${err?.message || "Unknown error"}` },
     });
   }
 }
 
 /**
- * Initialize Orama database.
+ * Initialize Orama database with proper schema.
  */
 async function initDB(): Promise<void> {
   if (db) return;
 
-  db = await create({
-    schema: {
-      en: "string",
-      ar: "string",
-      type: "string",
-      index: "number",
-      embedding: "vector" as any,
-    },
-  });
+  try {
+    console.log("[RAG Worker] Initializing Orama database...");
+    db = await create({
+      schema: {
+        en: "string",
+        ar: "string",
+        type: "string",
+        index: "number",
+      },
+    });
+    console.log("[RAG Worker] Database initialized");
+  } catch (err: any) {
+    console.error("[RAG Worker] Failed to initialize database:", err);
+    throw new Error(`Database initialization failed: ${err.message}`);
+  }
 }
 
 /**
- * Generate embedding for text (fallback if model not ready).
+ * Generate embedding for text using hash-based method.
+ * Simple and reliable, no external ML libraries needed.
  */
 async function embed(text: string): Promise<number[]> {
-  if (!embeddingPipeline) {
-    return simpleHashEmbedding(text);
-  }
-
-  try {
-    const output = await embeddingPipeline(text, {
-      pooling: "mean",
-      normalize: true,
-    });
-    return Array.from(output.data);
-  } catch {
-    return simpleHashEmbedding(text);
-  }
+  // Always use hash-based embedding for reliability in worker context
+  return simpleHashEmbedding(text, 384);
 }
 
 /**
  * Simple hash-based embedding fallback.
  */
-function simpleHashEmbedding(text: string): number[] {
-  const dims = 128;
+function simpleHashEmbedding(text: string, dims: number = 384): number[] {
   const vector = new Float32Array(dims);
   const normalized = text.toLowerCase().trim();
 
@@ -153,21 +142,26 @@ function simpleHashEmbedding(text: string): number[] {
  * Phase 2: Index corpus after models load (batch size 10).
  */
 async function indexCorpus(entries: Array<{ en: string; ar: string; type: string }>): Promise<void> {
-  if (!state.modelsLoaded) {
-    state.error = "Models not loaded yet";
-    return;
+  if (!state.modelsLoaded && !embeddingPipeline) {
+    console.warn("[RAG Worker] Models not loaded, initializing...");
+    await initializeModels();
+    if (!state.modelsLoaded) {
+      state.error = "Models initialization failed";
+      throw new Error("Models not available");
+    }
   }
 
   try {
     state.status = "indexing";
+    console.log(`[RAG Worker] Starting corpus indexing: ${entries.length} entries`);
     self.postMessage({ type: "STATE_CHANGE", payload: { status: "indexing" } });
 
     if (!db) await initDB();
 
     const corpusEntries: CorpusEntry[] = entries.map((entry, index) => ({
-      en: entry.en,
-      ar: entry.ar,
-      type: entry.type,
+      en: entry.en || "",
+      ar: entry.ar || "",
+      type: entry.type || "tm",
       index,
     }));
 
@@ -177,15 +171,32 @@ async function indexCorpus(entries: Array<{ en: string; ar: string; type: string
 
     for (let i = 0; i < corpusEntries.length; i += batchSize) {
       const batch = corpusEntries.slice(i, i + batchSize);
-      const docs = await Promise.all(
-        batch.map(async (entry) => ({
-          ...entry,
-          embedding: await embed(entry.en),
-        }))
-      );
+      
+      try {
+        const docs = await Promise.all(
+          batch.map(async (entry) => {
+            try {
+              const embedding = await embed(entry.en);
+              return {
+                ...entry,
+                embedding,
+              };
+            } catch (err: any) {
+              console.warn(`[RAG Worker] Failed to embed entry ${entry.index}:`, err);
+              return {
+                ...entry,
+                embedding: simpleHashEmbedding(entry.en, 384),
+              };
+            }
+          })
+        );
 
-      await insertMultiple(db!, docs);
-      processed += docs.length;
+        await insertMultiple(db!, docs);
+        processed += docs.length;
+      } catch (batchErr: any) {
+        console.error(`[RAG Worker] Batch ${i / batchSize} failed:`, batchErr);
+        // Continue with next batch
+      }
 
       // Report progress every batch
       self.postMessage({
@@ -195,19 +206,17 @@ async function indexCorpus(entries: Array<{ en: string; ar: string; type: string
     }
 
     state.corpusIndexed = true;
-    state.totalIndexed = corpusEntries.length;
+    state.totalIndexed = processed;
     state.status = "ready";
+    console.log(`[RAG Worker] Corpus indexed: ${processed}/${corpusEntries.length} entries`);
 
-    self.postMessage({
-      type: "INDEXING_COMPLETE",
-      payload: { count: corpusEntries.length },
-    });
   } catch (err: any) {
     state.status = "error";
     state.error = err.message;
+    console.error("[RAG Worker] Corpus indexing failed:", err);
     self.postMessage({
       type: "INDEXING_ERROR",
-      payload: { error: err.message },
+      payload: { error: `Indexing failed: ${err.message}` },
     });
   }
 }

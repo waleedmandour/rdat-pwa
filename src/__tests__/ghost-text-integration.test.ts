@@ -16,7 +16,6 @@ describe("Ghost Text Integration", () => {
 
   beforeEach(() => {
     provider = new MonacoSuggestionProvider();
-    vi.useFakeTimers();
   });
 
   it("should return LTE suggestions immediately", async () => {

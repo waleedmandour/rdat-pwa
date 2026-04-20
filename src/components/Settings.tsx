@@ -14,6 +14,10 @@ import {
   Cloud,
   Cpu,
   Sliders,
+  Database,
+  Download,
+  AlertTriangle,
+  HardDrive
 } from "lucide-react";
 
 export function SettingsPanel() {
@@ -27,11 +31,86 @@ export function SettingsPanel() {
   const setUseCloud = useSettingsStore((s) => s.setUseCloudFallback);
   const temperature = useSettingsStore((s) => s.temperature);
   const setTemperature = useSettingsStore((s) => s.setTemperature);
+  const webLLMModel = useSettingsStore((s) => s.webLLMModel);
+  const setWebLLMModel = useSettingsStore((s) => s.setWebLLMModel);
 
   // Local state
   const [showKey, setShowKey] = useState(false);
   const [keyInput, setKeyInput] = useState(geminiApiKey);
   const [saved, setSaved] = useState(false);
+  
+  // Hardware Check & Download State
+  const [hwStatus, setHwStatus] = useState<"idle" | "checking" | "ok" | "error">("idle");
+  const [hwMessage, setHwMessage] = useState("");
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadText, setDownloadText] = useState("");
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const AVAILABLE_MODELS = [
+    { id: "gemma-2b-it-q4f32_1-MLC", name: "Gemma 2B (Fast, ~1.5GB)" },
+    { id: "Llama-3-8B-Instruct-q4f32_1-MLC", name: "Llama 3 8B (Accurate, ~4.5GB)" },
+    { id: "Phi-3-mini-4k-instruct-q4f16_1-MLC", name: "Phi-3 Mini (Balanced, ~2.2GB)" },
+    { id: "gemma-4-2b-it-q4f32_1-MLC", name: "Gemma 4 2B (Experimental)" },
+    { id: "gemma-4-4b-it-q4f32_1-MLC", name: "Gemma 4 4B (Experimental)" },
+  ];
+
+  const performHardwareCheck = async () => {
+    setHwStatus("checking");
+    setHwMessage(isRTL ? "جاري الفحص..." : "Checking hardware...");
+    try {
+      if (!("gpu" in navigator)) {
+        throw new Error("WebGPU is not supported by your browser. Please use Google Chrome or Microsoft Edge.");
+      }
+      const adapter = await (navigator as any).gpu.requestAdapter();
+      if (!adapter) {
+        throw new Error("No WebGPU adapter found.");
+      }
+      
+      const limits = adapter.limits;
+      if (limits.maxStorageBufferBindingSize < 1073741824) { // Less than 1GB buffer limit
+        console.warn("Limited VRAM detected, might offload to system RAM");
+      }
+      
+      setHwStatus("ok");
+      setHwMessage(isRTL ? "تم التأكيد: جهازك يدعم WebGPU محلياً" : "Hardware Ok: WebGPU is supported natively");
+    } catch (e: any) {
+      setHwStatus("error");
+      setHwMessage(e.message || "Hardware check failed");
+    }
+  };
+
+  const downloadLLM = async () => {
+    if (hwStatus !== "ok") {
+      alert(isRTL ? "الرجاء إجراء فحص الأجهزة أولاً" : "Please perform hardware check first");
+      return;
+    }
+    
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    setDownloadText(isRTL ? "جاري التهيئة..." : "Initializing...");
+    
+    try {
+      const { CreateWebWorkerMLCEngine } = await import("@mlc-ai/web-llm");
+      // Actually we just import the engine to trigger the download caching in IndexedDB
+      const { MLCEngine } = await import("@mlc-ai/web-llm");
+      const engine = new MLCEngine();
+      
+      engine.setInitProgressCallback((report) => {
+        setDownloadText(report.text);
+        setDownloadProgress(report.progress * 100);
+      });
+      
+      await engine.reload(webLLMModel);
+      
+      setDownloadText(isRTL ? "اكتمل التنزيل! النموذج محفوظ محلياً." : "Download complete! Model is saved locally.");
+      setTimeout(() => {
+        setIsDownloading(false);
+      }, 3000);
+    } catch (e: any) {
+      setDownloadText(`Error: ${e.message}`);
+      setIsDownloading(false);
+    }
+  };
 
   const handleSave = () => {
     setGeminiApiKey(keyInput.trim());
@@ -253,27 +332,136 @@ export function SettingsPanel() {
           </div>
         </section>
 
-        {/* Info */}
-        <section className="bg-surface/50 border border-border/50 rounded-xl p-5 space-y-3">
-          <h2 className="text-sm font-semibold text-foreground">
-            {isRTL ? "معلومات المحرك" : "Engine Information"}
-          </h2>
-          <div className="space-y-2 text-xs text-muted-foreground">
-            <div className="flex items-center justify-between">
-              <span>{isRTL ? "القناة 0: محلي" : "Channel 0: LTE"}</span>
-              <span className="text-primary">✓ {isRTL ? "دائماً نشط" : "Always active"}</span>
+        {/* WebLLM Configuration */}
+        <section className="bg-surface border border-border rounded-xl p-5 space-y-4">
+          <div className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-primary" />
+            <h2 className="text-base font-semibold text-foreground">
+              {isRTL ? "نماذج WebLLM المحلية" : "Local WebLLM Models"}
+            </h2>
+          </div>
+          
+          <p className="text-xs text-muted-foreground">
+            {isRTL 
+              ? "اختر نموذج الترجمة المحلي. تدعم هذه النماذج الترجمة بدون إنترنت. يجب استخدام متصفح Chrome أو Edge."
+              : "Select a local translation model. These models run 100% offline. Requires Google Chrome or Microsoft Edge."}
+          </p>
+          
+          <div className="space-y-3">
+            <select
+              value={webLLMModel}
+              onChange={(e) => setWebLLMModel(e.target.value)}
+              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+              disabled={isDownloading}
+            >
+              {AVAILABLE_MODELS.map(model => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
+            
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button
+                onClick={performHardwareCheck}
+                className="flex-1 px-4 py-2 bg-surface-hover text-foreground rounded-lg text-sm font-medium hover:bg-surface-hover/80 transition-colors flex justify-center items-center gap-2"
+                disabled={isDownloading}
+              >
+                <Cpu className="w-4 h-4" />
+                {isRTL ? "فحص الأجهزة" : "Hardware Check"}
+              </button>
+              
+              <button
+                onClick={downloadLLM}
+                disabled={hwStatus !== "ok" || isDownloading}
+                className={cn(
+                  "flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex justify-center items-center gap-2",
+                  hwStatus === "ok" && !isDownloading
+                    ? "bg-primary text-background hover:bg-primary-hover"
+                    : "bg-surface-hover text-muted-foreground cursor-not-allowed"
+                )}
+              >
+                <Download className="w-4 h-4" />
+                {isRTL ? "تنزيل النموذج (مخبأ)" : "Download & Cache"}
+              </button>
             </div>
-            <div className="flex items-center justify-between">
-              <span>{isRTL ? "القناة 1: WebGPU" : "Channel 1: WebLLM"}</span>
-              <span className="text-blue-400">
-                {isRTL ? "يحتاج WebGPU" : "Requires WebGPU"}
-              </span>
+            
+            {hwStatus !== "idle" && (
+              <div className={cn(
+                "text-xs p-2 rounded-md flex items-center gap-2",
+                hwStatus === "ok" ? "bg-emerald-500/10 text-emerald-500" :
+                hwStatus === "error" ? "bg-red-500/10 text-red-500" :
+                "bg-blue-500/10 text-blue-500"
+              )}>
+                {hwStatus === "error" ? <AlertTriangle className="w-3.5 h-3.5" /> : <Check className="w-3.5 h-3.5" />}
+                {hwMessage}
+              </div>
+            )}
+            
+            {isDownloading && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span className="truncate">{downloadText}</span>
+                  <span>{downloadProgress.toFixed(1)}%</span>
+                </div>
+                <div className="w-full bg-surface-hover rounded-full h-1.5 overflow-hidden">
+                  <div 
+                    className="bg-primary h-full transition-all duration-300"
+                    style={{ width: `${downloadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Databases / Corpora */}
+        <section className="bg-surface border border-border rounded-xl p-5 space-y-4 mb-10">
+          <div className="flex items-center gap-2">
+            <HardDrive className="w-5 h-5 text-primary" />
+            <h2 className="text-base font-semibold text-foreground">
+              {isRTL ? "قواعد بيانات الترجمة (Corpora)" : "Translation Databases (Corpora)"}
+            </h2>
+          </div>
+          
+          <p className="text-xs text-muted-foreground">
+            {isRTL 
+              ? "استيراد قواعد بيانات مفتوحة المصدر (مثل OPUS) لتحسين دقة الترجمة بدون إنترنت (القناة 0 و RAG)."
+              : "Import open-source databases (like OPUS or UN Parallel Corpus) to improve offline accuracy (Channel 0 and RAG)."
+            }
+          </p>
+          
+          <div className="space-y-3">
+            <div className="flex flex-col gap-2 bg-background border border-border rounded-lg p-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-medium">OPUS English-Arabic (Wikipedia)</h3>
+                  <p className="text-xs text-muted-foreground">~400K segments (120MB)</p>
+                </div>
+                <button 
+                  className="px-3 py-1.5 bg-surface-hover text-foreground rounded text-xs hover:bg-surface-hover/80 transition flex items-center gap-1"
+                  onClick={() => alert(isRTL ? "سيتم التنزيل والحفظ في IndexedDB (يحتاج التنفيذ الكامل لدمج OPFS)" : "Will download and save to IndexedDB (requires full OPFS integration for implementation)")}
+                >
+                  <Download className="w-3 h-3" />
+                  {isRTL ? "تنزيل" : "Download"}
+                </button>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span>{isRTL ? "القناة 2: Gemini" : "Channel 2: Gemini"}</span>
-              <span className={useCloud ? "text-primary" : "text-warning"}>
-                {geminiApiKey ? isRTL ? "نشط" : "Active" : isRTL ? "يحتاج مفتاح" : "Needs key"}
-              </span>
+            
+            <div className="flex flex-col gap-2 bg-background border border-border rounded-lg p-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-sm font-medium">Tatoeba Sentence Pairs</h3>
+                  <p className="text-xs text-muted-foreground">~30K segments (15MB)</p>
+                </div>
+                <button 
+                  className="px-3 py-1.5 bg-surface-hover text-foreground rounded text-xs hover:bg-surface-hover/80 transition flex items-center gap-1"
+                  onClick={() => alert(isRTL ? "سيتم التنزيل والحفظ في IndexedDB (يحتاج التنفيذ الكامل لدمج OPFS)" : "Will download and save to IndexedDB (requires full OPFS integration for implementation)")}
+                >
+                  <Download className="w-3 h-3" />
+                  {isRTL ? "تنزيل" : "Download"}
+                </button>
+              </div>
             </div>
           </div>
         </section>

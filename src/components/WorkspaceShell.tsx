@@ -27,13 +27,15 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
   const [activeNav, setActiveNav] = useState<NavItem>("translator");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   // AI engine state
   const [webgpuInfo, setWebgpuInfo] = useState<WebGPUInfo>({ state: "loading" });
   const [geminiAvailable, setGeminiAvailable] = useState(false);
 
-  // Auto-open guide on first visit
+  // Auto-open guide on first visit and ensure hydration
   useEffect(() => {
+    setMounted(true);
     if (!hasSeenGuide()) {
       setShowGuide(true);
     }
@@ -110,17 +112,19 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
               <InstallPWAButton />
 
               {/* Theme Toggle */}
-              <button
-                onClick={() => setTheme(isDark ? "light" : "dark")}
-                className="p-1.5 rounded-md hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
-                title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
-              >
-                {isDark ? (
-                  <Sun className="w-4 h-4" />
-                ) : (
-                  <Moon className="w-4 h-4" />
-                )}
-              </button>
+              {mounted && (
+                <button
+                  onClick={() => setTheme(isDark ? "light" : "dark")}
+                  className="p-1.5 rounded-md hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
+                  title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                >
+                  {isDark ? (
+                    <Sun className="w-4 h-4" />
+                  ) : (
+                    <Moon className="w-4 h-4" />
+                  )}
+                </button>
+              )}
 
               {/* Help Button */}
               <button

@@ -80,19 +80,18 @@ export class MonacoSuggestionProvider {
 
     try {
       // Phase 1: LTE (synchronous, immediate)
-      const lteStart = performance.now();
       try {
-        const lteText = await handlers.lte();
-        if (lteText && requestId === this.lastRequestId) {
+        const lteResult = await this.withTimeout(handlers.lte(), 50, "lte");
+        if (lteResult.text && requestId === this.lastRequestId) {
           results.push({
             source: "lte",
-            text: lteText,
-            latency: performance.now() - lteStart,
+            text: lteResult.text,
+            latency: lteResult.latency,
             confidence: 0.95, // LTE is very confident
           });
         }
       } catch (err) {
-        console.warn("[MonacoProvider] LTE error:", err);
+        console.warn("[MonacoProvider] LTE error or timeout:", err);
       }
 
       // Phase 2: RAG (with 150ms timeout) and Prefetch (with 50ms timeout)
@@ -159,18 +158,22 @@ export class MonacoSuggestionProvider {
   private async withTimeout(
     promise: Promise<string>,
     timeoutMs: number,
-    source: "rag" | "webllm" | "gemini" | "prefetch"
-  ): Promise<{ source: "rag" | "webllm" | "gemini" | "prefetch"; text: string; latency: number }> {
+    source: "lte" | "rag" | "webllm" | "gemini" | "prefetch"
+  ): Promise<{ source: "lte" | "rag" | "webllm" | "gemini" | "prefetch"; text: string; latency: number }> {
     const start = performance.now();
-    return Promise.race([
-      (async () => {
-        const text = await promise;
-        return { source, text, latency: performance.now() - start };
-      })(),
-      new Promise((_, reject) =>
-        setTimeout(() => reject(new Error(`${source} timeout`)), timeoutMs)
-      ),
-    ]) as Promise<{ source: "rag" | "webllm" | "gemini" | "prefetch"; text: string; latency: number }>;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(`${source} timeout`)), timeoutMs);
+      promise.then(
+        text => {
+          clearTimeout(timer);
+          resolve({ source, text, latency: performance.now() - start });
+        },
+        err => {
+          clearTimeout(timer);
+          reject(err);
+        }
+      );
+    });
   }
 
   /**
