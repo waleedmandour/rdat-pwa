@@ -63,24 +63,15 @@ export const translations = {
         },
         {
           step: "02",
-          title: "Glossary Management",
-          titleAr: "إدارة المسرد",
+          title: "Glossaries & Vector DBs",
+          titleAr: "المسارد وقواعد البيانات",
           description:
-            "Maintain consistent terminology with the GTR Glossary. Add, edit, and manage translation pairs across projects.",
+            "Maintain terminology with GTR Glossaries and leverage RAG-powered vector databases for contextually relevant translation suggestions.",
           descriptionAr:
-            "حافظ على مصطلحات متسقة مع مسرد GTR. أضف وعدّل وأزواج الترجمة عبر المشاريع.",
+            "حافظ على المصطلحات المتسقة واستفد من الاسترجاع المدعوم بـ RAG لاقتراحات ترجمة ذات صلة سياقياً.",
         },
         {
           step: "03",
-          title: "Vector Database",
-          titleAr: "قاعدة بيانات المتجهات",
-          description:
-            "Leverage RAG-powered retrieval for contextually relevant translation suggestions from your corpus.",
-          descriptionAr:
-            "استفد من الاسترجاع المدعوم بـ RAG لاقتراحات ترجمة ذات صلة سياقياً من نصوصك.",
-        },
-        {
-          step: "04",
           title: "AI Models",
           titleAr: "نماذج الذكاء الاصطناعي",
           description:
@@ -164,24 +155,15 @@ export const translations = {
         },
         {
           step: "02",
-          title: "إدارة المسرد",
-          titleAr: "Glossary Management",
+          title: "المسارد وقواعد البيانات",
+          titleAr: "Glossaries & Vector DBs",
           description:
-            "حافظ على مصطلحات متسقة مع مسرد GTR. أضف وعدّل وأزواج الترجمة عبر المشاريع.",
+            "حافظ على المصطلحات المتسقة واستفد من الاسترجاع المدعوم بـ RAG لاقتراحات ترجمة ذات صلة سياقياً.",
           descriptionAr:
-            "Maintain consistent terminology with the GTR Glossary. Add, edit, and manage translation pairs across projects.",
+            "Maintain terminology with GTR Glossaries and leverage RAG-powered vector databases for contextually relevant translation suggestions.",
         },
         {
           step: "03",
-          title: "قاعدة بيانات المتجهات",
-          titleAr: "Vector Database",
-          description:
-            "استفد من الاسترجاع المدعوم بـ RAG لاقتراحات ترجمة ذات صلة سياقياً من نصوصك.",
-          descriptionAr:
-            "Leverage RAG-powered retrieval for contextually relevant translation suggestions from your corpus.",
-        },
-        {
-          step: "04",
           title: "نماذج الذكاء الاصطناعي",
           titleAr: "AI Models",
           description:
