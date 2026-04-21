@@ -49,11 +49,10 @@ export function SettingsPanel() {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const AVAILABLE_MODELS = [
-    { id: "gemma-2b-it-q4f32_1-MLC", name: "Gemma 2B (Fast, ~1.5GB)" },
-    { id: "Llama-3-8B-Instruct-q4f32_1-MLC", name: "Llama 3 8B (Accurate, ~4.5GB)" },
-    { id: "Phi-3-mini-4k-instruct-q4f16_1-MLC", name: "Phi-3 Mini (Balanced, ~2.2GB)" },
-    { id: "gemma-4-2b-it-q4f32_1-MLC", name: "Gemma 4 2B (Experimental)" },
-    { id: "gemma-4-4b-it-q4f32_1-MLC", name: "Gemma 4 4B (Experimental)" },
+    { id: "gemma-2b-it-q4f32_1-MLC", name: "TranslateGemma (Min. ~2GB VRAM)" },
+    { id: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC", name: "Qwen 2.5 Quantized (Min. ~1.5GB VRAM)" },
+    { id: "Llama-3-8B-Instruct-q4f32_1-MLC", name: "Llama 3 8B (Min. ~4.5GB VRAM)" },
+    { id: "Phi-3-mini-4k-instruct-q4f16_1-MLC", name: "Phi-3 Mini (Min. ~2GB VRAM)" },
   ];
 
   const AVAILABLE_CORPORA = [
@@ -120,7 +119,28 @@ export function SettingsPanel() {
         setIsDownloading(false);
       }, 3000);
     } catch (e: any) {
-      setDownloadText(`Error: ${e.message}`);
+      console.error("[WebLLM Download Error]", e);
+      let errorMessage = isRTL ? "حدث خطأ غير معروف." : "An unknown error occurred.";
+      let advice = isRTL ? "يرجى المحاولة لاحقاً." : "Please try again later.";
+      
+      const msg = e.message?.toLowerCase() || "";
+      if (msg.includes("fetch") || msg.includes("network")) {
+        errorMessage = isRTL ? "خطأ في الشبكة أثناء التحميل." : "Network error while downloading the model.";
+        advice = isRTL ? "تحقق من اتصالك بالإنترنت وتأكد من عدم وجود جدار حماية يمنع التحميل." : "Please check your internet connection and ensure no firewall is blocking the download.";
+      } else if (msg.includes("quota") || msg.includes("storage")) {
+        errorMessage = isRTL ? "مساحة التخزين غير كافية." : "Insufficient storage space.";
+        advice = isRTL ? "يرجى تفريغ بعض المساحة على جهازك أو في المتصفح للسماح بتخزين النموذج." : "Please clear some space on your device or browser to allow the model to be cached.";
+      } else if (msg.includes("gpu") || msg.includes("webgpu")) {
+        errorMessage = isRTL ? "فشل تهيئة WebGPU." : "WebGPU initialization failed.";
+        advice = isRTL ? "تأكد من دعم متصفحك لتقنية WebGPU وتفعيل تسريع الأجهزة (Hardware Acceleration)." : "Ensure your browser supports WebGPU and hardware acceleration is enabled in settings.";
+      } else {
+        errorMessage = isRTL ? `فشل التهيئة: ${e.message}` : `Initialization failed: ${e.message}`;
+        advice = isRTL ? "تأكد من اختيار متصفح متوافق (مثل Chrome/Edge)." : "Ensure you are using a compatible browser like Chrome or Edge.";
+      }
+
+      setDownloadText(isRTL ? "فشل التنزيل." : "Download failed.");
+      setHwStatus("error");
+      setHwMessage(`${errorMessage} ${advice}`);
       setIsDownloading(false);
     }
   };

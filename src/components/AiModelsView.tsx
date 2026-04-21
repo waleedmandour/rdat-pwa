@@ -73,9 +73,9 @@ export function AiModelsView() {
       name: "WebLLM (WebGPU)",
       nameAr: "WebLLM (WebGPU)",
       description:
-        "Channel 1 — Neural machine translation running directly in your browser via WebGPU. Model: Gemma 2B (quantized). No data leaves your machine. ~1.5GB one-time download.",
+        "Channel 1 — Neural machine translation running directly in your browser via WebGPU. Supports TranslateGemma, Qwen 2.5, and more. No data leaves your machine.",
       descriptionAr:
-        "القناة 1 — ترجمة آلية عصبية تعمل مباشرة في متصفحك عبر WebGPU. النموذج: Gemma 2B. لا تغادر البيانات جهازك.",
+        "القناة 1 — ترجمة آلية عصبية تعمل مباشرة في متصفحك عبر WebGPU. يدعم TranslateGemma، و Qwen 2.5، والمزيد. لا تغادر البيانات جهازك.",
       icon: hasWebGPU ? Wifi : WifiOff,
       color: hasWebGPU ? "text-emerald-400" : "text-warning",
       isActive: hasWebGPU,
