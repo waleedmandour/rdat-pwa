@@ -145,13 +145,14 @@ export class LocalTranslationEngine {
     // Step 1: Try exact match first (O(1) hash lookup)
     const exactMatch = this.normalizedIndex.get(normalizedSource);
     if (exactMatch) {
-      return this.computeRemainder(
+      const result = this.computeRemainder(
         exactMatch.en,
         exactMatch.ar,
         targetPrefix,
         "exact",
         1.0
       );
+      if (result) return result;
     }
 
     // Step 2: Try partial/prefix match on source
@@ -169,13 +170,14 @@ export class LocalTranslationEngine {
     }
 
     if (bestPartial && bestPartial.score > 0.6) {
-      return this.computeRemainder(
+      const result = this.computeRemainder(
         bestPartial.entry.en,
         bestPartial.entry.ar,
         targetPrefix,
         "partial",
         bestPartial.score
       );
+      if (result) return result;
     }
 
     // Step 3: N-gram similarity fallback
@@ -189,13 +191,14 @@ export class LocalTranslationEngine {
     }
 
     if (bestNgram && bestNgram.score > 0.3) {
-      return this.computeRemainder(
+      const result = this.computeRemainder(
         bestNgram.entry.en,
         bestNgram.entry.ar,
         targetPrefix,
         "ngram",
         bestNgram.score
       );
+      if (result) return result;
     }
 
     return null;
@@ -203,6 +206,11 @@ export class LocalTranslationEngine {
 
   /**
    * Compute the "Smart Remainder" — the completion text after the prefix.
+   *
+   * Uses fuzzy prefix alignment so that even if the user's typed text
+   * doesn't character-for-character match the start of the corpus Arabic,
+   * we can still find the best continuation point and return only the
+   * remainder — avoiding the duplicate-text ghost-text bug.
    */
   private computeRemainder(
     source: string,
@@ -210,34 +218,90 @@ export class LocalTranslationEngine {
     targetPrefix: string,
     matchType: LTEResult["type"],
     baseScore: number
-  ): LTEResult {
+  ): LTEResult | null {
     const trimmedPrefix = targetPrefix.trim();
+    const trimmedArabic = fullArabic.trim();
 
-    // Check if the Arabic starts with the prefix
-    if (trimmedPrefix && !fullArabic.trim().startsWith(trimmedPrefix)) {
-      // Even if it doesn't match the prefix exactly, still return the full
-      // Arabic as a suggestion (the user might want to replace what they typed)
+    // No prefix typed — return the full Arabic as the suggestion
+    if (!trimmedPrefix) {
       return {
         match: fullArabic,
         source,
         remainder: fullArabic,
-        score: baseScore * 0.5, // Lower confidence for non-prefix matches
+        score: baseScore,
         type: matchType,
       };
     }
 
-    // Compute the remainder (what comes after the prefix)
-    const remainder = trimmedPrefix
-      ? fullArabic.substring(trimmedPrefix.length).trimStart()
-      : fullArabic;
+    // Exact prefix match — return only the remainder after the prefix
+    if (trimmedArabic.startsWith(trimmedPrefix)) {
+      const remainder = trimmedArabic.substring(trimmedPrefix.length).trimStart();
+      return {
+        match: fullArabic,
+        source,
+        remainder: remainder || trimmedArabic,
+        score: baseScore,
+        type: matchType,
+      };
+    }
 
-    return {
-      match: fullArabic,
-      source,
-      remainder,
-      score: baseScore,
-      type: matchType,
-    };
+    // Fuzzy prefix alignment: find the best split point in the Arabic text
+    // where the user's prefix aligns. This handles minor typing differences
+    // (e.g. missing/extra characters) without returning the entire Arabic as remainder.
+    const alignment = this.findBestAlignment(trimmedPrefix, trimmedArabic);
+
+    if (alignment.score > 0.5) {
+      // Good alignment found — return remainder from the alignment point
+      const remainder = trimmedArabic.substring(alignment.arabicOffset).trimStart();
+      return {
+        match: fullArabic,
+        source,
+        remainder: remainder || trimmedArabic,
+        score: baseScore * alignment.score,
+        type: matchType,
+      };
+    }
+
+    // Prefix doesn't match at all — skip this channel so we don't show
+    // duplicate ghost text. Returning null lets the caller try other channels.
+    return null;
+  }
+
+  /**
+   * Find the best alignment between a typed prefix and the full Arabic text.
+   * Uses character-level similarity to determine how many characters of
+   * the Arabic the user has likely already typed.
+   *
+   * @returns The offset into fullArabic where the remainder should start,
+   *          and a similarity score (0-1) indicating alignment quality.
+   */
+  private findBestAlignment(
+    prefix: string,
+    fullArabic: string
+  ): { arabicOffset: number; score: number } {
+    const prefixLen = prefix.length;
+    const arabicLen = fullArabic.length;
+
+    // Try aligning the prefix at several candidate offsets in the Arabic text
+    let bestOffset = 0;
+    let bestScore = 0;
+
+    // Search window: try offsets from 0 to 1.5x the prefix length
+    // (user might have typed slightly more or fewer characters)
+    const maxOffset = Math.min(Math.ceil(prefixLen * 1.5), arabicLen);
+    const step = Math.max(1, Math.floor(prefixLen / 10)); // sample for performance
+
+    for (let offset = step; offset <= maxOffset; offset += step) {
+      const candidate = fullArabic.substring(0, offset);
+      const similarity = ngramSimilarity(normalize(prefix), normalize(candidate));
+
+      if (similarity > bestScore) {
+        bestScore = similarity;
+        bestOffset = offset;
+      }
+    }
+
+    return { arabicOffset: bestOffset, score: bestScore };
   }
 
   /**

@@ -217,21 +217,28 @@ describe("MonacoSuggestionProvider", () => {
   });
 
   describe("RTL text handling", () => {
-    it("should adjust RTL text with Unicode marks", () => {
+    it("should preserve Arabic text without bidi control chars", async () => {
       const arabicText = "عليكم وسلام الله عليكم";
-      const adjusted = MonacoSuggestionProvider.adjustSuggestionForRTL(arabicText);
+      const handlers = {
+        lte: async () => arabicText,
+        rag: async () => "",
+        webllm: async () => { throw new Error("Timeout"); },
+        gemini: async () => { throw new Error("Timeout"); },
+        prefetch: async () => "",
+      };
 
-      // Should add RTL mark
-      expect(adjusted).toContain("\u202E");
-      expect(adjusted).toContain(arabicText);
-    });
+      const suggestions = await provider.getSuggestions(
+        "Hello",
+        "السلام",
+        handlers
+      );
 
-    it("should not modify LTR text", () => {
-      const englishText = "Hello world";
-      const adjusted = MonacoSuggestionProvider.adjustSuggestionForRTL(englishText);
-
-      // Should not add RTL mark for English
-      expect(adjusted).toBe(englishText);
+      // Arabic text should be preserved as-is (Monaco handles RTL natively)
+      expect(suggestions.length).toBeGreaterThan(0);
+      expect(suggestions[0].text).toBe(arabicText);
+      // Must NOT contain Unicode bidi override characters
+      expect(suggestions[0].text).not.toContain("\u202E");
+      expect(suggestions[0].text).not.toContain("\u202B");
     });
   });
 

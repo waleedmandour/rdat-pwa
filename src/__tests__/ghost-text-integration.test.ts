@@ -76,7 +76,7 @@ describe("Ghost Text Integration", () => {
     expect(uniqueTexts.size).toBeLessThanOrEqual(suggestions.length);
   });
 
-  it("should handle RTL text correctly", async () => {
+  it("should handle RTL text correctly without bidi control chars", async () => {
     const suggestions = await provider.getSuggestions(
       "Hello world",
       "السلام",
@@ -92,6 +92,9 @@ describe("Ghost Text Integration", () => {
     expect(suggestions.length).toBeGreaterThan(0);
     // Suggestions should contain Arabic text
     expect(/[\u0600-\u06FF]/.test(suggestions[0].text)).toBe(true);
+    // Must NOT contain Unicode bidi override characters (Monaco handles RTL natively)
+    expect(suggestions[0].text).not.toContain("\u202E");
+    expect(suggestions[0].text).not.toContain("\u202B");
   });
 
   it("should rank by confidence then latency", async () => {
@@ -167,5 +170,45 @@ describe("Ghost Text Integration", () => {
     );
 
     expect(suggestions.length).toBeLessThanOrEqual(3);
+  });
+
+  it("should cancel stale requests via cancelPending", async () => {
+    // Start a request
+    const promise1 = provider.getSuggestions(
+      "Hello",
+      "السلام",
+      {
+        lte: async () => { await new Promise(r => setTimeout(r, 80)); return "عليكم"; },
+        rag: async () => "وسلام",
+        webllm: async () => { throw new Error("Timeout"); },
+        gemini: async () => { throw new Error("Timeout"); },
+        prefetch: async () => "",
+      }
+    );
+
+    // Cancel it immediately
+    provider.cancelPending();
+
+    // Start a new request
+    const promise2 = provider.getSuggestions(
+      "Hello",
+      "السلام",
+      {
+        lte: async () => "عليكم الجديدة",
+        rag: async () => "",
+        webllm: async () => { throw new Error("Timeout"); },
+        gemini: async () => { throw new Error("Timeout"); },
+        prefetch: async () => "",
+      }
+    );
+
+    const results1 = await promise1;
+    const results2 = await promise2;
+
+    // First request should return empty (stale)
+    expect(results1).toEqual([]);
+    // Second request should succeed
+    expect(results2.length).toBeGreaterThan(0);
+    expect(results2[0].text).toBe("عليكم الجديدة");
   });
 });

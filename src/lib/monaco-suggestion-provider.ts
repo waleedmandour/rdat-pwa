@@ -1,13 +1,18 @@
 /**
  * Monaco Suggestion Provider — Three-Phase Async Suggestion Engine
- * 
+ *
  * Architecture:
  *  Phase 1 (0-5ms):     LTE Smart Remainder (synchronous)
  *  Phase 2 (0-150ms):   RAG Cache Lookup (embeddings + semantic search)
  *  Phase 3 (0-1000ms):  AI Channels (WebLLM local, Gemini cloud)
- * 
+ *
  * Each channel runs independently with timeout isolation.
  * Deduplication and ranking applied before returning results.
+ *
+ * IMPORTANT: RTL rendering is handled entirely by Monaco Editor
+ * when direction:"rtl" is set. Do NOT inject Unicode bidi control
+ * characters (U+202E, U+200F, etc.) into suggestion text — they
+ * corrupt ghost text display and cursor positioning.
  */
 
 export interface SuggestionResult {
@@ -33,7 +38,8 @@ interface ChannelConfig {
 }
 
 /**
- * Three-phase async suggestion engine with proper channel isolation.
+ * Three-phase async suggestion engine with proper channel isolation
+ * and stale-request cancellation.
  */
 export class MonacoSuggestionProvider {
   private channelConfigs: Map<string, ChannelConfig> = new Map([
@@ -55,8 +61,17 @@ export class MonacoSuggestionProvider {
   }
 
   /**
+   * Cancel any in-flight request by bumping the request ID.
+   * Called when the user types a new character so stale results
+   * from a previous invocation are discarded.
+   */
+  cancelPending(): void {
+    this.lastRequestId = `cancelled_${Date.now()}`;
+  }
+
+  /**
    * Main entry point: Orchestrate three-phase suggestion pipeline.
-   * 
+   *
    * @param sourceLine - Original English text
    * @param prefix - Current Arabic prefix typed by user
    * @param handlers - Channel-specific handlers
@@ -78,11 +93,13 @@ export class MonacoSuggestionProvider {
 
     const results: ChannelResult[] = [];
 
+    const isStale = () => requestId !== this.lastRequestId;
+
     try {
       // Phase 1: LTE (synchronous, immediate)
       try {
         const lteResult = await this.withTimeout(handlers.lte(), 50, "lte");
-        if (lteResult.text && requestId === this.lastRequestId) {
+        if (lteResult.text && !isStale()) {
           results.push({
             source: "lte",
             text: lteResult.text,
@@ -94,9 +111,12 @@ export class MonacoSuggestionProvider {
         console.warn("[MonacoProvider] LTE error or timeout:", err);
       }
 
+      if (isStale()) return [];
+
       // Phase 2: RAG (with 150ms timeout) and Prefetch (with 50ms timeout)
       // These run in parallel
       const phase2Start = performance.now();
+      void phase2Start; // used for logging if needed
       const phase2Results = await Promise.allSettled([
         this.withTimeout(handlers.prefetch(), 50, "prefetch"),
         this.withTimeout(handlers.rag(), 150, "rag"),
@@ -106,7 +126,7 @@ export class MonacoSuggestionProvider {
         if (
           result.status === "fulfilled" &&
           result.value &&
-          requestId === this.lastRequestId
+          !isStale()
         ) {
           const { source, text, latency } = result.value;
           if (text) {
@@ -120,6 +140,8 @@ export class MonacoSuggestionProvider {
         }
       }
 
+      if (isStale()) return [];
+
       // Phase 3: AI channels (WebLLM + Gemini, 1000ms timeout)
       // Run in parallel, independent error isolation
       const phase3Results = await Promise.allSettled([
@@ -131,7 +153,7 @@ export class MonacoSuggestionProvider {
         if (
           result.status === "fulfilled" &&
           result.value &&
-          requestId === this.lastRequestId
+          !isStale()
         ) {
           const { source, text, latency } = result.value;
           if (text) {
@@ -147,6 +169,8 @@ export class MonacoSuggestionProvider {
     } catch (err) {
       console.error("[MonacoProvider] Pipeline error:", err);
     }
+
+    if (isStale()) return [];
 
     // Deduplicate and rank results
     return this.dedupeAndRank(results);
@@ -224,30 +248,16 @@ export class MonacoSuggestionProvider {
   }
 
   /**
-   * Calculate RTL-aware ghost text range.
-   * Handles bidirectional text position calculation.
+   * Calculate ghost text range for Monaco inline completion.
+   * Monaco handles RTL positioning internally when direction:"rtl" is set.
    */
   static calculateGhostTextRange(
     lineNumber: number,
     column: number
   ): { start: number; end: number } {
-    // In RTL text, visual position differs from logical position
-    // Monaco handles this internally, but we need to account for it in suggestions
     return {
       start: column,
       end: column,
     };
-  }
-
-  /**
-   * Adjust suggestion for RTL rendering.
-   * Add Unicode marks if needed for proper display.
-   */
-  static adjustSuggestionForRTL(text: string): string {
-    // Add RTL mark at start if suggestion contains Arabic
-    if (/[\u0600-\u06FF]/.test(text)) {
-      return "\u202E" + text; // RTL override
-    }
-    return text;
   }
 }

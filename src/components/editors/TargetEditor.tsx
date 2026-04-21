@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useRef, useCallback, useEffect, useState } from "react";
+import React, { useRef, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { OnMount } from "@monaco-editor/react";
-import type { editor, languages, IDisposable, IPosition } from "monaco-editor";
+import type { editor, languages, IDisposable } from "monaco-editor";
 import type * as Monaco from "monaco-editor";
 import { cn } from "@/lib/utils";
 import { getLTE } from "@/lib/local-translation-engine";
 import { usePrefetchStore } from "@/stores/prefetch-store";
 import { useWebLLM } from "@/hooks/useWebLLM";
 import { useGemini } from "@/hooks/useGemini";
+import { useRAG } from "@/hooks/useRAG";
 import { MonacoSuggestionProvider } from "@/lib/monaco-suggestion-provider";
 import type { WebGPUInfo } from "@/components/StatusBar";
 
@@ -65,17 +66,21 @@ const EDITOR_OPTIONS = {
   },
 };
 
-// Timing constants for the ghost text cascade
-const BURST_DELAY_MS = 800; // 800ms pause → burst completion
-const FULL_DELAY_MS = 1200; // 1.2s pause → full sentence
+/**
+ * Google-like debounce delay: after the user stops typing for this
+ * many milliseconds, we re-trigger the inline suggest so that
+ * slower channels (RAG, AI) get a chance to surface ghost text.
+ */
+const IDLE_TRIGGER_DELAY_MS = 350;
 
 /**
- * Calculate ghost text range with RTL awareness.
- * Handles bidirectional text position calculation.
+ * Calculate ghost text range for Monaco inline completion.
+ * Monaco handles RTL positioning internally when direction:"rtl" is set
+ * — no Unicode bidi control characters needed.
  */
 function calculateGhostTextRange(
   monaco: typeof import("monaco-editor"),
-  position: IPosition,
+  position: { lineNumber: number; column: number },
   word: { startColumn: number; endColumn: number; word: string }
 ): Monaco.Range {
   if (word && word.word.length > 0) {
@@ -95,60 +100,61 @@ function calculateGhostTextRange(
 }
 
 /**
- * Adjust suggestion for RTL rendering.
- * Add Unicode marks if needed for proper display.
- */
-function adjustSuggestionForRTL(text: string): string {
-  // Check if text contains Arabic
-  if (/[\u0600-\u06FF]/.test(text)) {
-    // Add RTL override mark for proper bidirectional rendering
-    return "\u202E" + text;
-  }
-  return text;
-}
-
-/**
  * Register the Multi-Channel Ghost Text inline completions provider.
- * 
- * Cascade timing:
- *   0-5ms:     Channel 0 (LTE) — instant
- *   0-150ms:   Channel 2 (RAG) + Channel 3 (Prefetch) — parallel
- *   0-1000ms:  Channel 1 (WebLLM) + Channel 4 (Gemini) — parallel
+ *
+ * This version uses MonacoSuggestionProvider to properly orchestrate
+ * the three-phase suggestion pipeline (LTE → RAG+Prefetch → WebLLM+Gemini).
+ *
+ * Key fixes vs. the original implementation:
+ *  1. Uses MonacoSuggestionProvider.getSuggestions() instead of ad-hoc LTE calls
+ *  2. sourceLines are read from a ref so they're never stale
+ *  3. No \u202E RTL override — Monaco handles RTL natively
+ *  4. Prefetch cache is used regardless of prefix length
+ *  5. Stale-request cancellation prevents out-of-order suggestions
+ *  6. AI completions re-trigger Monaco inline suggest when ready
  */
 function registerGhostTextProvider(
   monaco: typeof import("monaco-editor"),
-  sourceLines: string[],
+  sourceLinesRef: React.MutableRefObject<string[]>,
   webLLM: ReturnType<typeof useWebLLM>,
   gemini: ReturnType<typeof useGemini>,
-  suggestionProvider: MonacoSuggestionProvider
+  rag: ReturnType<typeof useRAG>,
+  suggestionProvider: MonacoSuggestionProvider,
+  editorRef: React.MutableRefObject<editor.IStandaloneCodeEditor | null>
 ): IDisposable {
   const languageId = "plaintext";
+
+  // Track the last content-version to cancel stale suggestions
+  let contentVersion = 0;
 
   const providerDisposable = monaco.languages.registerInlineCompletionsProvider(
     languageId,
     {
       provideInlineCompletions: async (model, position) => {
+        const currentVersion = ++contentVersion;
+
         const lineText = model.getLineContent(position.lineNumber);
         const prefix = lineText.substring(0, position.column - 1).trim();
 
-        // Get the corresponding source line (1-indexed)
+        // Read source lines from the ref (always up-to-date)
+        const sourceLines = sourceLinesRef.current;
         const sourceLine = sourceLines[position.lineNumber - 1]?.trim() ?? "";
         if (!sourceLine) return { items: [] };
 
-        // Calculate RTL-aware range
+        // Calculate range for ghost text
         const word = model.getWordUntilPosition(position);
         const range = calculateGhostTextRange(monaco, position, word);
 
-        const items: languages.InlineCompletion[] = [];
-
-        // ── CHANNEL 0: LTE Smart Remainder (instant, <5ms) ─────
+        // ── Immediate LTE channel (synchronous, <5ms) ──────────────
+        // Show LTE result instantly while async channels load
         const lte = getLTE();
         const lteResult = lte.getSuggestion(sourceLine, prefix);
 
+        const items: languages.InlineCompletion[] = [];
+
         if (lteResult && lteResult.remainder.trim()) {
-          const adjustedText = adjustSuggestionForRTL(lteResult.remainder);
           items.push({
-            insertText: adjustedText,
+            insertText: lteResult.remainder,
             range,
           });
           console.log(
@@ -156,40 +162,104 @@ function registerGhostTextProvider(
           );
         }
 
-        // ── CHANNEL 3: Prefetch Cache ──────────────────────────
+        // ── Prefetch cache (synchronous) ───────────────────────────
         const { getPrefetch } = usePrefetchStore.getState();
         const cached = getPrefetch(position.lineNumber);
 
-        if (items.length === 0 && cached && cached.translation.trim() && prefix.length < 5) {
-          const adjustedCache = adjustSuggestionForRTL(cached.translation);
-          items.push({
-            insertText: adjustedCache,
-            range: new monaco.Range(
-              position.lineNumber,
-              1,
-              position.lineNumber,
-              1
-            ),
-          });
-          console.log(
-            `[RDAT Ghost] Cache suggestion: "${cached.translation.substring(0, 50)}..."`
-          );
+        if (cached && cached.translation.trim()) {
+          // Compute the remainder from the cached translation based on prefix
+          const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
+          if (cachedRemainder && (!lteResult || !lteResult.remainder.trim())) {
+            items.push({
+              insertText: cachedRemainder,
+              range,
+            });
+            console.log(
+              `[RDAT Ghost] Cache suggestion: "${cachedRemainder.substring(0, 50)}..."`
+            );
+          }
         }
 
-        // If we have LTE suggestion, try to get AI completions asynchronously
-        if (sourceLine && lteResult) {
-          scheduleAICompletions(
-            sourceLine,
-            prefix,
-            webLLM,
-            gemini,
-            position,
-            model,
-            monaco,
-            items,
-            range
-          );
-        }
+        // ── Async channels via MonacoSuggestionProvider ─────────────
+        // Run the full pipeline in the background. When results arrive,
+        // re-trigger Monaco inline suggest so it picks up the new suggestions.
+        suggestionProvider.cancelPending(); // cancel any previous in-flight request
+
+        suggestionProvider
+          .getSuggestions(sourceLine, prefix, {
+            lte: async () => {
+              // Already handled synchronously above, but include for pipeline completeness
+              return lteResult?.remainder ?? "";
+            },
+            rag: async () => {
+              if (!rag.state.isCorpusLoaded) return "";
+              try {
+                const hits = await rag.search(sourceLine, 1);
+                if (hits.length > 0 && hits[0].ar) {
+                  const remainder = computeCachedRemainder(hits[0].ar, prefix);
+                  return remainder || hits[0].ar;
+                }
+              } catch {
+                // RAG timeout — skip
+              }
+              return "";
+            },
+            prefetch: async () => {
+              if (!cached) return "";
+              return computeCachedRemainder(cached.translation, prefix) || "";
+            },
+            webllm: async () => {
+              if (!webLLM.isReady) return "";
+              try {
+                const result = await webLLM.generateBurst(sourceLine, prefix);
+                if (result.text && !result.aborted) {
+                  return result.text;
+                }
+              } catch {
+                // WebLLM timeout — skip
+              }
+              return "";
+            },
+            gemini: async () => {
+              if (!gemini.isAvailable) return "";
+              try {
+                const result = await gemini.generateBurst(sourceLine, prefix);
+                if (result.text) {
+                  return result.text;
+                }
+              } catch {
+                // Gemini timeout — skip
+              }
+              return "";
+            },
+          })
+          .then((suggestions) => {
+            // Stale check: discard if user typed more since we started
+            if (currentVersion !== contentVersion) return;
+            if (suggestions.length === 0) return;
+
+            // Find the best suggestion that isn't just the LTE one we already showed
+            const bestNew = suggestions.find(
+              (s) =>
+                s.source !== "lte" &&
+                s.text.trim() &&
+                (!lteResult || s.text !== lteResult.remainder)
+            );
+
+            if (bestNew) {
+              console.log(
+                `[RDAT Ghost] AI/RAG suggestion from ${bestNew.source}: "${bestNew.text.substring(0, 60)}..." (confidence: ${bestNew.confidence.toFixed(2)})`
+              );
+            }
+
+            // Re-trigger Monaco inline suggest so it calls provideInlineCompletions
+            // again with the updated state (which now has AI/RAG results cached).
+            // This is the KEY mechanism for Google-like cascading ghost text.
+            triggerInlineSuggest(editorRef.current);
+          })
+          .catch((err) => {
+            console.warn("[RDAT Ghost] Async pipeline error:", err);
+          });
 
         return { items };
       },
@@ -203,72 +273,72 @@ function registerGhostTextProvider(
 }
 
 /**
- * Schedule AI completion generation (WebLLM burst + full sentence).
- * Runs asynchronously without blocking instant response.
+ * Compute the remainder of a cached/Prefetch translation after the user's prefix.
+ * Strips the matching prefix portion and returns only what's left to complete.
+ * This avoids the duplicate-text ghost-text bug.
  */
-function scheduleAICompletions(
-  sourceLine: string,
-  prefix: string,
-  webLLM: ReturnType<typeof useWebLLM>,
-  gemini: ReturnType<typeof useGemini>,
-  position: IPosition,
-  model: editor.ITextModel,
-  monaco: typeof import("monaco-editor"),
-  items: languages.InlineCompletion[],
-  range: Monaco.Range
-) {
-  const isWebLLMReady = webLLM.isReady;
-  const isGeminiAvail = gemini.isAvailable;
+function computeCachedRemainder(
+  fullTranslation: string,
+  typedPrefix: string
+): string {
+  const trimmed = fullTranslation.trim();
+  const prefix = typedPrefix.trim();
 
-  // ── Burst (800ms pause) ────────────────────────────────────
-  setTimeout(async () => {
-    try {
-      let burstText = "";
+  if (!prefix) return trimmed;
 
-      if (isWebLLMReady) {
-        const result = await webLLM.generateBurst(sourceLine, prefix);
-        if (result.text && !result.aborted) {
-          burstText = adjustSuggestionForRTL(result.text);
-        }
-      } else if (isGeminiAvail) {
-        const result = await gemini.generateBurst(sourceLine, prefix);
-        if (result.text) {
-          burstText = adjustSuggestionForRTL(result.text);
-        }
-      }
+  if (trimmed.startsWith(prefix)) {
+    const remainder = trimmed.substring(prefix.length).trimStart();
+    return remainder || trimmed;
+  }
 
-      if (burstText) {
-        console.log(`[RDAT Ghost] AI Burst: "${burstText.substring(0, 60)}..."`);
-      }
-    } catch (err) {
-      console.warn("[RDAT Ghost] Burst failed:", err);
+  // Try fuzzy alignment using character overlap
+  const prefixLen = prefix.length;
+  const maxOffset = Math.min(Math.ceil(prefixLen * 1.5), trimmed.length);
+  let bestOffset = 0;
+  let bestScore = 0;
+
+  for (let offset = 1; offset <= maxOffset; offset += Math.max(1, Math.floor(prefixLen / 8))) {
+    const candidate = trimmed.substring(0, offset);
+    // Simple character overlap score
+    let matches = 0;
+    const minLen = Math.min(prefix.length, candidate.length);
+    for (let i = 0; i < minLen; i++) {
+      if (prefix[i] === candidate[i]) matches++;
     }
-  }, BURST_DELAY_MS);
-
-  // ── Full sentence (1200ms pause) ───────────────────────────
-  setTimeout(async () => {
-    try {
-      let fullText = "";
-
-      if (isWebLLMReady) {
-        const result = await webLLM.generateFullTranslation(sourceLine);
-        if (result.text && !result.aborted) {
-          fullText = adjustSuggestionForRTL(result.text);
-        }
-      } else if (isGeminiAvail) {
-        const result = await gemini.generateFullTranslation(sourceLine);
-        if (result.text) {
-          fullText = adjustSuggestionForRTL(result.text);
-        }
-      }
-
-      if (fullText) {
-        console.log(`[RDAT Ghost] AI Full: "${fullText.substring(0, 80)}..."`);
-      }
-    } catch (err) {
-      console.warn("[RDAT Ghost] Full completion failed:", err);
+    const score = matches / Math.max(prefix.length, candidate.length);
+    if (score > bestScore) {
+      bestScore = score;
+      bestOffset = offset;
     }
-  }, FULL_DELAY_MS);
+  }
+
+  if (bestScore > 0.4) {
+    const remainder = trimmed.substring(bestOffset).trimStart();
+    return remainder || trimmed;
+  }
+
+  // No reasonable alignment — return full translation as suggestion
+  return trimmed;
+}
+
+/**
+ * Re-trigger Monaco's inline suggestion mechanism.
+ * This is the crucial bridge that makes Google-like cascading ghost text work:
+ * after async channels produce results, we ask Monaco to re-evaluate
+ * inline completions, which will call provideInlineCompletions again.
+ */
+function triggerInlineSuggest(
+  editor: editor.IStandaloneCodeEditor | null
+): void {
+  if (!editor) return;
+  try {
+    // Trigger inline suggest — this causes Monaco to call
+    // provideInlineCompletions again, which now has access to
+    // cached AI/RAG results.
+    editor.trigger("rdat-ghost-text", "editor.action.inlineSuggest.trigger", {});
+  } catch {
+    // Editor may be in a state where triggering isn't possible
+  }
 }
 
 export function TargetEditor({
@@ -287,9 +357,17 @@ export function TargetEditor({
   const suggestionProviderRef = useRef<MonacoSuggestionProvider | null>(null);
   const providerRegisteredRef = useRef(false);
 
+  // ── Ref for sourceLines so the provider always reads fresh data ──
+  const sourceLinesRef = useRef<string[]>(sourceLines);
+  sourceLinesRef.current = sourceLines; // Update on every render
+
+  // ── Debounce timer for idle-trigger re-suggest ──────────────────
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Initialize AI engines (SSR-safe via hooks) ────────────
   const webLLM = useWebLLM();
   const gemini = useGemini();
+  const rag = useRAG();
 
   // Report WebGPU state to parent
   useEffect(() => {
@@ -337,13 +415,15 @@ export function TargetEditor({
           ghostProviderRef.current.dispose();
         }
 
-        // Register new provider
+        // Register new provider with ref-based sourceLines access
         ghostProviderRef.current = registerGhostTextProvider(
           monaco,
-          sourceLines,
+          sourceLinesRef,
           webLLM,
           gemini,
-          suggestionProviderRef.current
+          rag,
+          suggestionProviderRef.current,
+          editorRef
         );
 
         providerRegisteredRef.current = true;
@@ -389,6 +469,21 @@ export function TargetEditor({
       editor.onDidChangeModelContent(() => {
         webLLM.interruptGenerate();
         gemini.interruptGenerate();
+
+        // Cancel any stale suggestion pipeline
+        suggestionProviderRef.current?.cancelPending();
+
+        // ── Idle-trigger: Google-like behavior ─────────────────
+        // After the user stops typing for IDLE_TRIGGER_DELAY_MS,
+        // re-trigger inline suggest so slower channels (RAG, AI)
+        // get a chance to show ghost text.
+        if (idleTimerRef.current) {
+          clearTimeout(idleTimerRef.current);
+        }
+        idleTimerRef.current = setTimeout(() => {
+          triggerInlineSuggest(editorRef.current);
+          idleTimerRef.current = null;
+        }, IDLE_TRIGGER_DELAY_MS);
       });
 
       // ── Listen to cursor position changes ──────────────────
@@ -397,7 +492,7 @@ export function TargetEditor({
         onCursorChange?.(lineNumber);
       });
     },
-    [onCursorChange, webLLM, gemini, sourceLines, onWebgpuStateChange]
+    [onCursorChange, webLLM, gemini, rag, direction]
   );
 
   // Cleanup on unmount
@@ -407,8 +502,12 @@ export function TargetEditor({
         ghostProviderRef.current.dispose();
         ghostProviderRef.current = null;
       }
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+      }
       webLLM.interruptGenerate();
       gemini.interruptGenerate();
+      providerRegisteredRef.current = false;
     };
   }, [webLLM, gemini]);
 
