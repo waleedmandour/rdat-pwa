@@ -22,7 +22,22 @@ interface LTEResult {
   source: string;      // The source English text
   remainder: string;   // Smart remainder to complete
   score: number;       // 0-1 match confidence
-  type: "exact" | "partial" | "ngram";
+  type: "exact" | "partial" | "ngram" | "sentence-split";
+}
+
+/**
+ * Split a multi-sentence text into individual sentences.
+ * Handles common sentence boundaries: . ! ? followed by space or end.
+ * Preserves abbreviations like "e.g." and "i.e." by requiring
+ * a following space before splitting.
+ */
+function splitSentences(text: string): string[] {
+  // Split on sentence boundaries (. ! ?) followed by a space and uppercase/quote
+  const sentences = text
+    .split(/(?<=[.!?])\s+(?=[A-Z"'])/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+  return sentences;
 }
 
 /**
@@ -129,6 +144,7 @@ export class LocalTranslationEngine {
    * Get a suggestion for the given source text and target prefix.
    *
    * Algorithm:
+   *  0. If source contains multiple sentences, match each individually
    *  1. Find the best matching English source (exact → partial → n-gram)
    *  2. Check if the corresponding Arabic starts with the user's prefix
    *  3. Return the "Smart Remainder" (what's left after the prefix)
@@ -141,6 +157,17 @@ export class LocalTranslationEngine {
     if (!sourceText.trim()) return null;
 
     const normalizedSource = normalize(sourceText);
+
+    // ── Step 0: Multi-sentence matching ─────────────────────────
+    // If the source contains multiple sentences, try matching each
+    // sentence individually against the corpus and concatenate results.
+    // This is the ROOT CAUSE fix: corpus stores individual sentences
+    // but source text often has multi-sentence paragraphs.
+    const sentences = splitSentences(sourceText);
+    if (sentences.length > 1) {
+      const multiResult = this.getMultiSentenceSuggestion(sentences, targetPrefix);
+      if (multiResult) return multiResult;
+    }
 
     // Step 1: Try exact match first (O(1) hash lookup)
     const exactMatch = this.normalizedIndex.get(normalizedSource);
@@ -169,7 +196,7 @@ export class LocalTranslationEngine {
       }
     }
 
-    if (bestPartial && bestPartial.score > 0.6) {
+    if (bestPartial && bestPartial.score > 0.4) {
       const result = this.computeRemainder(
         bestPartial.entry.en,
         bestPartial.entry.ar,
@@ -190,7 +217,7 @@ export class LocalTranslationEngine {
       }
     }
 
-    if (bestNgram && bestNgram.score > 0.3) {
+    if (bestNgram && bestNgram.score > 0.25) {
       const result = this.computeRemainder(
         bestNgram.entry.en,
         bestNgram.entry.ar,
@@ -199,6 +226,97 @@ export class LocalTranslationEngine {
         bestNgram.score
       );
       if (result) return result;
+    }
+
+    return null;
+  }
+
+  /**
+   * Match multiple sentences individually and concatenate Arabic translations.
+   * Used when the source text is a multi-sentence paragraph.
+   */
+  private getMultiSentenceSuggestion(
+    sentences: string[],
+    targetPrefix: string
+  ): LTEResult | null {
+    const arabicParts: string[] = [];
+    let totalScore = 0;
+    let matchedCount = 0;
+    const matchedSources: string[] = [];
+
+    for (const sentence of sentences) {
+      const result = this.findBestSentenceMatch(sentence, targetPrefix);
+      if (result) {
+        arabicParts.push(result.match);
+        totalScore += result.score;
+        matchedCount++;
+        matchedSources.push(result.source);
+      }
+    }
+
+    // Require at least one sentence match
+    if (matchedCount === 0) return null;
+
+    const avgScore = totalScore / sentences.length;
+    const fullArabic = arabicParts.join(' ');
+    const fullSource = matchedSources.join(' ');
+
+    const remainderResult = this.computeRemainder(
+      fullSource,
+      fullArabic,
+      targetPrefix,
+      "sentence-split",
+      avgScore
+    );
+
+    return remainderResult;
+  }
+
+  /**
+   * Find the best matching corpus entry for a single sentence.
+   * Uses exact → partial (threshold 0.4) → n-gram (threshold 0.25) fallback.
+   */
+  private findBestSentenceMatch(
+    sourceText: string,
+    targetPrefix: string
+  ): LTEResult | null {
+    const normalizedSource = normalize(sourceText);
+
+    // Exact match
+    const exactMatch = this.normalizedIndex.get(normalizedSource);
+    if (exactMatch) {
+      return this.computeRemainder(exactMatch.en, exactMatch.ar, targetPrefix, "exact", 1.0);
+    }
+
+    // Partial match
+    let bestPartial: { entry: CorpusEntry; score: number } | null = null;
+    for (const [key, entry] of this.normalizedIndex) {
+      if (key.includes(normalizedSource) || normalizedSource.includes(key)) {
+        const score = key.length / Math.max(key.length, normalizedSource.length);
+        if (!bestPartial || score > bestPartial.score) {
+          bestPartial = { entry, score: score * 0.85 };
+        }
+      }
+    }
+    if (bestPartial && bestPartial.score > 0.4) {
+      const result = this.computeRemainder(
+        bestPartial.entry.en, bestPartial.entry.ar, targetPrefix, "partial", bestPartial.score
+      );
+      if (result) return result;
+    }
+
+    // N-gram fallback
+    let bestNgram: { entry: CorpusEntry; score: number } | null = null;
+    for (const entry of this.corpus) {
+      const sim = ngramSimilarity(normalizedSource, normalize(entry.en));
+      if (!bestNgram || sim > bestNgram.score) {
+        bestNgram = { entry, score: sim };
+      }
+    }
+    if (bestNgram && bestNgram.score > 0.25) {
+      return this.computeRemainder(
+        bestNgram.entry.en, bestNgram.entry.ar, targetPrefix, "ngram", bestNgram.score
+      );
     }
 
     return null;

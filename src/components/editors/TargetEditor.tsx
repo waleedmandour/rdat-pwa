@@ -139,7 +139,23 @@ function registerGhostTextProvider(
         // Read source lines from the ref (always up-to-date)
         const sourceLines = sourceLinesRef.current;
         const sourceLine = sourceLines[position.lineNumber - 1]?.trim() ?? "";
-        if (!sourceLine) return { items: [] };
+
+        // ── Empty source line: check prefetch cache before giving up ──
+        if (!sourceLine) {
+          const { getPrefetch: getPF } = usePrefetchStore.getState();
+          const cached = getPF(position.lineNumber);
+          if (cached?.translation.trim()) {
+            const word = model.getWordUntilPosition(position);
+            const range = calculateGhostTextRange(monaco, position, word);
+            const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
+            if (cachedRemainder) {
+              return {
+                items: [{ insertText: cachedRemainder, range }],
+              };
+            }
+          }
+          return { items: [] };
+        }
 
         // Calculate range for ghost text
         const word = model.getWordUntilPosition(position);
@@ -234,8 +250,9 @@ function registerGhostTextProvider(
             },
           })
           .then((suggestions) => {
-            // Stale check: discard if user typed more since we started
-            if (currentVersion !== contentVersion) return;
+            // Stale check: allow 1 keystroke of lag tolerance so async
+            // results from fast typists aren't always discarded.
+            if (contentVersion - currentVersion > 1) return;
             if (suggestions.length === 0) return;
 
             // Find the best suggestion that isn't just the LTE one we already showed
@@ -363,6 +380,8 @@ export function TargetEditor({
 
   // ── Debounce timer for idle-trigger re-suggest ──────────────────
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Debounce timer for cursor position change trigger ──────────
+  const cursorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Initialize AI engines (SSR-safe via hooks) ────────────
   const webLLM = useWebLLM();
@@ -427,6 +446,31 @@ export function TargetEditor({
         );
 
         providerRegisteredRef.current = true;
+
+        // ── Define custom theme with ghost text foreground color ──
+        // Ensures ghost text is visible in RTL mode with dark theme
+        monaco.editor.defineTheme("rdat-dark", {
+          base: "vs-dark",
+          inherit: true,
+          rules: [],
+          colors: {
+            "editor.inlineSuggest.foreground": "#64748b",
+          },
+        });
+
+        // ── Initial ghost text trigger on mount ──────────────
+        // After 500ms, trigger inline suggest so ghost text appears
+        // immediately when the editor loads with default content.
+        setTimeout(() => {
+          triggerInlineSuggest(editor);
+        }, 500);
+
+        // ── Trigger ghost text on editor focus ──────────────
+        editor.onDidFocusEditorWidget(() => {
+          setTimeout(() => {
+            triggerInlineSuggest(editor);
+          }, 300);
+        });
       }
 
       // Update direction if it changes
@@ -448,6 +492,7 @@ export function TargetEditor({
       );
 
       // ── Accept Full Suggestion (Tab) ───────────────────────
+      // Primary: with Monaco context gate
       editor.addCommand(
         monaco.KeyCode.Tab,
         () => {
@@ -455,6 +500,13 @@ export function TargetEditor({
         },
         "editorInlineSuggestionVisible"
       );
+      // Fallback: global Tab handler without context gate
+      // This ensures Tab commit works even when Monaco's context gate
+      // doesn't detect the inline suggestion as visible (RTL quirk).
+      editor.addCommand(monaco.KeyCode.Tab, () => {
+        // Try to commit; if no suggestion visible, this is a no-op
+        editor.trigger("keyboard", "editor.action.inlineSuggest.commit", {});
+      });
 
       // ── Dismiss Suggestion (Esc) ───────────────────────────
       editor.addCommand(monaco.KeyCode.Escape, () => {
@@ -487,9 +539,17 @@ export function TargetEditor({
       });
 
       // ── Listen to cursor position changes ──────────────────
+      // Trigger ghost text when cursor moves to a different line
       editor.onDidChangeCursorPosition((e) => {
         const lineNumber = e.position.lineNumber;
         onCursorChange?.(lineNumber);
+
+        // Debounced ghost text trigger on cursor position change
+        if (cursorDebounceRef.current) clearTimeout(cursorDebounceRef.current);
+        cursorDebounceRef.current = setTimeout(() => {
+          triggerInlineSuggest(editor);
+          cursorDebounceRef.current = null;
+        }, 200);
       });
     },
     [onCursorChange, webLLM, gemini, rag, direction]
@@ -504,6 +564,9 @@ export function TargetEditor({
       }
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
+      }
+      if (cursorDebounceRef.current) {
+        clearTimeout(cursorDebounceRef.current);
       }
       webLLM.interruptGenerate();
       gemini.interruptGenerate();
@@ -524,7 +587,7 @@ export function TargetEditor({
           direction: "rtl",
         }}
         onMount={handleEditorDidMount}
-        theme="vs-dark"
+        theme="rdat-dark"
       />
     </div>
   );

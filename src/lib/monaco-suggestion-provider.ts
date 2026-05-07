@@ -45,8 +45,8 @@ export class MonacoSuggestionProvider {
   private channelConfigs: Map<string, ChannelConfig> = new Map([
     ["lte", { timeout: 50, priority: 100 }],
     ["rag", { timeout: 150, priority: 80 }],
-    ["webllm", { timeout: 1000, priority: 60 }],
-    ["gemini", { timeout: 1000, priority: 50 }],
+    ["webllm", { timeout: 1500, priority: 60 }],
+    ["gemini", { timeout: 1500, priority: 50 }],
     ["prefetch", { timeout: 50, priority: 75 }],
   ]);
 
