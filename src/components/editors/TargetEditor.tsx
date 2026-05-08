@@ -103,23 +103,22 @@ function calculateGhostTextRange(
 /**
  * Register the Multi-Channel Ghost Text inline completions provider.
  *
- * This version uses MonacoSuggestionProvider to properly orchestrate
- * the three-phase suggestion pipeline (LTE → RAG+Prefetch → WebLLM+Gemini).
+ * CRITICAL FIX — Stale Closure Prevention:
+ * All hook state (webLLM, gemini, rag) is read through REFS that are
+ * updated on every render. This ensures the provider always sees the
+ * latest readiness state, not the frozen values from mount time.
  *
- * Key fixes vs. the original implementation:
- *  1. Uses MonacoSuggestionProvider.getSuggestions() instead of ad-hoc LTE calls
- *  2. sourceLines are read from a ref so they're never stale
- *  3. No \u202E RTL override — Monaco handles RTL natively
- *  4. Prefetch cache is used regardless of prefix length
- *  5. Stale-request cancellation prevents out-of-order suggestions
- *  6. AI completions re-trigger Monaco inline suggest when ready
+ * Previously, the provider captured hook return values via closure at
+ * registration time. When hooks updated their state later (e.g., WebLLM
+ * becoming ready, Gemini key being set, RAG corpus loading), the provider
+ * never saw those updates — permanently disabling all async channels.
  */
 function registerGhostTextProvider(
   monaco: typeof import("monaco-editor"),
   sourceLinesRef: React.MutableRefObject<string[]>,
-  webLLM: ReturnType<typeof useWebLLM>,
-  gemini: ReturnType<typeof useGemini>,
-  rag: ReturnType<typeof useRAG>,
+  webLLMRef: React.MutableRefObject<ReturnType<typeof useWebLLM>>,
+  geminiRef: React.MutableRefObject<ReturnType<typeof useGemini>>,
+  ragRef: React.MutableRefObject<ReturnType<typeof useRAG>>,
   suggestionProvider: MonacoSuggestionProvider,
   editorRef: React.MutableRefObject<editor.IStandaloneCodeEditor | null>
 ): IDisposable {
@@ -136,6 +135,11 @@ function registerGhostTextProvider(
 
         const lineText = model.getLineContent(position.lineNumber);
         const prefix = lineText.substring(0, position.column - 1).trim();
+
+        // ── ALWAYS read latest hook state from refs ────────────
+        const webLLM = webLLMRef.current;
+        const gemini = geminiRef.current;
+        const rag = ragRef.current;
 
         // Read source lines from the ref (always up-to-date)
         const sourceLines = sourceLinesRef.current;
@@ -209,9 +213,11 @@ function registerGhostTextProvider(
               return lteResult?.remainder ?? "";
             },
             rag: async () => {
-              if (!rag.state.isCorpusLoaded) return "";
+              // Read latest state from ref — NOT from stale closure
+              const ragState = ragRef.current;
+              if (!ragState.state.isCorpusLoaded) return "";
               try {
-                const hits = await rag.search(sourceLine, 1);
+                const hits = await ragState.search(sourceLine, 1);
                 if (hits.length > 0 && hits[0].ar) {
                   const remainder = computeCachedRemainder(hits[0].ar, prefix);
                   return remainder || hits[0].ar;
@@ -226,9 +232,11 @@ function registerGhostTextProvider(
               return computeCachedRemainder(cached.translation, prefix) || "";
             },
             webllm: async () => {
-              if (!webLLM.isReady) return "";
+              // Read latest state from ref — NOT from stale closure
+              const wllm = webLLMRef.current;
+              if (!wllm.isReady) return "";
               try {
-                const result = await webLLM.generateBurst(sourceLine, prefix);
+                const result = await wllm.generateBurst(sourceLine, prefix);
                 if (result.text && !result.aborted) {
                   return result.text;
                 }
@@ -238,9 +246,11 @@ function registerGhostTextProvider(
               return "";
             },
             gemini: async () => {
-              if (!gemini.isAvailable) return "";
+              // Read latest state from ref — NOT from stale closure
+              const gem = geminiRef.current;
+              if (!gem.isAvailable) return "";
               try {
-                const result = await gemini.generateBurst(sourceLine, prefix);
+                const result = await gem.generateBurst(sourceLine, prefix);
                 if (result.text) {
                   return result.text;
                 }
@@ -379,16 +389,29 @@ export function TargetEditor({
   const sourceLinesRef = useRef<string[]>(sourceLines);
   sourceLinesRef.current = sourceLines; // Update on every render
 
+  // ── CRITICAL FIX: Refs for hook state to prevent stale closures ──
+  // The ghost text provider reads from these refs on every invocation,
+  // so it always sees the latest WebLLM/Gemini/RAG readiness state.
+  const webLLM = useWebLLM();
+  const gemini = useGemini();
+  const rag = useRAG();
+
+  const webLLMRef = useRef(webLLM);
+  const geminiRef = useRef(gemini);
+  const ragRef = useRef(rag);
+
+  // Update refs on every render so the provider always has fresh state
+  useEffect(() => { webLLMRef.current = webLLM; }, [webLLM]);
+  useEffect(() => { geminiRef.current = gemini; }, [gemini]);
+  useEffect(() => { ragRef.current = rag; }, [rag]);
+
   // ── Debounce timer for idle-trigger re-suggest ──────────────────
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // ── Debounce timer for cursor position change trigger ──────────
   const cursorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── Initialize AI engines (SSR-safe via hooks) ────────────
-  const webLLM = useWebLLM();
-  const gemini = useGemini();
-  const rag = useRAG();
-  const { theme } = useTheme();
+  // ── Theme ────────────────────────────────────────────────────────
+  const { theme, setTheme } = useTheme();
   const isDark = theme === "dark";
 
   // Report WebGPU state to parent
@@ -414,6 +437,15 @@ export function TargetEditor({
     }
   }, [direction]);
 
+  // ── Update Monaco theme when app theme changes ──────────────────
+  useEffect(() => {
+    if (editorRef.current && monacoRef.current) {
+      editorRef.current.updateOptions({
+        theme: isDark ? "rdat-dark" : "rdat-light",
+      } as any);
+    }
+  }, [isDark]);
+
   const handleEditorDidMount: OnMount = useCallback(
     (editor, monaco) => {
       editorRef.current = editor;
@@ -423,6 +455,7 @@ export function TargetEditor({
       editor.updateOptions({
         ...(EDITOR_OPTIONS as any),
         direction,
+        theme: isDark ? "rdat-dark" : "rdat-light",
       });
 
       // Register provider ONCE (not on every render) to fix memory leak
@@ -437,13 +470,14 @@ export function TargetEditor({
           ghostProviderRef.current.dispose();
         }
 
-        // Register new provider with ref-based sourceLines access
+        // Register new provider with REF-based access to hook state
+        // This is the CRITICAL FIX: refs are always up-to-date
         ghostProviderRef.current = registerGhostTextProvider(
           monaco,
           sourceLinesRef,
-          webLLM,
-          gemini,
-          rag,
+          webLLMRef,   // Ref, not direct value
+          geminiRef,   // Ref, not direct value
+          ragRef,      // Ref, not direct value
           suggestionProviderRef.current,
           editorRef
         );
@@ -530,8 +564,8 @@ export function TargetEditor({
 
       // ── Interrupt AI generation on typing ──────────────────
       editor.onDidChangeModelContent(() => {
-        webLLM.interruptGenerate();
-        gemini.interruptGenerate();
+        webLLMRef.current.interruptGenerate();
+        geminiRef.current.interruptGenerate();
 
         // Cancel any stale suggestion pipeline
         suggestionProviderRef.current?.cancelPending();
@@ -563,7 +597,7 @@ export function TargetEditor({
         }, 200);
       });
     },
-    [onCursorChange, webLLM, gemini, rag, direction]
+    [onCursorChange, direction, isDark]
   );
 
   // Cleanup on unmount

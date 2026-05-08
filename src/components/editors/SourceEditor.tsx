@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
@@ -80,6 +80,7 @@ export function SourceEditor({
     editor.updateOptions({
       ...(EDITOR_OPTIONS as any),
       direction,
+      theme: isDark ? "rdat-dark" : "rdat-light",
     });
   };
 
@@ -89,6 +90,15 @@ export function SourceEditor({
       editorRef.current.updateOptions({ direction } as any);
     }
   }, [direction]);
+
+  // Update Monaco theme when app theme changes
+  useEffect(() => {
+    if (editorRef.current && monacoRef.current) {
+      editorRef.current.updateOptions({
+        theme: isDark ? "rdat-dark" : "rdat-light",
+      } as any);
+    }
+  }, [isDark]);
 
   // Update line highlight decorations
   useEffect(() => {

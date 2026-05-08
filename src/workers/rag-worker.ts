@@ -1,11 +1,13 @@
 /**
  * RAG Worker — State Machine Implementation
- * 
+ *
  * Three-phase state machine with proper initialization sequence:
- *  Phase 1: Load BGE-M3 embeddings model
- *  Phase 2: Index corpus after models load
+ *  Phase 1: Initialize hash-based embedding system (always available)
+ *  Phase 2: Index corpus using Orama full-text search (BM25)
  *  Phase 3: Process search requests with timeout handling
- * 
+ *
+ * FIX: Removed broken vector search (Orama schema lacked vector property).
+ * Now uses BM25 full-text search which is reliable and requires no plugins.
  * Queue requests during initialization to prevent data loss.
  */
 
@@ -28,8 +30,6 @@ let state: WorkerState = {
   error: null,
 };
 
-// Lazy-loaded embedding pipeline
-let embeddingPipeline: any = null;
 let db: AnyOrama | null = null;
 
 // Queue for requests during initialization
@@ -51,8 +51,8 @@ interface SearchResult {
 }
 
 /**
- * Phase 1: Initialize embedding models.
- * Uses lightweight hash-based embedding instead of neural models for worker compatibility.
+ * Phase 1: Initialize embedding/text search system.
+ * Always succeeds since we use BM25 full-text search (no ML deps).
  */
 async function initializeModels(): Promise<void> {
   if (state.modelsLoaded) return;
@@ -62,13 +62,12 @@ async function initializeModels(): Promise<void> {
     state.error = null;
     self.postMessage({ type: "STATE_CHANGE", payload: { status: "initializing" } });
 
-    console.log("[RAG Worker] Initializing embedding system with hash-based method");
+    console.log("[RAG Worker] Initializing BM25 full-text search system");
     
-    // Hash-based embedding is always available, no external dependencies needed
-    // This ensures RAG works reliably in worker context
+    // BM25 text search is always available — no external dependencies needed
     state.modelsLoaded = true;
-    console.log("[RAG Worker] Embedding system initialized (hash-based)");
-    self.postMessage({ type: "MODELS_READY", payload: { model: "hash-based-embedding" } });
+    console.log("[RAG Worker] Search system initialized (BM25 full-text)");
+    self.postMessage({ type: "MODELS_READY", payload: { model: "bm25-fulltext" } });
   } catch (err: any) {
     state.status = "error";
     state.error = err?.message || String(err);
@@ -82,6 +81,7 @@ async function initializeModels(): Promise<void> {
 
 /**
  * Initialize Orama database with proper schema.
+ * Uses string properties for BM25 full-text search on English text.
  */
 async function initDB(): Promise<void> {
   if (db) return;
@@ -90,10 +90,10 @@ async function initDB(): Promise<void> {
     console.log("[RAG Worker] Initializing Orama database...");
     db = await create({
       schema: {
-        en: "string",
-        ar: "string",
-        type: "string",
-        index: "number",
+        en: "string",   // BM25 full-text search on English source
+        ar: "string",   // Stored as-is for retrieval
+        type: "string", // Document type (tm, glossary, etc.)
+        index: "number", // Original corpus index
       },
     });
     console.log("[RAG Worker] Database initialized");
@@ -104,45 +104,11 @@ async function initDB(): Promise<void> {
 }
 
 /**
- * Generate embedding for text using hash-based method.
- * Simple and reliable, no external ML libraries needed.
- */
-async function embed(text: string): Promise<number[]> {
-  // Always use hash-based embedding for reliability in worker context
-  return simpleHashEmbedding(text, 384);
-}
-
-/**
- * Simple hash-based embedding fallback.
- */
-function simpleHashEmbedding(text: string, dims: number = 384): number[] {
-  const vector = new Float32Array(dims);
-  const normalized = text.toLowerCase().trim();
-
-  for (let i = 0; i < normalized.length - 2; i++) {
-    const trigram = normalized.substring(i, i + 3);
-    let hash = 5381;
-    for (let j = 0; j < trigram.length; j++) {
-      hash = ((hash << 5) + hash) + trigram.charCodeAt(j);
-      hash = hash & hash;
-    }
-    const idx = Math.abs(hash) % dims;
-    vector[idx] += 1;
-  }
-
-  let norm = 0;
-  for (let i = 0; i < dims; i++) norm += vector[i] * vector[i];
-  norm = Math.sqrt(norm) || 1;
-  for (let i = 0; i < dims; i++) vector[i] /= norm;
-
-  return Array.from(vector);
-}
-
-/**
  * Phase 2: Index corpus after models load (batch size 10).
+ * No embedding needed — Orama handles BM25 indexing internally.
  */
 async function indexCorpus(entries: Array<{ en: string; ar: string; type: string }>): Promise<void> {
-  if (!state.modelsLoaded && !embeddingPipeline) {
+  if (!state.modelsLoaded) {
     console.warn("[RAG Worker] Models not loaded, initializing...");
     await initializeModels();
     if (!state.modelsLoaded) {
@@ -173,26 +139,8 @@ async function indexCorpus(entries: Array<{ en: string; ar: string; type: string
       const batch = corpusEntries.slice(i, i + batchSize);
       
       try {
-        const docs = await Promise.all(
-          batch.map(async (entry) => {
-            try {
-              const embedding = await embed(entry.en);
-              return {
-                ...entry,
-                embedding,
-              };
-            } catch (err: any) {
-              console.warn(`[RAG Worker] Failed to embed entry ${entry.index}:`, err);
-              return {
-                ...entry,
-                embedding: simpleHashEmbedding(entry.en, 384),
-              };
-            }
-          })
-        );
-
-        await insertMultiple(db!, docs);
-        processed += docs.length;
+        await insertMultiple(db!, batch);
+        processed += batch.length;
       } catch (batchErr: any) {
         console.error(`[RAG Worker] Batch ${i / batchSize} failed:`, batchErr);
         // Continue with next batch
@@ -229,22 +177,19 @@ async function indexCorpus(entries: Array<{ en: string; ar: string; type: string
 
 /**
  * Phase 3: Handle search requests with timeout.
+ * Uses BM25 full-text search on the English text.
  */
 async function handleSearchRequest(query: string, limit: number = 3): Promise<SearchResult[]> {
   if (!db) {
     throw new Error("Database not initialized");
   }
 
-  const queryEmbedding = await embed(query);
-
   try {
     const results = await oramaSearch(db!, {
-      mode: "vector" as any,
-      vector: {
-        value: queryEmbedding,
-        property: "embedding",
-      },
+      term: query,
+      properties: ["en"],  // Search English source text
       limit,
+      tolerance: 2,         // Allow some fuzziness in matching
     });
 
     return results.hits.map((hit: any) => ({
@@ -272,12 +217,12 @@ async function processQueue(): Promise<void> {
         const hits = await handleSearchRequest(payload.query, payload.limit);
         self.postMessage({
           type: "SEARCH_RESULTS",
-          payload: { id, hits },
+          payload: { id, hits, query: payload.query },
         });
       } catch (err: any) {
         self.postMessage({
           type: "SEARCH_ERROR",
-          payload: { id, error: err.message },
+          payload: { id, error: err.message, query: payload.query },
         });
       }
     }

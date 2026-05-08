@@ -9,7 +9,7 @@ interface CorpusEntry {
   type: string;
 }
 
-interface RAGHit {
+export interface RAGHit {
   score: number;
   en: string;
   ar: string;
@@ -40,7 +40,7 @@ interface SearchRequest {
  *  - Worker lifecycle (rag-worker.ts with state machine)
  *  - Proper initialization sequence (models → corpus → ready)
  *  - Request queueing during initialization
- *  - 30-second init timeout with fallback
+ *  - 15-second init timeout with fallback
  *  - 5-second search timeout with LTE fallback
  */
 export function useRAG() {
@@ -62,6 +62,37 @@ export function useRAG() {
   const searchCallbacksRef = useRef<Map<string, (hits: RAGHit[]) => void>>(new Map());
   const corpusRef = useRef<CorpusEntry[]>([]);
 
+  /**
+   * Process queued searches after corpus is loaded.
+   * Reads from refs to avoid stale closures.
+   */
+  const processSearchQueue = useCallback(() => {
+    const queue = [...searchQueueRef.current];
+    searchQueueRef.current = [];
+
+    for (const request of queue) {
+      if (workerRef.current && state.isCorpusLoaded) {
+        searchCallbacksRef.current.set(request.query, request.resolve);
+        workerRef.current.postMessage({
+          type: "SEARCH",
+          payload: { query: request.query, limit: request.limit, id: request.id },
+        });
+      } else {
+        // Fallback to LTE
+        const lteResults = lteRef.current?.search(request.query, request.limit) ?? [];
+        request.resolve(
+          lteResults.map((r, i) => ({
+            score: r.score,
+            en: r.en,
+            ar: r.ar,
+            type: r.type,
+            index: i,
+          }))
+        );
+      }
+    }
+  }, [state.isCorpusLoaded]);
+
   // ── Initialize Worker + LTE on mount ──────────────────────
   useEffect(() => {
     let cancelled = false;
@@ -82,13 +113,15 @@ export function useRAG() {
         lte.load(corpus);
 
         if (cancelled) return;
+
+        // Set ready state — LTE is loaded, user can start typing
         setState((prev) => ({
           ...prev,
           corpusSize: corpus.length,
           isLoading: false,
         }));
 
-        // 4. Initialize Web Worker (async, runs in background)
+        // 4. Initialize Web Worker (async, runs in background — non-blocking)
         try {
           const worker = new Worker(
             new URL("../workers/rag-worker.ts", import.meta.url),
@@ -96,19 +129,17 @@ export function useRAG() {
           );
           workerRef.current = worker;
 
-          // Setup timeout for initialization (30 seconds)
+          // Setup timeout for initialization (15 seconds — RAG is optional)
           initTimeoutRef.current = setTimeout(() => {
-            if (!cancelled && !state.isCorpusLoaded) {
+            if (!cancelled) {
               console.warn("[RAG] Initialization timeout — using LTE fallback");
-              if (!cancelled) {
-                setState((prev) => ({
-                  ...prev,
-                  isLoading: false,
-                  error: "RAG initialization timeout — using LTE only",
-                }));
-              }
+              setState((prev) => ({
+                ...prev,
+                isLoading: false,
+                error: "RAG init timeout — using LTE only",
+              }));
             }
-          }, 30000);
+          }, 15000);
 
           // Listen for worker messages
           worker.onmessage = (event) => {
@@ -168,6 +199,7 @@ export function useRAG() {
                   isLoading: false,
                   corpusSize: payload.count,
                   modelsLoaded: true,
+                  error: null, // Clear any previous error
                 }));
                 // Process any queued searches
                 processSearchQueue();
@@ -217,6 +249,7 @@ export function useRAG() {
                 ...prev,
                 error: `Worker error: ${err.message}`,
                 isWorkerReady: false,
+                isLoading: false,
               }));
             }
           };
@@ -260,37 +293,7 @@ export function useRAG() {
         workerRef.current = null;
       }
     };
-  }, []);
-
-  /**
-   * Process queued searches after corpus is loaded.
-   */
-  const processSearchQueue = useCallback(() => {
-    const queue = [...searchQueueRef.current];
-    searchQueueRef.current = [];
-
-    for (const request of queue) {
-      if (workerRef.current && state.isCorpusLoaded) {
-        searchCallbacksRef.current.set(request.query, request.resolve);
-        workerRef.current.postMessage({
-          type: "SEARCH",
-          payload: { query: request.query, limit: request.limit, id: request.id },
-        });
-      } else {
-        // Fallback to LTE
-        const lteResults = lteRef.current?.search(request.query, request.limit) ?? [];
-        request.resolve(
-          lteResults.map((r, i) => ({
-            score: r.score,
-            en: r.en,
-            ar: r.ar,
-            type: r.type,
-            index: i,
-          }))
-        );
-      }
-    }
-  }, [state.isCorpusLoaded]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Semantic Search (via Worker with queueing) ───────────
   const search = useCallback(

@@ -2,8 +2,9 @@
 
 import React from "react";
 import { cn } from "@/lib/utils";
-import { Wifi, WifiOff, Cpu, Cloud, Zap, Database } from "lucide-react";
+import { Wifi, WifiOff, Cpu, Cloud, Zap, Database, Search } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
+import type { RAGState } from "@/hooks/useRAG";
 
 export type EngineMode = "hybrid" | "local" | "cloud";
 export type GTRStatus = "active" | "zero-shot";
@@ -20,6 +21,7 @@ interface StatusBarProps {
   gtrStatus?: GTRStatus;
   webgpuInfo?: WebGPUInfo;
   geminiAvailable?: boolean;
+  ragState?: RAGState;
   segmentCount?: number;
   wordCount?: number;
 }
@@ -78,6 +80,14 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
   const { t, locale } = useLanguage();
   const isRTL = locale === "ar";
 
+  // Map WebLLM states to displayable states
+  // WebLLM has "recovering" which isn't in WebGPUState — treat as "initializing"
+  const safeState: WebGPUState = 
+    ["ready", "unavailable", "loading", "downloading", "generating", "error", "initializing"]
+      .includes(info.state) 
+      ? info.state 
+      : "loading";
+
   const config: Record<WebGPUState, { icon: React.ReactNode; bg: string; label: string }> = {
     ready: {
       icon: <Wifi className="w-3 h-3" />,
@@ -86,8 +96,8 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
     },
     unavailable: {
       icon: <WifiOff className="w-3 h-3" />,
-      bg: "bg-warning-bg text-warning",
-      label: t("status.webgpu.unavailable"),
+      bg: "bg-surface-hover text-muted-foreground",
+      label: "WebGPU N/A",
     },
     loading: {
       icon: <Cpu className="w-3 h-3 animate-pulse" />,
@@ -96,7 +106,7 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
     },
     initializing: {
       icon: <Cpu className="w-3 h-3 animate-pulse" />,
-      bg: "bg-surface-hover text-muted-foreground",
+      bg: "bg-blue-900/40 text-blue-400",
       label: isRTL ? "تهيئة..." : "Initializing...",
     },
     downloading: {
@@ -116,11 +126,11 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
     },
   };
 
-  const { icon, bg } = config[info.state] ?? config.unavailable;
+  const { icon, bg } = config[safeState] ?? config.loading;
 
   // For downloading state, show progress
   let label: React.ReactNode;
-  if (info.state === "downloading" && info.progress) {
+  if (safeState === "downloading" && info.progress) {
     label = (
       <div className="flex items-center gap-2">
         <span>WebGPU</span>
@@ -130,18 +140,17 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
         <span>{info.progress.percentage.toFixed(0)}%</span>
       </div>
     );
-  } else if (info.state === "error" && info.error) {
+  } else if (safeState === "error" && info.error) {
     label = info.error.substring(0, 30);
   } else {
-    label = config[info.state]?.label ?? "";
+    label = config[safeState]?.label ?? "";
   }
 
   return (
     <div
       className={cn(
         "flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold",
-        bg,
-        info.state === "initializing" && "opacity-60 grayscale"
+        bg
       )}
     >
       {icon}
@@ -152,11 +161,61 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
   );
 };
 
+const RAGBadge: React.FC<{ ragState?: RAGState }> = ({ ragState }) => {
+  const { locale } = useLanguage();
+  const isRTL = locale === "ar";
+
+  if (!ragState) return null;
+
+  // RAG is working if corpus is indexed in the worker
+  if (ragState.isCorpusLoaded) {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-primary-muted text-primary">
+        <Search className="w-3 h-3" />
+        <span>RAG ✓ {ragState.corpusSize}</span>
+      </div>
+    );
+  }
+
+  // RAG is still loading
+  if (ragState.isLoading) {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-surface-hover text-muted-foreground">
+        <Search className="w-3 h-3 animate-pulse" />
+        <span>{isRTL ? "RAG جاري التحميل" : "RAG Loading"}</span>
+      </div>
+    );
+  }
+
+  // RAG has error — show LTE fallback indicator
+  if (ragState.error) {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-warning-bg text-warning" title={ragState.error}>
+        <Database className="w-3 h-3" />
+        <span>LTE {ragState.corpusSize > 0 ? `✓${ragState.corpusSize}` : ""}</span>
+      </div>
+    );
+  }
+
+  // RAG worker not ready but LTE loaded
+  if (ragState.corpusSize > 0) {
+    return (
+      <div className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-surface-hover text-muted-foreground">
+        <Database className="w-3 h-3" />
+        <span>LTE ✓ {ragState.corpusSize}</span>
+      </div>
+    );
+  }
+
+  return null;
+};
+
 export function StatusBar({
   engineMode = "hybrid",
   gtrStatus = "zero-shot",
   webgpuInfo = { state: "loading" },
   geminiAvailable = false,
+  ragState,
   segmentCount = 0,
   wordCount = 0,
 }: StatusBarProps) {
@@ -179,6 +238,7 @@ export function StatusBar({
             <span>Gemini</span>
           </div>
         )}
+        <RAGBadge ragState={ragState} />
       </div>
 
       {/* Right Section: Document Stats */}

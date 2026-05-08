@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Sidebar, NavItem } from "./Sidebar";
 import { StatusBar, EngineMode, GTRStatus } from "./StatusBar";
 import type { WebGPUInfo } from "./StatusBar";
+import type { RAGState } from "@/hooks/useRAG";
 import { WelcomeTab } from "./WelcomeTab";
 import { TranslationWorkspace } from "./editors/TranslationWorkspace";
 import { SettingsPanel } from "./Settings";
@@ -14,7 +15,7 @@ import { InstallPWAButton } from "./InstallPWAButton";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
 import { useTheme } from "next-themes";
-import { Sun, Moon, HelpCircle } from "lucide-react";
+import { Sun, Moon, HelpCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 interface WorkspaceShellProps {
   children?: React.ReactNode;
@@ -32,6 +33,14 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
   // AI engine state
   const [webgpuInfo, setWebgpuInfo] = useState<WebGPUInfo>({ state: "loading" });
   const [geminiAvailable, setGeminiAvailable] = useState(false);
+  const [ragState, setRagState] = useState<RAGState>({
+    isWorkerReady: false,
+    isCorpusLoaded: false,
+    isLoading: true,
+    error: null,
+    corpusSize: 0,
+    modelsLoaded: false,
+  });
 
   // Auto-open guide on first visit and ensure hydration
   useEffect(() => {
@@ -45,7 +54,10 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
 
   // Placeholder status props
   const engineMode: EngineMode = "hybrid";
-  const gtrStatus: GTRStatus = "zero-shot";
+  const gtrStatus: GTRStatus = ragState.corpusSize > 0 ? "active" : "zero-shot";
+
+  // Derive overall system ready state
+  const isLTEReady = !ragState.isLoading && ragState.corpusSize > 0;
 
   const navTitleMap: Record<NavItem, string> = {
     translator: t("workspace.title.translator"),
@@ -63,6 +75,7 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
           <TranslationWorkspace
             onWebgpuStateChange={setWebgpuInfo}
             onGeminiAvailableChange={setGeminiAvailable}
+            onRagStateChange={setRagState}
           />
         );
       case "glossary":
@@ -110,8 +123,9 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
               {mounted && (
                 <button
                   onClick={() => setTheme(isDark ? "light" : "dark")}
-                  className="p-1.5 rounded-md hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
+                  className="p-1.5 rounded-md hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-all duration-200"
                   title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                  aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                 >
                   {isDark ? (
                     <Sun className="w-4 h-4" />
@@ -132,10 +146,21 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
 
               {/* Ready Indicator */}
               <div className="flex items-center gap-1.5 ml-1">
-                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                <span className="text-xs text-muted-foreground">
-                  {t("status.ready")}
-                </span>
+                {isLTEReady ? (
+                  <>
+                    <div className="w-2 h-2 rounded-full bg-primary" />
+                    <span className="text-xs text-primary">
+                      {locale === "ar" ? "جاهز" : "Ready"}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin" />
+                    <span className="text-xs text-muted-foreground">
+                      {locale === "ar" ? "جاري التحميل…" : "Loading…"}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </header>
@@ -153,6 +178,7 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
         gtrStatus={gtrStatus}
         webgpuInfo={webgpuInfo}
         geminiAvailable={geminiAvailable}
+        ragState={ragState}
         segmentCount={0}
         wordCount={0}
       />

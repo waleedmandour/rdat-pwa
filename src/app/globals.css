@@ -74,6 +74,20 @@ body {
   color: var(--color-foreground);
   font-family: var(--font-sans), var(--font-noto-arabic), system-ui, sans-serif;
   overflow: hidden; /* IDE-like fixed viewport */
+  /* Smooth dark/light mode transition */
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Smooth theme transitions for all themed elements */
+header,
+footer,
+.sidebar,
+.bg-surface,
+.bg-sidebar,
+.bg-background,
+.border-border,
+.border-muted {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
 
 /* Arabic text rendering */

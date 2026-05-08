@@ -42,6 +42,7 @@ interface TranslationWorkspaceProps {
   onTargetChange?: (value: string | undefined) => void;
   onWebgpuStateChange?: (state: import("@/components/StatusBar").WebGPUInfo) => void;
   onGeminiAvailableChange?: (available: boolean) => void;
+  onRagStateChange?: (state: import("@/hooks/useRAG").RAGState) => void;
 }
 
 export function TranslationWorkspace({
@@ -51,6 +52,7 @@ export function TranslationWorkspace({
   onTargetChange,
   onWebgpuStateChange,
   onGeminiAvailableChange,
+  onRagStateChange,
 }: TranslationWorkspaceProps) {
   const { locale } = useLanguage();
   const { state: ragState, lteSuggest, search } = useRAG();
@@ -73,8 +75,14 @@ export function TranslationWorkspace({
   const sourceLangLabel = swapDirection ? "AR" : "EN";
   const targetLangLabel = swapDirection ? "EN" : "AR";
 
-  // System readiness — block target editor until RAG+LTE are initialized
+  // System readiness — only block on LTE (corpus loaded into memory).
+  // RAG worker is optional enhancement; don't block typing on it.
   const isSystemReady = !ragState.isLoading && ragState.corpusSize > 0;
+
+  // Report RAG state to parent (for StatusBar)
+  useEffect(() => {
+    onRagStateChange?.(ragState);
+  }, [ragState, onRagStateChange]);
 
   // Memoized source lines array for ghost text + prefetch
   const sourceLinesArr = useMemo(() => sourceValue.split("\n"), [sourceValue]);
@@ -237,6 +245,11 @@ export function TranslationWorkspace({
                 ✓ {ragState.corpusSize} {locale === "ar" ? "مقطع" : "segments"}
               </span>
             )}
+            {ragState.error && (
+              <span className="text-[10px] text-warning" title={ragState.error}>
+                ⚠ RAG: {locale === "ar" ? "استخدام LTE فقط" : "LTE fallback"}
+              </span>
+            )}
           </div>
           <button 
             onClick={() => setSwapDirection(d => !d)}
@@ -298,13 +311,16 @@ export function TranslationWorkspace({
               direction={targetDir}
             />
           </div>
-          {/* Initialization overlay — blocks typing until system is ready */}
+          {/* Initialization overlay — blocks typing until LTE corpus is loaded */}
           {!isSystemReady && (
             <div className="absolute inset-0 top-8 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10 cursor-wait">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
                 <span className="text-sm text-muted-foreground">
                   {locale === "ar" ? "جاري تهيئة المحرك…" : "Initializing engine…"}
+                </span>
+                <span className="text-[10px] text-muted-foreground/60">
+                  {locale === "ar" ? "تحميل قاموس الترجمة" : "Loading translation corpus"}
                 </span>
               </div>
             </div>
