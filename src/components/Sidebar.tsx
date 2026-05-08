@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   BookOpen,
   Languages,
@@ -50,7 +50,11 @@ export function Sidebar({
 }: SidebarProps) {
   const { t, locale, toggleLocale } = useLanguage();
   const [hoveredItem, setHoveredItem] = useState<NavItem | null>(null);
+  const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+
+  // Prevent hydration mismatch — theme is undefined on server
+  useEffect(() => { setMounted(true); }, []);
 
   const navItems: { id: NavItem; label: string; icon: React.ElementType }[] = [
     { id: "translator", label: t("nav.translator"), icon: navIconMap.translator },
@@ -143,6 +147,7 @@ export function Sidebar({
 
       {/* Language Toggle + Footer */}
       <div className="border-t border-border">
+        {mounted && (
         <button
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           className={cn(
@@ -158,6 +163,7 @@ export function Sidebar({
             </span>
           )}
         </button>
+        )}
 
         <button
           onClick={toggleLocale}

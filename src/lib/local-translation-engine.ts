@@ -456,6 +456,18 @@ export class LocalTranslationEngine {
       indexedKeys: this.normalizedIndex.size,
     };
   }
+
+  /**
+   * Get all corpus entries. Used for displaying glossary/table views.
+   */
+  getAll(): Array<{ en: string; ar: string; score: number; type: string }> {
+    return this.corpus.map((entry) => ({
+      en: entry.en,
+      ar: entry.ar,
+      score: 1.0,
+      type: entry.type,
+    }));
+  }
 }
 
 // Singleton instance for global access

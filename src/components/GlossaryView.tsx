@@ -33,7 +33,10 @@ export function GlossaryView() {
 
   // Get corpus stats from LTE
   const stats = getLTE().getStats();
-  const entries = lteSearch(searchTerm || " ", 100);
+  // When searching, use semantic search; otherwise show all entries
+  const entries = searchTerm.trim()
+    ? lteSearch(searchTerm, 100)
+    : getLTE().getAll();
 
   const handleFileUpload = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 
 // Dynamically import Monaco to prevent SSR hydration crashes
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
@@ -54,10 +55,26 @@ export function SourceEditor({
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
   const decorationsRef = useRef<string[]>([]);
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
+
+    // Define custom themes for both dark and light modes
+    monaco.editor.defineTheme("rdat-dark", {
+      base: "vs-dark",
+      inherit: true,
+      rules: [],
+      colors: {},
+    });
+    monaco.editor.defineTheme("rdat-light", {
+      base: "vs",
+      inherit: true,
+      rules: [],
+      colors: {},
+    });
 
     // Explicit cast since Monaco types don't include 'direction'
     editor.updateOptions({
@@ -126,7 +143,7 @@ export function SourceEditor({
         onChange={onChange}
         options={EDITOR_OPTIONS}
         onMount={handleEditorDidMount}
-        theme="vs-dark"
+        theme={isDark ? "rdat-dark" : "rdat-light"}
       />
       <style jsx global>{`
         .source-line-highlight {

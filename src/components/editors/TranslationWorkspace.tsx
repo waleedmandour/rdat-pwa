@@ -73,6 +73,9 @@ export function TranslationWorkspace({
   const sourceLangLabel = swapDirection ? "AR" : "EN";
   const targetLangLabel = swapDirection ? "EN" : "AR";
 
+  // System readiness — block target editor until RAG+LTE are initialized
+  const isSystemReady = !ragState.isLoading && ragState.corpusSize > 0;
+
   // Memoized source lines array for ghost text + prefetch
   const sourceLinesArr = useMemo(() => sourceValue.split("\n"), [sourceValue]);
 
@@ -276,7 +279,7 @@ export function TranslationWorkspace({
         </div>
 
         {/* Target Pane (Editable, Auto Direction) */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden relative">
           <TargetToolbar 
             targetText={targetValue} 
             onClear={handleClear} 
@@ -295,6 +298,17 @@ export function TranslationWorkspace({
               direction={targetDir}
             />
           </div>
+          {/* Initialization overlay — blocks typing until system is ready */}
+          {!isSystemReady && (
+            <div className="absolute inset-0 top-8 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10 cursor-wait">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                <span className="text-sm text-muted-foreground">
+                  {locale === "ar" ? "جاري تهيئة المحرك…" : "Initializing engine…"}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

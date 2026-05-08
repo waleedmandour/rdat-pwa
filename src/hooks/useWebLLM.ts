@@ -78,8 +78,10 @@ export function useWebLLM() {
           setError("No WebGPU adapter found");
           return;
         }
-        // WebGPU is available, engine will initialize on first use
-        setState("initializing");
+        // WebGPU is available — report ready state immediately
+        // The engine will initialize lazily on first use
+        setState("ready");
+        setError(null);
       },
       () => {
         setState("unavailable");

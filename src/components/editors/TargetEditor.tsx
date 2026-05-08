@@ -12,6 +12,7 @@ import { useWebLLM } from "@/hooks/useWebLLM";
 import { useGemini } from "@/hooks/useGemini";
 import { useRAG } from "@/hooks/useRAG";
 import { MonacoSuggestionProvider } from "@/lib/monaco-suggestion-provider";
+import { useTheme } from "next-themes";
 import type { WebGPUInfo } from "@/components/StatusBar";
 
 // Dynamically import Monaco to prevent SSR hydration crashes
@@ -387,6 +388,8 @@ export function TargetEditor({
   const webLLM = useWebLLM();
   const gemini = useGemini();
   const rag = useRAG();
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   // Report WebGPU state to parent
   useEffect(() => {
@@ -447,14 +450,22 @@ export function TargetEditor({
 
         providerRegisteredRef.current = true;
 
-        // ── Define custom theme with ghost text foreground color ──
-        // Ensures ghost text is visible in RTL mode with dark theme
+        // ── Define custom themes with ghost text foreground color ──
+        // Ensures ghost text is visible in both dark and light modes
         monaco.editor.defineTheme("rdat-dark", {
           base: "vs-dark",
           inherit: true,
           rules: [],
           colors: {
             "editor.inlineSuggest.foreground": "#64748b",
+          },
+        });
+        monaco.editor.defineTheme("rdat-light", {
+          base: "vs",
+          inherit: true,
+          rules: [],
+          colors: {
+            "editor.inlineSuggest.foreground": "#94a3b8",
           },
         });
 
@@ -587,7 +598,7 @@ export function TargetEditor({
           direction: "rtl",
         }}
         onMount={handleEditorDidMount}
-        theme="rdat-dark"
+        theme={isDark ? "rdat-dark" : "rdat-light"}
       />
     </div>
   );

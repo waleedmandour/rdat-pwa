@@ -210,6 +210,12 @@ async function indexCorpus(entries: Array<{ en: string; ar: string; type: string
     state.status = "ready";
     console.log(`[RAG Worker] Corpus indexed: ${processed}/${corpusEntries.length} entries`);
 
+    // CRITICAL: Notify main thread that indexing is complete
+    self.postMessage({
+      type: "INDEXING_COMPLETE",
+      payload: { count: processed },
+    });
+
   } catch (err: any) {
     state.status = "error";
     state.error = err.message;
