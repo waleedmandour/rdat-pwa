@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useCallback, useEffect } from "react";
+import React, { useRef, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor, languages, IDisposable } from "monaco-editor";
@@ -33,13 +33,12 @@ interface TargetEditorProps {
   direction?: "ltr" | "rtl";
 }
 
-const EDITOR_OPTIONS = {
+const BASE_EDITOR_OPTIONS = {
   readOnly: false,
   minimap: { enabled: false },
   lineNumbers: "on" as const,
   wordWrap: "on" as const,
   fontSize: 14,
-  fontFamily: "'Noto Sans Arabic', 'JetBrains Mono', 'Fira Code', monospace",
   lineDecorationsWidth: 4,
   lineNumbersMinChars: 3,
   glyphMargin: false,
@@ -56,13 +55,16 @@ const EDITOR_OPTIONS = {
     verticalScrollbarSize: 8,
     horizontalScrollbarSize: 8,
   },
-  // Arabic RTL settings
+  // Prevent dropdown suggestions from fighting with ghost text
   autoClosingBrackets: "always" as const,
+  quickSuggestions: false,
   suggestOnTriggerCharacters: false,
+  suggest: { preview: false },
   tabCompletion: "on" as const,
   // NOTE: Monaco does not have a `direction` option. RTL is handled via CSS
-  // and the browser's bidirectional algorithm. Setting it here with `as any`
-  // was silently ignored and hid the TypeScript error.
+  // `dir` attribute on the container and the browser's bidirectional algorithm.
+  // Setting `direction: 'rtl'` with `as any` was silently ignored and hid
+  // the TypeScript error. Do NOT add it back.
   // Inline suggestions (ghost text)
   inlineSuggest: {
     enabled: true,
@@ -468,26 +470,45 @@ export function TargetEditor({
     onRagStateChange?.(rag.state);
   }, [rag.state, onRagStateChange]);
 
-  // Direction changes are handled via CSS class on the editor container,
+  // Dynamic font family based on direction — Arabic when RTL, Latin when LTR
+  const fontFamily = useMemo(
+    () =>
+      direction === "rtl"
+        ? "'Noto Sans Arabic', 'JetBrains Mono', 'Fira Code', monospace"
+        : "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+    [direction]
+  );
+
+  // Build editor options with dynamic font
+  const editorOptions = useMemo(
+    () => ({
+      ...BASE_EDITOR_OPTIONS,
+      fontFamily,
+    }),
+    [fontFamily]
+  );
+
+  // Direction changes are handled via CSS `dir` attribute on the editor container,
   // not via Monaco's non-existent `direction` option.
 
-  // ── Update Monaco theme when app theme changes ──────────────────
+  // ── Update Monaco theme and font when theme or direction changes ──
   useEffect(() => {
     if (editorRef.current && monacoRef.current) {
       editorRef.current.updateOptions({
         theme: isDark ? "rdat-dark" : "rdat-light",
+        fontFamily,
       } as any);
     }
-  }, [isDark]);
+  }, [isDark, fontFamily]);
 
   const handleEditorDidMount: OnMount = useCallback(
     (editor, monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
 
-      // Apply editor options (RTL is handled via CSS, not Monaco direction option)
+      // Apply editor options (RTL is handled via CSS dir attribute, not Monaco direction option)
       editor.updateOptions({
-        ...EDITOR_OPTIONS,
+        ...editorOptions,
         theme: isDark ? "rdat-dark" : "rdat-light",
       });
 
@@ -650,16 +671,14 @@ export function TargetEditor({
   }, [webLLM, gemini]);
 
   return (
-    <div className={cn("h-full w-full", className)}>
+    <div className={cn("h-full w-full", className)} dir={direction}>
       <MonacoEditor
         height="100%"
         defaultLanguage="plaintext"
         language="plaintext"
         value={value}
         onChange={onChange}
-        options={{
-          ...EDITOR_OPTIONS,
-        }}
+        options={editorOptions}
         onMount={handleEditorDidMount}
         theme={isDark ? "rdat-dark" : "rdat-light"}
       />

@@ -6,13 +6,14 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePredictiveTranslation } from "@/hooks/usePredictiveTranslation";
 import { usePrefetchStore } from "@/stores/prefetch-store";
+import { useWorkspaceStore } from "@/stores/workspace-store";
 import { SourceEditor } from "./SourceEditor";
 import { TargetEditor } from "./TargetEditor";
 import { SegmentHighlighter } from "./SegmentHighlighter";
 import { SourceToolbar } from "./SourceToolbar";
 import { TargetToolbar } from "./TargetToolbar";
 
-// Sample default content for demonstration
+// Sample default content for demonstration (used only when store is empty)
 const DEFAULT_SOURCE = `The future of translation technology lies in the seamless integration of artificial intelligence with human expertise. Computer-assisted translation tools have evolved significantly, moving from simple terminology management to sophisticated neural machine translation systems.
 
 Modern translators work in hybrid environments where AI provides initial suggestions and human linguists refine the output. This collaborative approach ensures both efficiency and quality, particularly for specialized domains like legal, medical, and technical translation.
@@ -32,6 +33,9 @@ const DEFAULT_TARGET = `يكمن مستقبل تكنولوجيا الترجمة 
 تشمل ضمان الجودة في الترجمة طبقات متعددة: اتساق المصطلحات، والصحة النحوية، والملاءمة الثقافية، والدقة المتخصصة. ويستخدم المترجمون المحترفون المسارد وقواعد الترجمة وأدلة الأسلوب للحفاظ على المعايير عبر المشاريع الكبيرة.
 
 غيّر ظهور ميزات التعاون في الوقت الفعلي طريقة عمل فرق الترجمة معاً. تتيح المنصات السحابية لعدة لغويين العمل على نفس المشروع في وقت واحد، مع التحكم في الإصدار وفحوصات الجودة الآلية التي تضمن الاتساق طوال العملية.`;
+
+/** Debounce delay for auto-save writes to localStorage (ms) */
+const AUTOSAVE_DEBOUNCE_MS = 500;
 
 interface TranslationWorkspaceProps {
   sourceContent?: string;
@@ -53,36 +57,60 @@ export function TranslationWorkspace({
   onRagStateChange,
 }: TranslationWorkspaceProps) {
   const { locale } = useLanguage();
-  // NOTE: useRAG() is NOT called here — TargetEditor already creates its own
-  // RAG instance which is the one actually used by the ghost text provider.
-  // Having two instances caused duplicate Web Workers, double corpus fetching,
-  // and double indexing. RAG state for the StatusBar is reported via
-  // the onRagStateChange callback from TargetEditor instead.
   usePredictiveTranslation(); // Activates idle prefetch engine
   const setSourceLines = usePrefetchStore((s) => s.setSourceLines);
   const setActiveLine = usePrefetchStore((s) => s.setActiveLine);
 
-  // Editor state
-  const [sourceValue, setSourceValue] = useState(sourceContent ?? DEFAULT_SOURCE);
-  const [targetValue, setTargetValue] = useState(targetContent ?? DEFAULT_TARGET);
+  // ── Workspace store for auto-save ──────────────────────────────
+  const savedSource = useWorkspaceStore((s) => s.sourceContent);
+  const savedTarget = useWorkspaceStore((s) => s.targetContent);
+  const savedSwap = useWorkspaceStore((s) => s.swapDirection);
+  const setSavedSource = useWorkspaceStore((s) => s.setSourceContent);
+  const setSavedTarget = useWorkspaceStore((s) => s.setTargetContent);
+  const setSavedSwap = useWorkspaceStore((s) => s.setSwapDirection);
+  const toggleSavedSwap = useWorkspaceStore((s) => s.toggleSwapDirection);
 
-  // Sync state — which line is active in each pane
-  const [targetLine, setTargetLine] = useState<number | null>(null);
-  const [sourceLine, setSourceLine] = useState<number | null>(null);
-  
-  // Translation direction
-  const [swapDirection, setSwapDirection] = useState(false);
+  // Editor state — initialize from store (persisted) or props or defaults
+  const [sourceValue, setSourceValue] = useState(
+    sourceContent ?? (savedSource || DEFAULT_SOURCE)
+  );
+  const [targetValue, setTargetValue] = useState(
+    targetContent ?? (savedTarget || DEFAULT_TARGET)
+  );
+
+  // Translation direction — persisted in store
+  const [swapDirection, setSwapDirection] = useState(savedSwap);
   const sourceDir = swapDirection ? "rtl" : "ltr";
   const targetDir = swapDirection ? "ltr" : "rtl";
   const sourceLangLabel = swapDirection ? "AR" : "EN";
   const targetLangLabel = swapDirection ? "EN" : "AR";
 
-  // System readiness — only block on LTE (corpus loaded into memory).
-  // RAG worker is optional enhancement; don't block typing on it.
-  const isSystemReady = true; // Will be updated via RAG state from TargetEditor
+  // Debounce timers for auto-save
+  const sourceSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const targetSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Report RAG state to parent (for StatusBar) — now received from TargetEditor
-  // via onRagStateChange prop instead of duplicate useRAG() call.
+  // Auto-save source with debounce
+  const debouncedSaveSource = useCallback((text: string) => {
+    if (sourceSaveTimer.current) clearTimeout(sourceSaveTimer.current);
+    sourceSaveTimer.current = setTimeout(() => {
+      setSavedSource(text);
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [setSavedSource]);
+
+  // Auto-save target with debounce
+  const debouncedSaveTarget = useCallback((text: string) => {
+    if (targetSaveTimer.current) clearTimeout(targetSaveTimer.current);
+    targetSaveTimer.current = setTimeout(() => {
+      setSavedTarget(text);
+    }, AUTOSAVE_DEBOUNCE_MS);
+  }, [setSavedTarget]);
+
+  // Sync state — which line is active in each pane
+  const [targetLine, setTargetLine] = useState<number | null>(null);
+  const [sourceLine, setSourceLine] = useState<number | null>(null);
+
+  // System readiness — only block on LTE (corpus loaded into memory).
+  const isSystemReady = true;
 
   // Memoized source lines array for ghost text + prefetch
   const sourceLinesArr = useMemo(() => sourceValue.split("\n"), [sourceValue]);
@@ -96,8 +124,6 @@ export function TranslationWorkspace({
   const sourceEditorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const targetEditorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
 
-  // Register editor refs on mount via a small hack
-  // We intercept the onMount through a wrapper
   const handleSourceMount = useCallback((editor: editor.IStandaloneCodeEditor) => {
     sourceEditorRef.current = editor;
   }, []);
@@ -109,40 +135,58 @@ export function TranslationWorkspace({
   // Handle cursor change from Target editor
   const handleTargetCursorChange = useCallback((lineNumber: number) => {
     setTargetLine(lineNumber);
-    // Bidirectional sync: source line = target line (1:1 alignment)
     setSourceLine(lineNumber);
-    // Notify prefetch store of active line (triggers idle prefetch)
     setActiveLine(lineNumber);
   }, [setActiveLine]);
 
-  // Handle source content changes
+  // Handle source content changes — update state + auto-save
   const handleSourceChange = useCallback(
     (value: string | undefined) => {
-      setSourceValue(value ?? "");
+      const text = value ?? "";
+      setSourceValue(text);
+      debouncedSaveSource(text);
       onSourceChange?.(value);
     },
-    [onSourceChange]
+    [onSourceChange, debouncedSaveSource]
   );
 
-  // Handle target content changes
+  // Handle target content changes — update state + auto-save
   const handleTargetChange = useCallback(
     (value: string | undefined) => {
-      setTargetValue(value ?? "");
+      const text = value ?? "";
+      setTargetValue(text);
+      debouncedSaveTarget(text);
       onTargetChange?.(value);
     },
-    [onTargetChange]
+    [onTargetChange, debouncedSaveTarget]
   );
+
+  // Handle language swap — persist to store
+  const handleSwapDirection = useCallback(() => {
+    setSwapDirection((d) => !d);
+    toggleSavedSwap();
+  }, [toggleSavedSwap]);
 
   // Expose sourceLines to window for TMX export hack
   useEffect(() => {
     (window as any).__lastSourceLines = sourceLinesArr;
   }, [sourceLinesArr]);
 
-  // Clear both panes
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (sourceSaveTimer.current) clearTimeout(sourceSaveTimer.current);
+      if (targetSaveTimer.current) clearTimeout(targetSaveTimer.current);
+    };
+  }, []);
+
+  // Clear both panes — also clear from store
   const handleClear = useCallback(() => {
     setSourceValue("");
     setTargetValue("");
-  }, []);
+    setSavedSource("");
+    setSavedTarget("");
+  }, [setSavedSource, setSavedTarget]);
 
   // Calculate line counts for status bar
   const sourceLineCount = sourceValue.split("\n").filter((l) => l.trim()).length;
@@ -161,7 +205,6 @@ export function TranslationWorkspace({
     const t = targetValue.split("\n")[targetLine - 1];
     setTutorText(locale === "ar" ? "جاري تحليل الترجمة..." : "Analyzing translation...");
     setShowTutor(true);
-    // Simulate AI response for Tutor since direct LLM integration is heavy here
     setTimeout(() => {
       setTutorText(locale === "ar" 
         ? `هذه الترجمة تنقل المعنى الأساسي. الكلمة "${s?.split(' ')[0] || ''}" تم ترجمتها إلى "${t?.split(' ')[0] || ''}" بناءً على السياق.\nنصيحة: تأكد من مراجعة النبرة للحفاظ على أسلوب النص الأصلي.` 
@@ -172,18 +215,15 @@ export function TranslationWorkspace({
   const runQALinter = () => {
     setQaText(locale === "ar" ? "جاري فحص الجودة..." : "Running Quality Check...");
     setShowQA(true);
-    // Basic Linter logic
     setTimeout(() => {
       let issues = [];
       
-      // Numbers check
       const snums: string[] = sourceValue.match(/\d+/g) || [];
       const tnums: string[] = targetValue.match(/\d+/g) || [];
       snums.forEach(n => {
         if(!tnums.includes(n)) issues.push(locale === "ar" ? `الرقم ${n} مفقود في الترجمة.` : `Number ${n} is missing in translation.`);
       });
 
-      // Punctuation check
       if (targetValue.includes(",")) issues.push(locale === "ar" ? "تحذير: تم استخدام فاصلة إنجليزية (,) بدلاً من العربية (،)." : "Warning: English comma (,) used instead of Arabic (،).");
       
       if(issues.length === 0) {
@@ -238,7 +278,7 @@ export function TranslationWorkspace({
             {/* RAG status now comes from TargetEditor via props */}
           </div>
           <button 
-            onClick={() => setSwapDirection(d => !d)}
+            onClick={handleSwapDirection}
             className="p-1 rounded bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
             title={locale === "ar" ? "تبديل لغة المصدر والهدف" : "Swap source/target language"}
           >
@@ -258,14 +298,18 @@ export function TranslationWorkspace({
 
       {/* Split Pane Editors with Toolbars */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Source Pane (English, LTR, Read-Only) */}
+        {/* Source Pane (Editable, Dynamic Direction) */}
         <div
           className={cn(
             "flex-1 border-r border-border overflow-hidden flex flex-col",
             locale === "ar" ? "border-r-0 border-l" : ""
           )}
         >
-          <SourceToolbar sourceText={sourceValue} onTextChange={(t) => setSourceValue(t)} />
+          <SourceToolbar
+            sourceText={sourceValue}
+            onTextChange={(t) => { setSourceValue(t); debouncedSaveSource(t); }}
+            langLabel={sourceLangLabel}
+          />
           <div className="flex-1" style={{ minHeight: 0 }}>
             <SourceEditor
               value={sourceValue}
@@ -277,13 +321,14 @@ export function TranslationWorkspace({
           </div>
         </div>
 
-        {/* Target Pane (Editable, Auto Direction) */}
+        {/* Target Pane (Editable, Dynamic Direction) */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
           <TargetToolbar 
             targetText={targetValue} 
             onClear={handleClear} 
             onExplain={runAITutor}
             onQA={runQALinter}
+            langLabel={targetLangLabel}
           />
           <div className="flex-1" style={{ minHeight: 0 }}>
             <TargetEditor

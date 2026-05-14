@@ -9,6 +9,7 @@ import { WelcomeTab } from "./WelcomeTab";
 import { TranslationWorkspace } from "./editors/TranslationWorkspace";
 import { SettingsPanel } from "./Settings";
 import { AiModelsView } from "./AiModelsView";
+import { ApiKeysView } from "./ApiKeysView";
 import { GlossaryView } from "./GlossaryView";
 import { QuickGuideModal, hasSeenGuide } from "./QuickGuideModal";
 import { InstallPWAButton } from "./InstallPWAButton";
@@ -82,6 +83,8 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
         return <GlossaryView />;
       case "models":
         return <AiModelsView />;
+      case "api-keys":
+        return <ApiKeysView />;
       case "settings":
         return <SettingsPanel />;
       default:

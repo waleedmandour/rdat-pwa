@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
@@ -21,13 +21,12 @@ interface SourceEditorProps {
   direction?: "ltr" | "rtl";
 }
 
-const EDITOR_OPTIONS = {
-  readOnly: true,
+const BASE_EDITOR_OPTIONS = {
+  readOnly: false,
   minimap: { enabled: false },
   lineNumbers: "on" as const,
   wordWrap: "on" as const,
   fontSize: 14,
-  fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
   lineDecorationsWidth: 4,
   lineNumbersMinChars: 3,
   glyphMargin: false,
@@ -58,6 +57,24 @@ export function SourceEditor({
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
+  // Dynamic font family based on direction — Arabic when RTL, Latin when LTR
+  const fontFamily = useMemo(
+    () =>
+      direction === "rtl"
+        ? "'Noto Sans Arabic', 'JetBrains Mono', 'Fira Code', monospace"
+        : "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+    [direction]
+  );
+
+  // Build editor options with dynamic font
+  const editorOptions = useMemo(
+    () => ({
+      ...BASE_EDITOR_OPTIONS,
+      fontFamily,
+    }),
+    [fontFamily]
+  );
+
   const handleEditorDidMount: OnMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
@@ -78,22 +95,23 @@ export function SourceEditor({
 
     // Apply editor options (RTL is handled via CSS, not Monaco direction option)
     editor.updateOptions({
-      ...EDITOR_OPTIONS,
+      ...editorOptions,
       theme: isDark ? "rdat-dark" : "rdat-light",
     });
   };
 
-  // Direction changes are handled via CSS on the editor container,
+  // Direction changes are handled via CSS `dir` attribute on the editor container,
   // not via Monaco's non-existent `direction` option.
 
-  // Update Monaco theme when app theme changes
+  // Update Monaco theme and font when theme or direction changes
   useEffect(() => {
     if (editorRef.current && monacoRef.current) {
       editorRef.current.updateOptions({
         theme: isDark ? "rdat-dark" : "rdat-light",
+        fontFamily,
       } as any);
     }
-  }, [isDark]);
+  }, [isDark, fontFamily]);
 
   // Update line highlight decorations
   useEffect(() => {
@@ -139,14 +157,14 @@ export function SourceEditor({
   }, [highlightedLine]);
 
   return (
-    <div className={cn("h-full w-full", className)}>
+    <div className={cn("h-full w-full", className)} dir={direction}>
       <MonacoEditor
         height="100%"
         defaultLanguage="plaintext"
         language="plaintext"
         value={value}
         onChange={onChange}
-        options={EDITOR_OPTIONS}
+        options={editorOptions}
         onMount={handleEditorDidMount}
         theme={isDark ? "rdat-dark" : "rdat-light"}
       />

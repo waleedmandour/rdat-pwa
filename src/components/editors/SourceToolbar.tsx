@@ -3,15 +3,16 @@
 import React, { useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
-import { Copy, FileText, Upload, AlignLeft } from "lucide-react";
+import { Copy, Upload, AlignLeft, AlignRight } from "lucide-react";
 import * as mammoth from "mammoth";
 
 interface SourceToolbarProps {
   sourceText: string;
   onTextChange: (text: string) => void;
+  langLabel?: string;
 }
 
-export function SourceToolbar({ sourceText, onTextChange }: SourceToolbarProps) {
+export function SourceToolbar({ sourceText, onTextChange, langLabel = "EN" }: SourceToolbarProps) {
   const { locale } = useLanguage();
   const isRTL = locale === "ar";
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,6 +50,8 @@ export function SourceToolbar({ sourceText, onTextChange }: SourceToolbarProps) 
 
     e.target.value = "";
   };
+
+  const DirIcon = langLabel === "AR" ? AlignRight : AlignLeft;
 
   return (
     <div className="flex items-center gap-1 px-3 py-1.5 bg-surface border-b border-border">
@@ -88,10 +91,10 @@ export function SourceToolbar({ sourceText, onTextChange }: SourceToolbarProps) 
 
       <div className="flex-1" />
 
-      {/* Source indicator */}
+      {/* Source indicator — dynamic based on swap direction */}
       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/40">
-        <AlignLeft className="w-3 h-3" />
-        <span>EN</span>
+        <DirIcon className="w-3 h-3" />
+        <span>{langLabel}</span>
       </div>
     </div>
   );

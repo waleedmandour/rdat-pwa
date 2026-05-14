@@ -3,16 +3,17 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
-import { Copy, Download, Eraser, AlignRight, FileText, CheckCircle, GraduationCap } from "lucide-react";
+import { Copy, Download, Eraser, AlignRight, AlignLeft, FileText, CheckCircle, GraduationCap } from "lucide-react";
 
 interface TargetToolbarProps {
   targetText: string;
   onClear: () => void;
   onExplain?: () => void;
   onQA?: () => void;
+  langLabel?: string;
 }
 
-export function TargetToolbar({ targetText, onClear, onExplain, onQA }: TargetToolbarProps) {
+export function TargetToolbar({ targetText, onClear, onExplain, onQA, langLabel = "AR" }: TargetToolbarProps) {
   const { locale } = useLanguage();
   const isRTL = locale === "ar";
 
@@ -187,10 +188,10 @@ export function TargetToolbar({ targetText, onClear, onExplain, onQA }: TargetTo
 
       <div className="flex-1" />
 
-      {/* Target indicator */}
+      {/* Target indicator — dynamic based on swap direction */}
       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/40">
-        <AlignRight className="w-3 h-3" />
-        <span>AR</span>
+        {langLabel === "EN" ? <AlignLeft className="w-3 h-3" /> : <AlignRight className="w-3 h-3" />}
+        <span>{langLabel}</span>
       </div>
     </div>
   );

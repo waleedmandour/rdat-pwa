@@ -104,15 +104,22 @@ footer,
  * (Arabic), the ghost text either renders at column 0 (off the left
  * edge) or is hidden entirely because the offset calculations invert.
  *
- * The fix is to force the ghost text decoration element to use
+ * The fix is to force the ghost text decoration elements to use
  * `direction: ltr` while keeping the editor's base direction RTL.
  * This ensures Monaco's pixel-offset math works correctly, while the
  * browser's bidirectional algorithm still renders the Arabic characters
  * in the correct visual order.
  *
+ * Multiple CSS selectors target different Monaco internals:
+ *  - .inline-suggestion          — high-level ghost text wrapper
+ *  - .ghost-text-decoration      — decoration element
+ *  - .inline-completion-text-insertion — text insertion preview
+ *
  * See: https://github.com/microsoft/monaco-editor/issues/3752
  * ═══════════════════════════════════════════════════════════════════ */
-.monaco-editor .inline-suggestion {
+.monaco-editor .inline-suggestion,
+.monaco-editor .ghost-text-decoration,
+.monaco-editor .inline-completion-text-insertion {
   direction: ltr !important;
   unicode-bidi: isolate !important;
   color: var(--color-ghost-text) !important;
