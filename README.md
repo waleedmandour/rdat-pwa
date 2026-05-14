@@ -18,7 +18,7 @@ A state-of-the-art, **offline-capable** Computer-Assisted Translation (CAT) tool
 - **🖥️ IDE-Grade Interface** — Professional dark-themed split-pane editor mirroring VS Code with native RTL support for Arabic
 - **🤖 Multi-Channel AI** — 5-channel ghost text cascade: LTE (instant) → RAG (semantic) → WebLLM (local GPU) → Gemini (cloud) → Prefetch (idle)
 - **🌐 Offline-First** — Fully functional without internet after initial load; local AI inference via WebGPU
-- **🔤 Native RTL** — Monaco Editor with true `direction: rtl` binding (no CSS hacks)
+- **🔤 Native RTL** — Monaco Editor with RTL ghost text via CSS `unicode-bidi: isolate` (Monaco has no native `direction` option)
 - **⌨️ Copilot UX** — Ghost text completions, `Ctrl+→` word-by-word accept, `Tab` commit, `Alt+]` cycle alternatives
 - **🧠 RAG-Powered** — Vector database (Orama) + BGE-M3 embeddings for contextually relevant translation suggestions
 - **🔒 Privacy-First** — All AI processing happens in-browser; no data leaves your machine unless you opt into cloud fallback
@@ -42,17 +42,19 @@ RDAT Copilot uses a cascading multi-channel architecture that delivers instant s
 │                 • requestIdleCallback queued translations         │
 │                 • Lines N+1, N+2 translated in background         │
 │                                                                   │
-│  800ms ──────▶ Channel 1: WebLLM (WebGPU)                         │
-│                 • Support for Gemma 2B, 4B, Llama 3, Phi-3        │
-│                 • CreateWebWorkerMLCEngine (off-thread)           │
-│                 • 3-5 word burst continuation                     │
+│  ~3s ────────▶ Channel 1: RAG (Vector DB + BM25)                  │
+│                 • Orama full-text search in Web Worker            │
+│                 • BGE-M3 embeddings for semantic ranking           │
 │                                                                   │
-│  800ms ──────▶ Channel 2: Gemini (Cloud Fallback)                 │
+│  ~3s ────────▶ Channel 2: Gemini (Cloud Fallback)                 │
 │                 • gemini-2.0-flash via REST API                   │
 │                 • Activated when WebGPU unavailable               │
 │                                                                   │
-│  1200ms ─────▶ Full Sentence Completion                           │
-│                 • Best available engine generates complete line   │
+│  ~5s ────────▶ Channel 3: WebLLM (WebGPU)                         │
+│                 • Support for Gemma 2B, 4B, Llama 3, Phi-3        │
+│                 • CreateWebWorkerMLCEngine (off-thread)           │
+│                 • 3-5 word burst continuation                     │
+│                 • First load requires model download (~1.5-4.5GB) │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -60,11 +62,11 @@ RDAT Copilot uses a cascading multi-channel architecture that delivers instant s
 
 | Channel | Engine | Latency | Quality | Offline? |
 |---------|--------|---------|---------|----------|
-| **0** | LTE (Phrase Table) | <50ms | Good (exact matches) | ✅ Yes |
-| **1** | WebLLM (WebGPU) | 800ms+ | Excellent (neural) | ✅ Yes* |
-| **2** | Gemini (Cloud) | 800ms+ | Excellent (neural) | ❌ No |
-| **3** | Prefetch Cache | <50ms | Good (cached) | ✅ Yes |
-| **4** | RAG (Vector DB) | 50-150ms | Very Good (contextual) | ✅ Yes* |
+| **0** | LTE (Phrase Table) | <5ms | Good (exact matches) | ✅ Yes |
+| **1** | RAG (Vector DB + BM25) | ~3s | Very Good (contextual) | ✅ Yes* |
+| **2** | Gemini (Cloud) | ~3s | Excellent (neural) | ❌ No |
+| **3** | WebLLM (WebGPU) | ~5s | Excellent (neural) | ✅ Yes* |
+| **4** | Prefetch Cache | <5ms | Good (cached) | ✅ Yes |
 
 *\*Requires initial model download during first session.*
 
@@ -176,7 +178,7 @@ rdat-copilot/
 RDAT Copilot is fully bilingual (English / Arabic) with a built-in language toggle in the sidebar:
 
 - **UI Labels** — All navigation, status badges, and settings translate dynamically
-- **RTL Layout** — When Arabic is selected, the sidebar and status bar switch to `dir="rtl"` using native HTML direction (no CSS `direction: rtl` on Monaco)
+- **RTL Layout** — When Arabic is selected, the sidebar and status bar switch to `dir="rtl"`. Monaco ghost text uses CSS `direction: ltr` + `unicode-bidi: isolate` on `.inline-suggestion` to fix RTL rendering (Monaco has no native `direction` option)
 - **Font** — Noto Sans Arabic is loaded automatically for crisp Arabic rendering
 
 ---
