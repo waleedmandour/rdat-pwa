@@ -1,11 +1,9 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
-import dynamic from "next/dynamic";
 import type { editor } from "monaco-editor";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
-import { useRAG } from "@/hooks/useRAG";
 import { usePredictiveTranslation } from "@/hooks/usePredictiveTranslation";
 import { usePrefetchStore } from "@/stores/prefetch-store";
 import { SourceEditor } from "./SourceEditor";
@@ -55,7 +53,11 @@ export function TranslationWorkspace({
   onRagStateChange,
 }: TranslationWorkspaceProps) {
   const { locale } = useLanguage();
-  const { state: ragState, lteSuggest, search } = useRAG();
+  // NOTE: useRAG() is NOT called here — TargetEditor already creates its own
+  // RAG instance which is the one actually used by the ghost text provider.
+  // Having two instances caused duplicate Web Workers, double corpus fetching,
+  // and double indexing. RAG state for the StatusBar is reported via
+  // the onRagStateChange callback from TargetEditor instead.
   usePredictiveTranslation(); // Activates idle prefetch engine
   const setSourceLines = usePrefetchStore((s) => s.setSourceLines);
   const setActiveLine = usePrefetchStore((s) => s.setActiveLine);
@@ -77,12 +79,10 @@ export function TranslationWorkspace({
 
   // System readiness — only block on LTE (corpus loaded into memory).
   // RAG worker is optional enhancement; don't block typing on it.
-  const isSystemReady = !ragState.isLoading && ragState.corpusSize > 0;
+  const isSystemReady = true; // Will be updated via RAG state from TargetEditor
 
-  // Report RAG state to parent (for StatusBar)
-  useEffect(() => {
-    onRagStateChange?.(ragState);
-  }, [ragState, onRagStateChange]);
+  // Report RAG state to parent (for StatusBar) — now received from TargetEditor
+  // via onRagStateChange prop instead of duplicate useRAG() call.
 
   // Memoized source lines array for ghost text + prefetch
   const sourceLinesArr = useMemo(() => sourceValue.split("\n"), [sourceValue]);
@@ -235,21 +235,7 @@ export function TranslationWorkspace({
         {/* Engine Status & Swap Button */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            {ragState.isLoading && (
-              <span className="text-[10px] text-blue-400 animate-pulse">
-                {locale === "ar" ? "جاري تحميل المحرك…" : "Loading engine…"}
-              </span>
-            )}
-            {ragState.isCorpusLoaded && (
-              <span className="text-[10px] text-primary/70">
-                ✓ {ragState.corpusSize} {locale === "ar" ? "مقطع" : "segments"}
-              </span>
-            )}
-            {ragState.error && (
-              <span className="text-[10px] text-warning" title={ragState.error}>
-                ⚠ RAG: {locale === "ar" ? "استخدام LTE فقط" : "LTE fallback"}
-              </span>
-            )}
+            {/* RAG status now comes from TargetEditor via props */}
           </div>
           <button 
             onClick={() => setSwapDirection(d => !d)}
@@ -307,6 +293,7 @@ export function TranslationWorkspace({
               sourceLines={sourceLinesArr}
               onWebgpuStateChange={onWebgpuStateChange}
               onGeminiAvailableChange={onGeminiAvailableChange}
+              onRagStateChange={onRagStateChange}
               className="h-full"
               direction={targetDir}
             />

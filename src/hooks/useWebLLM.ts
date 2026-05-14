@@ -78,10 +78,13 @@ export function useWebLLM() {
           setError("No WebGPU adapter found");
           return;
         }
-        // WebGPU is available — report ready state immediately
-        // The engine will initialize lazily on first use
-        setState("ready");
-        setError(null);
+        // WebGPU adapter found, but the LLM model hasn't been loaded yet.
+        // Do NOT set state to "ready" here — that would cause the ghost
+        // text provider to think WebLLM is available and try to call
+        // generateBurst(), which triggers initEngine() (model download)
+        // that takes seconds to minutes, causing all suggestions to time out.
+        // Instead, keep state as "unavailable" until initEngine() completes.
+        console.log("[WebLLM] WebGPU adapter found — engine will load on first use");
       },
       () => {
         setState("unavailable");
@@ -258,9 +261,11 @@ export function useWebLLM() {
         if (Date.now() - recoveryStateRef.current.lastRetryTime > 5000) {
           const retryEngine = await initEngine();
           if (retryEngine) {
-            // Don't retry the same generation, just fail gracefully
-            setState("error");
-            setError("Generation failed, please try again");
+            // Engine re-initialized successfully — set to ready, NOT error!
+            // Previously this was setState("error") which permanently disabled
+            // the WebLLM channel after any generation failure.
+            setState("ready");
+            setError(null);
           }
         }
         
@@ -324,8 +329,9 @@ export function useWebLLM() {
         if (Date.now() - recoveryStateRef.current.lastRetryTime > 5000) {
           const retryEngine = await initEngine();
           if (retryEngine) {
-            setState("error");
-            setError("Full translation failed, please try again");
+            // Engine re-initialized successfully — set to ready, NOT error!
+            setState("ready");
+            setError(null);
           }
         }
         

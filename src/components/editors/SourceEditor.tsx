@@ -76,20 +76,15 @@ export function SourceEditor({
       colors: {},
     });
 
-    // Explicit cast since Monaco types don't include 'direction'
+    // Apply editor options (RTL is handled via CSS, not Monaco direction option)
     editor.updateOptions({
-      ...(EDITOR_OPTIONS as any),
-      direction,
+      ...EDITOR_OPTIONS,
       theme: isDark ? "rdat-dark" : "rdat-light",
     });
   };
 
-  // Update direction if it changes
-  useEffect(() => {
-    if (editorRef.current) {
-      editorRef.current.updateOptions({ direction } as any);
-    }
-  }, [direction]);
+  // Direction changes are handled via CSS on the editor container,
+  // not via Monaco's non-existent `direction` option.
 
   // Update Monaco theme when app theme changes
   useEffect(() => {

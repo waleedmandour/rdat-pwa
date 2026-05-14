@@ -3,16 +3,17 @@
  *
  * Architecture:
  *  Phase 1 (0-5ms):     LTE Smart Remainder (synchronous)
- *  Phase 2 (0-150ms):   RAG Cache Lookup (embeddings + semantic search)
- *  Phase 3 (0-1000ms):  AI Channels (WebLLM local, Gemini cloud)
+ *  Phase 2 (0-3000ms):  RAG Cache Lookup (BM25 full-text search)
+ *  Phase 3 (0-1500ms):  AI Channels (WebLLM local, Gemini cloud)
  *
  * Each channel runs independently with timeout isolation.
  * Deduplication and ranking applied before returning results.
  *
- * IMPORTANT: RTL rendering is handled entirely by Monaco Editor
- * when direction:"rtl" is set. Do NOT inject Unicode bidi control
- * characters (U+202E, U+200F, etc.) into suggestion text — they
- * corrupt ghost text display and cursor positioning.
+ * IMPORTANT: RTL rendering is handled by CSS rules in globals.css
+ * (direction: ltr on .inline-suggestion with unicode-bidi: isolate).
+ * Do NOT inject Unicode bidi control characters (U+202E, U+200F, etc.)
+ * into suggestion text — they corrupt ghost text display and cursor
+ * positioning.
  */
 
 export interface SuggestionResult {
@@ -44,9 +45,9 @@ interface ChannelConfig {
 export class MonacoSuggestionProvider {
   private channelConfigs: Map<string, ChannelConfig> = new Map([
     ["lte", { timeout: 50, priority: 100 }],
-    ["rag", { timeout: 3000, priority: 80 }],
-    ["webllm", { timeout: 1500, priority: 60 }],
-    ["gemini", { timeout: 1500, priority: 50 }],
+    ["rag", { timeout: 3000, priority: 80 }],  // 3000ms — RAG uses BM25 in a Web Worker, needs time for message passing + search
+    ["webllm", { timeout: 5000, priority: 60 }],  // 5000ms — model inference takes time, especially first load
+    ["gemini", { timeout: 3000, priority: 50 }],  // 3000ms — cloud API latency
     ["prefetch", { timeout: 50, priority: 75 }],
   ]);
 
@@ -113,13 +114,13 @@ export class MonacoSuggestionProvider {
 
       if (isStale()) return [];
 
-      // Phase 2: RAG (with 150ms timeout) and Prefetch (with 50ms timeout)
+      // Phase 2: RAG (with 3000ms timeout) and Prefetch (with 50ms timeout)
       // These run in parallel
       const phase2Start = performance.now();
       void phase2Start; // used for logging if needed
       const phase2Results = await Promise.allSettled([
         this.withTimeout(handlers.prefetch(), 50, "prefetch"),
-        this.withTimeout(handlers.rag(), 150, "rag"),
+        this.withTimeout(handlers.rag(), 3000, "rag"),
       ]);
 
       for (const result of phase2Results) {
@@ -142,11 +143,11 @@ export class MonacoSuggestionProvider {
 
       if (isStale()) return [];
 
-      // Phase 3: AI channels (WebLLM + Gemini, 1000ms timeout)
+      // Phase 3: AI channels (WebLLM 5000ms, Gemini 3000ms timeout)
       // Run in parallel, independent error isolation
       const phase3Results = await Promise.allSettled([
-        this.withTimeout(handlers.webllm(), 1000, "webllm"),
-        this.withTimeout(handlers.gemini(), 1000, "gemini"),
+        this.withTimeout(handlers.webllm(), 5000, "webllm"),
+        this.withTimeout(handlers.gemini(), 3000, "gemini"),
       ]);
 
       for (const result of phase3Results) {
@@ -249,7 +250,9 @@ export class MonacoSuggestionProvider {
 
   /**
    * Calculate ghost text range for Monaco inline completion.
-   * Monaco handles RTL positioning internally when direction:"rtl" is set.
+   * Always returns an empty range (cursor position) — this is the
+   * standard approach for inline ghost text. See TargetEditor.tsx
+   * calculateGhostTextRange() for detailed documentation.
    */
   static calculateGhostTextRange(
     lineNumber: number,

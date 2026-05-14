@@ -28,6 +28,7 @@ interface TargetEditorProps {
   sourceLines?: string[];
   onWebgpuStateChange?: (state: WebGPUInfo) => void;
   onGeminiAvailableChange?: (available: boolean) => void;
+  onRagStateChange?: (state: import("@/hooks/useRAG").RAGState) => void;
   className?: string;
   direction?: "ltr" | "rtl";
 }
@@ -57,13 +58,18 @@ const EDITOR_OPTIONS = {
   },
   // Arabic RTL settings
   autoClosingBrackets: "always" as const,
-  suggestOnTriggerCharacters: true,
+  suggestOnTriggerCharacters: false,
   tabCompletion: "on" as const,
-  direction: "rtl" as const,
+  // NOTE: Monaco does not have a `direction` option. RTL is handled via CSS
+  // and the browser's bidirectional algorithm. Setting it here with `as any`
+  // was silently ignored and hid the TypeScript error.
   // Inline suggestions (ghost text)
   inlineSuggest: {
     enabled: true,
-    mode: "prefix" as const,
+    // Do NOT use mode: "prefix" — it causes Monaco to silently reject
+    // suggestions where insertText doesn't start with the text covered
+    // by the range. Since we return remainder-only text (the part the
+    // user hasn't typed yet), prefix validation always fails.
   },
 };
 
@@ -76,22 +82,29 @@ const IDLE_TRIGGER_DELAY_MS = 350;
 
 /**
  * Calculate ghost text range for Monaco inline completion.
- * Monaco handles RTL positioning internally when direction:"rtl" is set
- * — no Unicode bidi control characters needed.
+ *
+ * CRITICAL FIX: The range MUST always be empty (cursor position to cursor
+ * position). This is the standard Monaco approach used by GitHub Copilot.
+ *
+ * Previously, the range covered the partial word at the cursor (e.g.,
+ * Range(1, 7, 1, 13) for the word "مستقبل"). Combined with the old
+ * `mode: "prefix"` setting, Monaco validated that `insertText` starts
+ * with the text inside the range. Since we return remainder-only text
+ * (the completion AFTER what the user typed), this validation always
+ * failed and ghost text was silently discarded.
+ *
+ * With an empty range, there is no text to match against, so Monaco
+ * always accepts the suggestion and renders the ghost text at the
+ * cursor position.
+ *
+ * RTL positioning is handled by the browser's bidirectional algorithm
+ * and the CSS rules in globals.css — no Unicode bidi control characters
+ * or Monaco `direction` option needed.
  */
 function calculateGhostTextRange(
   monaco: typeof import("monaco-editor"),
-  position: { lineNumber: number; column: number },
-  word: { startColumn: number; endColumn: number; word: string }
+  position: { lineNumber: number; column: number }
 ): Monaco.Range {
-  if (word && word.word.length > 0) {
-    return new monaco.Range(
-      position.lineNumber,
-      word.startColumn,
-      position.lineNumber,
-      position.column
-    );
-  }
   return new monaco.Range(
     position.lineNumber,
     position.column,
@@ -141,6 +154,11 @@ function registerGhostTextProvider(
         const gemini = geminiRef.current;
         const rag = ragRef.current;
 
+        // Diagnostic: log channel readiness on every invocation
+        console.log(
+          `[RDAT Ghost] provideInlineCompletions invoked — line ${position.lineNumber}, col ${position.column}, prefix "${prefix.substring(0, 30)}..." | WebLLM:${webLLM.isReady ? "ready" : webLLM.state} | Gemini:${gemini.isAvailable ? "avail" : "off"} | RAG:${rag.state.isCorpusLoaded ? "loaded" : "loading"}`
+        );
+
         // Read source lines from the ref (always up-to-date)
         const sourceLines = sourceLinesRef.current;
         const sourceLine = sourceLines[position.lineNumber - 1]?.trim() ?? "";
@@ -150,8 +168,7 @@ function registerGhostTextProvider(
           const { getPrefetch: getPF } = usePrefetchStore.getState();
           const cached = getPF(position.lineNumber);
           if (cached?.translation.trim()) {
-            const word = model.getWordUntilPosition(position);
-            const range = calculateGhostTextRange(monaco, position, word);
+            const range = calculateGhostTextRange(monaco, position);
             const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
             if (cachedRemainder) {
               return {
@@ -162,9 +179,8 @@ function registerGhostTextProvider(
           return { items: [] };
         }
 
-        // Calculate range for ghost text
-        const word = model.getWordUntilPosition(position);
-        const range = calculateGhostTextRange(monaco, position, word);
+        // Calculate range for ghost text — always empty range (see function docs)
+        const range = calculateGhostTextRange(monaco, position);
 
         // ── Immediate LTE channel (synchronous, <5ms) ──────────────
         // Show LTE result instantly while async channels load
@@ -278,16 +294,32 @@ function registerGhostTextProvider(
               console.log(
                 `[RDAT Ghost] AI/RAG suggestion from ${bestNew.source}: "${bestNew.text.substring(0, 60)}..." (confidence: ${bestNew.confidence.toFixed(2)})`
               );
+              // Re-trigger Monaco inline suggest so it calls provideInlineCompletions
+              // again with the updated state (which now has AI/RAG results cached).
+              // This is the KEY mechanism for Google-like cascading ghost text.
+              // Only re-trigger when we have a NEW, better suggestion — avoids
+              // wasteful re-invocations and potential cascading re-triggers.
+              triggerInlineSuggest(editorRef.current);
             }
-
-            // Re-trigger Monaco inline suggest so it calls provideInlineCompletions
-            // again with the updated state (which now has AI/RAG results cached).
-            // This is the KEY mechanism for Google-like cascading ghost text.
-            triggerInlineSuggest(editorRef.current);
           })
           .catch((err) => {
             console.warn("[RDAT Ghost] Async pipeline error:", err);
           });
+
+        // Diagnostic: log what we're returning to Monaco
+        if (items.length > 0) {
+          const firstItem = items[0];
+          const rawText = firstItem.insertText;
+          const text = typeof rawText === 'string' ? rawText : (rawText as any)?.snippet ?? '';
+          const r = firstItem.range;
+          if (r) {
+            console.log(
+              `[RDAT Ghost] Returning ${items.length} item(s) to Monaco — insertText: "${text.substring(0, 50)}...", range: (${r.startLineNumber}:${r.startColumn}-${r.endLineNumber}:${r.endColumn})`
+            );
+          }
+        } else {
+          console.log(`[RDAT Ghost] No items to return — all channels empty for this prefix`);
+        }
 
         return { items };
       },
@@ -376,6 +408,7 @@ export function TargetEditor({
   sourceLines = [],
   onWebgpuStateChange,
   onGeminiAvailableChange,
+  onRagStateChange,
   className,
   direction = "rtl",
 }: TargetEditorProps) {
@@ -430,12 +463,13 @@ export function TargetEditor({
     onGeminiAvailableChange?.(gemini.isAvailable);
   }, [gemini.isAvailable, onGeminiAvailableChange]);
 
-  // Update direction if it changes
+  // Report RAG state to parent (for StatusBar display)
   useEffect(() => {
-    if (editorRef.current) {
-      editorRef.current.updateOptions({ direction } as any);
-    }
-  }, [direction]);
+    onRagStateChange?.(rag.state);
+  }, [rag.state, onRagStateChange]);
+
+  // Direction changes are handled via CSS class on the editor container,
+  // not via Monaco's non-existent `direction` option.
 
   // ── Update Monaco theme when app theme changes ──────────────────
   useEffect(() => {
@@ -451,10 +485,9 @@ export function TargetEditor({
       editorRef.current = editor;
       monacoRef.current = monaco;
 
-      // CRITICAL: Dynamic RTL/LTR support
+      // Apply editor options (RTL is handled via CSS, not Monaco direction option)
       editor.updateOptions({
-        ...(EDITOR_OPTIONS as any),
-        direction,
+        ...EDITOR_OPTIONS,
         theme: isDark ? "rdat-dark" : "rdat-light",
       });
 
@@ -518,11 +551,8 @@ export function TargetEditor({
         });
       }
 
-      // Update direction if it changes
-      const currentDirection = editor.getOptions().get(monaco.editor.EditorOption.direction);
-      if (currentDirection !== direction) {
-        editor.updateOptions({ direction } as any);
-      }
+      // NOTE: Monaco does not have a `direction` editor option.
+      // RTL is handled by CSS on the editor container element.
 
       // ── Word-by-Word Acceptance (Ctrl+RightArrow) ──────────
       editor.addCommand(
@@ -628,8 +658,7 @@ export function TargetEditor({
         value={value}
         onChange={onChange}
         options={{
-          ...(EDITOR_OPTIONS as any),
-          direction: "rtl",
+          ...EDITOR_OPTIONS,
         }}
         onMount={handleEditorDidMount}
         theme={isDark ? "rdat-dark" : "rdat-light"}

@@ -96,6 +96,35 @@ footer,
   font-family: var(--font-noto-arabic), var(--font-sans), system-ui, sans-serif;
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+ * RTL Ghost Text Fix for Monaco Editor
+ *
+ * Monaco's inline suggestion (ghost text) rendering uses pixel-offset
+ * decorations that assume LTR flow. When the editor contains RTL text
+ * (Arabic), the ghost text either renders at column 0 (off the left
+ * edge) or is hidden entirely because the offset calculations invert.
+ *
+ * The fix is to force the ghost text decoration element to use
+ * `direction: ltr` while keeping the editor's base direction RTL.
+ * This ensures Monaco's pixel-offset math works correctly, while the
+ * browser's bidirectional algorithm still renders the Arabic characters
+ * in the correct visual order.
+ *
+ * See: https://github.com/microsoft/monaco-editor/issues/3752
+ * ═══════════════════════════════════════════════════════════════════ */
+.monaco-editor .inline-suggestion {
+  direction: ltr !important;
+  unicode-bidi: isolate !important;
+  color: var(--color-ghost-text) !important;
+  opacity: 0.7;
+}
+
+/* Ensure the lines-content container respects RTL for base text,
+   while ghost text decorations are exempted above. */
+.monaco-editor .lines-content {
+  unicode-bidi: plaintext !important;
+}
+
 /* Scrollbar styling for a polished IDE feel */
 ::-webkit-scrollbar {
   width: 8px;
