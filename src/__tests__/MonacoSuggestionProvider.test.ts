@@ -1,6 +1,6 @@
 /**
  * MonacoSuggestionProvider Unit Tests
- * 
+ *
  * Tests the provider's core functionality:
  *  - Sync LTE results
  *  - Background fetch without blocking
@@ -23,11 +23,11 @@ describe("MonacoSuggestionProvider", () => {
     it("should return LTE results without waiting", async () => {
       const lteResult = "عليكم";
       const handlers = {
-        lte: async () => lteResult,
-        rag: async () => { throw new Error("Timeout"); },
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => lteResult,
+        rag: async (): Promise<string> => { throw new Error("Timeout"); },
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(
@@ -46,19 +46,19 @@ describe("MonacoSuggestionProvider", () => {
       let ragStarted = false;
 
       const handlers = {
-        lte: async () => "عليكم",
-        rag: async () => {
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => {
           ragStarted = true;
           await new Promise(resolve => setTimeout(resolve, 50));
           return "وسلام";
         },
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       };
 
       const promise = provider.getSuggestions("Hello", "السلام", handlers);
-      
+
       const suggestions = await promise;
 
       expect(ragStarted).toBe(true);
@@ -70,11 +70,11 @@ describe("MonacoSuggestionProvider", () => {
     it("should not return duplicate suggestions", async () => {
       const sameText = "عليكم السلام";
       const handlers = {
-        lte: async () => sameText,
-        rag: async () => sameText, // Identical
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => sameText,
+        rag: async (): Promise<string> => sameText, // Identical
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(
@@ -92,11 +92,11 @@ describe("MonacoSuggestionProvider", () => {
       const withoutDiacritics = "عليكم";
 
       const handlers = {
-        lte: async () => withDiacritics,
-        rag: async () => withoutDiacritics,
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => withDiacritics,
+        rag: async (): Promise<string> => withoutDiacritics,
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(
@@ -116,11 +116,11 @@ describe("MonacoSuggestionProvider", () => {
   describe("channel isolation", () => {
     it("should not affect other channels on one failure", async () => {
       const handlers = {
-        lte: async () => "عليكم",
-        rag: async () => { throw new Error("Network error"); },
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => "سلام", // Should still work
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => { throw new Error("Network error"); },
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => "سلام", // Should still work
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(
@@ -137,11 +137,11 @@ describe("MonacoSuggestionProvider", () => {
 
     it("should isolate RAG timeout from other channels", async () => {
       const handlers = {
-        lte: async () => "عليكم",
-        rag: async () => new Promise(() => {}), // Infinite promise
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => "سلام",
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => new Promise<string>(() => {}), // Infinite promise
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => "سلام",
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(
@@ -160,11 +160,11 @@ describe("MonacoSuggestionProvider", () => {
   describe("timeout enforcement", () => {
     it("should enforce LTE timeout (50ms)", async () => {
       const handlers = {
-        lte: async () => new Promise(() => {}), // Never resolves
-        rag: async () => { throw new Error("Timeout"); },
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => new Promise<string>(() => {}), // Never resolves
+        rag: async (): Promise<string> => { throw new Error("Timeout"); },
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(
@@ -177,13 +177,13 @@ describe("MonacoSuggestionProvider", () => {
       expect(suggestions.map(s => s.source)).not.toContain("lte");
     });
 
-    it("should enforce RAG timeout (150ms)", async () => {
+    it("should enforce RAG timeout (3000ms)", async () => {
       const handlers = {
-        lte: async () => "عليكم",
-        rag: async () => new Promise(resolve => setTimeout(() => resolve("وسلام"), 200)), // Exceeds 150ms
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => new Promise(resolve => setTimeout(() => resolve("وسلام"), 4000)), // Exceeds 3000ms
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(
@@ -196,13 +196,13 @@ describe("MonacoSuggestionProvider", () => {
       expect(suggestions.map(s => s.source)).not.toContain("rag");
     });
 
-    it("should enforce AI timeout (1000ms)", async () => {
+    it("should enforce WebLLM timeout (5000ms)", async () => {
       const handlers = {
-        lte: async () => "عليكم",
-        rag: async () => "",
-        webllm: async () => new Promise(resolve => setTimeout(() => resolve("سلام"), 1500)), // Exceeds 1000ms
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => "",
+        webllm: async (): Promise<string> => new Promise(resolve => setTimeout(() => resolve("سلام"), 6000)), // Exceeds 5000ms
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(
@@ -213,18 +213,18 @@ describe("MonacoSuggestionProvider", () => {
 
       // Should not have WebLLM result
       expect(suggestions.map(s => s.source)).not.toContain("webllm");
-    });
+    }, 10000); // Allow 10s for this test since WebLLM timeout is 5s
   });
 
   describe("RTL text handling", () => {
     it("should preserve Arabic text without bidi control chars", async () => {
       const arabicText = "عليكم وسلام الله عليكم";
       const handlers = {
-        lte: async () => arabicText,
-        rag: async () => "",
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => arabicText,
+        rag: async (): Promise<string> => "",
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(
@@ -233,7 +233,7 @@ describe("MonacoSuggestionProvider", () => {
         handlers
       );
 
-      // Arabic text should be preserved as-is (Monaco handles RTL natively)
+      // Arabic text should be preserved as-is (RTL handled by CSS)
       expect(suggestions.length).toBeGreaterThan(0);
       expect(suggestions[0].text).toBe(arabicText);
       // Must NOT contain Unicode bidi override characters
@@ -245,11 +245,11 @@ describe("MonacoSuggestionProvider", () => {
   describe("ranking", () => {
     it("should rank by confidence first", async () => {
       const handlers = {
-        lte: async () => "عليكم", // High confidence (0.95)
-        rag: async () => "وسلام", // Medium confidence (0.85)
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => "ورحمة", // Lower confidence (0.60)
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم", // High confidence (0.95)
+        rag: async (): Promise<string> => "وسلام", // Medium confidence (0.85)
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => "ورحمة", // Lower confidence (0.60)
+        prefetch: async (): Promise<string> => "",
       };
 
       const suggestions = await provider.getSuggestions(

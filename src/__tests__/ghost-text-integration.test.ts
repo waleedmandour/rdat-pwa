@@ -1,9 +1,9 @@
 /**
  * Ghost Text Integration Tests
- * 
+ *
  * Tests the complete three-phase suggestion pipeline:
  *  - LTE suggestions show immediately (< 100ms)
- *  - AI suggestions after 800ms
+ *  - AI suggestions after timeout period
  *  - RTL text rendered correctly
  *  - Timeout handling for slow channels
  */
@@ -20,16 +20,16 @@ describe("Ghost Text Integration", () => {
 
   it("should return LTE suggestions immediately", async () => {
     const start = Date.now();
-    
+
     const suggestions = await provider.getSuggestions(
       "Hello world",
       "السلام",
       {
-        lte: async () => "عليكم",
-        rag: async () => { throw new Error("Should timeout"); },
-        webllm: async () => { throw new Error("Should timeout"); },
-        gemini: async () => { throw new Error("Should timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => { throw new Error("Should timeout"); },
+        webllm: async (): Promise<string> => { throw new Error("Should timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Should timeout"); },
+        prefetch: async (): Promise<string> => "",
       }
     );
 
@@ -39,16 +39,16 @@ describe("Ghost Text Integration", () => {
     expect(latency).toBeLessThan(100);
   });
 
-  it("should include RAG results within 150ms", async () => {
+  it("should include RAG results within 3000ms", async () => {
     const suggestions = await provider.getSuggestions(
       "Hello world",
       "السلام",
       {
-        lte: async () => "عليكم",
-        rag: async () => "وعليكم",
-        webllm: async () => { throw new Error("Should timeout"); },
-        gemini: async () => { throw new Error("Should timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => "وعليكم",
+        webllm: async (): Promise<string> => { throw new Error("Should timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Should timeout"); },
+        prefetch: async (): Promise<string> => "",
       }
     );
 
@@ -63,11 +63,11 @@ describe("Ghost Text Integration", () => {
       "Hello world",
       "السلام",
       {
-        lte: async () => "عليكم السلام",
-        rag: async () => "عليكم السلام", // Same text
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم السلام",
+        rag: async (): Promise<string> => "عليكم السلام", // Same text
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       }
     );
 
@@ -81,18 +81,18 @@ describe("Ghost Text Integration", () => {
       "Hello world",
       "السلام",
       {
-        lte: async () => "عليكم وسلام الله عليكم ورحمته",
-        rag: async () => "",
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم وسلام الله عليكم ورحمته",
+        rag: async (): Promise<string> => "",
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       }
     );
 
     expect(suggestions.length).toBeGreaterThan(0);
     // Suggestions should contain Arabic text
     expect(/[\u0600-\u06FF]/.test(suggestions[0].text)).toBe(true);
-    // Must NOT contain Unicode bidi override characters (Monaco handles RTL natively)
+    // Must NOT contain Unicode bidi override characters (RTL handled by CSS)
     expect(suggestions[0].text).not.toContain("\u202E");
     expect(suggestions[0].text).not.toContain("\u202B");
   });
@@ -102,11 +102,11 @@ describe("Ghost Text Integration", () => {
       "Hello",
       "السلام",
       {
-        lte: async () => "عليكم", // High confidence, fast
-        rag: async () => "وسلام", // Medium confidence
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "عليكم", // Lower confidence
+        lte: async (): Promise<string> => "عليكم", // High confidence, fast
+        rag: async (): Promise<string> => "وسلام", // Medium confidence
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "عليكم", // Lower confidence
       }
     );
 
@@ -123,11 +123,11 @@ describe("Ghost Text Integration", () => {
       "Hello",
       "السلام",
       {
-        lte: async () => "عليكم",
-        rag: async () => { throw new Error("RAG failed"); },
-        webllm: async () => { throw new Error("WebLLM failed"); },
-        gemini: async () => "سلام",
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => { throw new Error("RAG failed"); },
+        webllm: async (): Promise<string> => { throw new Error("WebLLM failed"); },
+        gemini: async (): Promise<string> => "سلام",
+        prefetch: async (): Promise<string> => "",
       }
     );
 
@@ -144,28 +144,28 @@ describe("Ghost Text Integration", () => {
       "Hello",
       "السلام",
       {
-        lte: async () => "عليكم",
-        rag: async () => new Promise(resolve => setTimeout(() => resolve("wasted"), 200)), // Exceeds 150ms
-        webllm: async () => new Promise(resolve => setTimeout(() => resolve("wasted"), 1500)), // Exceeds 1000ms
-        gemini: async () => "سلام",
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => new Promise(resolve => setTimeout(() => resolve("wasted"), 4000)), // Exceeds 3000ms
+        webllm: async (): Promise<string> => new Promise(resolve => setTimeout(() => resolve("wasted"), 6000)), // Exceeds 5000ms
+        gemini: async (): Promise<string> => "سلام",
+        prefetch: async (): Promise<string> => "",
       }
     );
 
     // Should have fast results, RAG and WebLLM might timeout
     expect(suggestions.length).toBeGreaterThan(0);
-  });
+  }, 10000); // Allow 10s since we're testing multi-second timeouts
 
   it("should limit results to top 3", async () => {
     const suggestions = await provider.getSuggestions(
       "Hello",
       "السلام",
       {
-        lte: async () => "عليكم",
-        rag: async () => "وسلام",
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => "ورحمة",
-        prefetch: async () => "الله",
+        lte: async (): Promise<string> => "عليكم",
+        rag: async (): Promise<string> => "وسلام",
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => "ورحمة",
+        prefetch: async (): Promise<string> => "الله",
       }
     );
 
@@ -178,11 +178,11 @@ describe("Ghost Text Integration", () => {
       "Hello",
       "السلام",
       {
-        lte: async () => { await new Promise(r => setTimeout(r, 80)); return "عليكم"; },
-        rag: async () => "وسلام",
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => { await new Promise(r => setTimeout(r, 80)); return "عليكم"; },
+        rag: async (): Promise<string> => "وسلام",
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       }
     );
 
@@ -194,11 +194,11 @@ describe("Ghost Text Integration", () => {
       "Hello",
       "السلام",
       {
-        lte: async () => "عليكم الجديدة",
-        rag: async () => "",
-        webllm: async () => { throw new Error("Timeout"); },
-        gemini: async () => { throw new Error("Timeout"); },
-        prefetch: async () => "",
+        lte: async (): Promise<string> => "عليكم الجديدة",
+        rag: async (): Promise<string> => "",
+        webllm: async (): Promise<string> => { throw new Error("Timeout"); },
+        gemini: async (): Promise<string> => { throw new Error("Timeout"); },
+        prefetch: async (): Promise<string> => "",
       }
     );
 
