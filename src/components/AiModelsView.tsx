@@ -15,6 +15,9 @@ import {
   AlertCircle,
   Wifi,
   WifiOff,
+  Download,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 
 interface EngineCard {
@@ -64,10 +67,13 @@ export function AiModelsView() {
         return { en: "Recovering...", ar: "جاري الاسترداد..." };
       case "idle":
       default:
-        return { en: "WebGPU Available — Model loads on first use", ar: "WebGPU متاح — يتم تحميل النموذج عند الاستخدام" };
+        return { en: "WebGPU Available — Click to load model", ar: "WebGPU متاح — انقر لتحميل النموذج" };
     }
   };
   const webllmStatus = getWebLLMStatus();
+
+  // Is WebLLM currently loading/initializing?
+  const isWebLLMLoading = ["initializing", "downloading", "loading", "recovering"].includes(webLLM.state);
 
   const engines: EngineCard[] = [
     {
@@ -201,7 +207,7 @@ export function AiModelsView() {
                       {isRTL ? engine.descriptionAr : engine.description}
                     </p>
 
-                    {/* Channel badge */}
+                    {/* Channel badge + action buttons */}
                     <div className="mt-3 flex items-center gap-2">
                       <span
                         className={cn(
@@ -228,7 +234,51 @@ export function AiModelsView() {
                           {isRTL ? "دائماً متاح · بدون إنترنت" : "Always available · Offline"}
                         </span>
                       )}
+
+                      {/* WebLLM Load/Retry Button */}
+                      {engine.id === "webllm" && hasWebGPU && (
+                        <>
+                          {isWebLLMLoading ? (
+                            <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              {webLLM.progress.percentage > 0 && (
+                                <span>{webLLM.progress.percentage.toFixed(0)}%</span>
+                              )}
+                            </span>
+                          ) : webLLM.state === "idle" || webLLM.state === "error" ? (
+                            <button
+                              onClick={() => webLLM.loadModel()}
+                              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-900/30 text-emerald-400 hover:bg-emerald-900/50 transition-colors"
+                              title={isRTL ? "تحميل النموذج" : "Load Model"}
+                            >
+                              <Download className="w-3 h-3" />
+                              {isRTL ? "تحميل النموذج" : "Load Model"}
+                            </button>
+                          ) : webLLM.state === "ready" ? (
+                            <span className="text-[10px] text-emerald-400">
+                              ✓ {selectedModel}
+                            </span>
+                          ) : null}
+                          {webLLM.state === "error" && webLLM.error && (
+                            <span className="text-[10px] text-error truncate max-w-[200px]" title={webLLM.error}>
+                              {webLLM.error}
+                            </span>
+                          )}
+                        </>
+                      )}
                     </div>
+
+                    {/* Progress bar for WebLLM download */}
+                    {engine.id === "webllm" && webLLM.state === "downloading" && webLLM.progress.percentage > 0 && (
+                      <div className="mt-2 w-full">
+                        <div className="w-full h-1.5 bg-background rounded-full overflow-hidden">
+                          <div
+                            className="bg-emerald-400 h-full transition-all duration-300"
+                            style={{ width: `${webLLM.progress.percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

@@ -32,7 +32,7 @@ export function WorkspaceShell({ children, className }: WorkspaceShellProps) {
   const [mounted, setMounted] = useState(false);
 
   // AI engine state
-  const [webgpuInfo, setWebgpuInfo] = useState<WebGPUInfo>({ state: "loading" });
+  const [webgpuInfo, setWebgpuInfo] = useState<WebGPUInfo>({ state: "unavailable" });
   const [geminiAvailable, setGeminiAvailable] = useState(false);
   const [ragState, setRagState] = useState<RAGState>({
     isWorkerReady: false,

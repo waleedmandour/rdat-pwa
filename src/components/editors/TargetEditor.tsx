@@ -146,191 +146,171 @@ function registerGhostTextProvider(
     languageId,
     {
       provideInlineCompletions: async (model, position) => {
-        const currentVersion = ++contentVersion;
+        // ── CRITICAL: Wrap entire handler in try-catch ──────────────
+        // If any synchronous code throws, the promise rejects and
+        // Monaco's inline suggestion system may enter a broken state
+        // that blocks user input. Always return a valid result.
+        try {
+          const currentVersion = ++contentVersion;
 
-        const lineText = model.getLineContent(position.lineNumber);
-        const prefix = lineText.substring(0, position.column - 1).trim();
+          const lineText = model.getLineContent(position.lineNumber);
+          const prefix = lineText.substring(0, position.column - 1).trim();
 
-        // ── ALWAYS read latest hook state from refs ────────────
-        const webLLM = webLLMRef.current;
-        const gemini = geminiRef.current;
-        const rag = ragRef.current;
+          // ── ALWAYS read latest hook state from refs ────────────
+          const webLLM = webLLMRef.current;
+          const gemini = geminiRef.current;
+          const rag = ragRef.current;
 
-        // Diagnostic: log channel readiness on every invocation
-        console.log(
-          `[RDAT Ghost] provideInlineCompletions invoked — line ${position.lineNumber}, col ${position.column}, prefix "${prefix.substring(0, 30)}..." | WebLLM:${webLLM.isReady ? "ready" : webLLM.state} | Gemini:${gemini.isAvailable ? "avail" : "off"} | RAG:${rag.state.isCorpusLoaded ? "loaded" : "loading"}`
-        );
+          // Read source lines from the ref (always up-to-date)
+          const sourceLines = sourceLinesRef.current;
+          const sourceLine = sourceLines[position.lineNumber - 1]?.trim() ?? "";
 
-        // Read source lines from the ref (always up-to-date)
-        const sourceLines = sourceLinesRef.current;
-        const sourceLine = sourceLines[position.lineNumber - 1]?.trim() ?? "";
-
-        // ── Empty source line: check prefetch cache before giving up ──
-        if (!sourceLine) {
-          const { getPrefetch: getPF } = usePrefetchStore.getState();
-          const cached = getPF(position.lineNumber);
-          if (cached?.translation.trim()) {
-            const range = calculateGhostTextRange(monaco, position);
-            const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
-            if (cachedRemainder) {
-              return {
-                items: [{ insertText: cachedRemainder, range }],
-              };
+          // ── Empty source line: check prefetch cache before giving up ──
+          if (!sourceLine) {
+            const { getPrefetch: getPF } = usePrefetchStore.getState();
+            const cached = getPF(position.lineNumber);
+            if (cached?.translation.trim()) {
+              const range = calculateGhostTextRange(monaco, position);
+              const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
+              if (cachedRemainder) {
+                return {
+                  items: [{ insertText: cachedRemainder, range }],
+                };
+              }
             }
+            return { items: [] };
           }
-          return { items: [] };
-        }
 
-        // Calculate range for ghost text — always empty range (see function docs)
-        const range = calculateGhostTextRange(monaco, position);
+          // Calculate range for ghost text — always empty range (see function docs)
+          const range = calculateGhostTextRange(monaco, position);
 
-        // ── Immediate LTE channel (synchronous, <5ms) ──────────────
-        // Show LTE result instantly while async channels load
-        const lte = getLTE();
-        const lteResult = lte.getSuggestion(sourceLine, prefix);
+          // ── Immediate LTE channel (synchronous, <5ms) ──────────────
+          // Show LTE result instantly while async channels load
+          const lte = getLTE();
+          const lteResult = lte.getSuggestion(sourceLine, prefix);
 
-        const items: languages.InlineCompletion[] = [];
+          const items: languages.InlineCompletion[] = [];
 
-        if (lteResult && lteResult.remainder.trim()) {
-          items.push({
-            insertText: lteResult.remainder,
-            range,
-          });
-          console.log(
-            `[RDAT Ghost] LTE suggestion: "${lteResult.remainder.substring(0, 50)}..." (score: ${lteResult.score.toFixed(2)})`
-          );
-        }
-
-        // ── Prefetch cache (synchronous) ───────────────────────────
-        const { getPrefetch } = usePrefetchStore.getState();
-        const cached = getPrefetch(position.lineNumber);
-
-        if (cached && cached.translation.trim()) {
-          // Compute the remainder from the cached translation based on prefix
-          const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
-          if (cachedRemainder && (!lteResult || !lteResult.remainder.trim())) {
+          if (lteResult && lteResult.remainder.trim()) {
             items.push({
-              insertText: cachedRemainder,
+              insertText: lteResult.remainder,
               range,
             });
-            console.log(
-              `[RDAT Ghost] Cache suggestion: "${cachedRemainder.substring(0, 50)}..."`
-            );
           }
-        }
 
-        // ── Async channels via MonacoSuggestionProvider ─────────────
-        // Run the full pipeline in the background. When results arrive,
-        // re-trigger Monaco inline suggest so it picks up the new suggestions.
-        suggestionProvider.cancelPending(); // cancel any previous in-flight request
+          // ── Prefetch cache (synchronous) ───────────────────────────
+          const { getPrefetch } = usePrefetchStore.getState();
+          const cached = getPrefetch(position.lineNumber);
 
-        suggestionProvider
-          .getSuggestions(sourceLine, prefix, {
-            lte: async () => {
-              // Already handled synchronously above, but include for pipeline completeness
-              return lteResult?.remainder ?? "";
-            },
-            rag: async () => {
-              // Read latest state from ref — NOT from stale closure
-              const ragState = ragRef.current;
-              if (!ragState.state.isCorpusLoaded) return "";
-              try {
-                const hits = await ragState.search(sourceLine, 1);
-                if (hits.length > 0 && hits[0].ar) {
-                  const remainder = computeCachedRemainder(hits[0].ar, prefix);
-                  return remainder || hits[0].ar;
-                }
-              } catch {
-                // RAG timeout — skip
-              }
-              return "";
-            },
-            prefetch: async () => {
-              if (!cached) return "";
-              return computeCachedRemainder(cached.translation, prefix) || "";
-            },
-            webllm: async () => {
-              // Read latest state from ref — NOT from stale closure
-              const wllm = webLLMRef.current;
-              // Use isWebGPUAvailable (not isReady) so that generateBurst()
-              // is called even when the model hasn't been loaded yet.
-              // generateBurst() handles lazy initEngine() internally.
-              // Previously, checking isReady created a chicken-and-egg problem:
-              // the provider never called generateBurst() because isReady
-              // was false, and isReady never became true because initEngine()
-              // was never called.
-              if (!wllm.isWebGPUAvailable) return "";
-              try {
-                const result = await wllm.generateBurst(sourceLine, prefix);
-                if (result.text && !result.aborted) {
-                  return result.text;
-                }
-              } catch {
-                // WebLLM timeout — skip
-              }
-              return "";
-            },
-            gemini: async () => {
-              // Read latest state from ref — NOT from stale closure
-              const gem = geminiRef.current;
-              if (!gem.isAvailable) return "";
-              try {
-                const result = await gem.generateBurst(sourceLine, prefix);
-                if (result.text) {
-                  return result.text;
-                }
-              } catch {
-                // Gemini timeout — skip
-              }
-              return "";
-            },
-          })
-          .then((suggestions) => {
-            // Stale check: allow 1 keystroke of lag tolerance so async
-            // results from fast typists aren't always discarded.
-            if (contentVersion - currentVersion > 1) return;
-            if (suggestions.length === 0) return;
-
-            // Find the best suggestion that isn't just the LTE one we already showed
-            const bestNew = suggestions.find(
-              (s) =>
-                s.source !== "lte" &&
-                s.text.trim() &&
-                (!lteResult || s.text !== lteResult.remainder)
-            );
-
-            if (bestNew) {
-              console.log(
-                `[RDAT Ghost] AI/RAG suggestion from ${bestNew.source}: "${bestNew.text.substring(0, 60)}..." (confidence: ${bestNew.confidence.toFixed(2)})`
-              );
-              // Re-trigger Monaco inline suggest so it calls provideInlineCompletions
-              // again with the updated state (which now has AI/RAG results cached).
-              // This is the KEY mechanism for Google-like cascading ghost text.
-              // Only re-trigger when we have a NEW, better suggestion — avoids
-              // wasteful re-invocations and potential cascading re-triggers.
-              triggerInlineSuggest(editorRef.current);
+          if (cached && cached.translation.trim()) {
+            // Compute the remainder from the cached translation based on prefix
+            const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
+            if (cachedRemainder && (!lteResult || !lteResult.remainder.trim())) {
+              items.push({
+                insertText: cachedRemainder,
+                range,
+              });
             }
-          })
-          .catch((err) => {
-            console.warn("[RDAT Ghost] Async pipeline error:", err);
-          });
-
-        // Diagnostic: log what we're returning to Monaco
-        if (items.length > 0) {
-          const firstItem = items[0];
-          const rawText = firstItem.insertText;
-          const text = typeof rawText === 'string' ? rawText : (rawText as any)?.snippet ?? '';
-          const r = firstItem.range;
-          if (r) {
-            console.log(
-              `[RDAT Ghost] Returning ${items.length} item(s) to Monaco — insertText: "${text.substring(0, 50)}...", range: (${r.startLineNumber}:${r.startColumn}-${r.endLineNumber}:${r.endColumn})`
-            );
           }
-        } else {
-          console.log(`[RDAT Ghost] No items to return — all channels empty for this prefix`);
-        }
 
-        return { items };
+          // ── Async channels via MonacoSuggestionProvider ─────────────
+          // Run the full pipeline in the background. When results arrive,
+          // re-trigger Monaco inline suggest so it picks up the new suggestions.
+          suggestionProvider.cancelPending(); // cancel any previous in-flight request
+
+          suggestionProvider
+            .getSuggestions(sourceLine, prefix, {
+              lte: async () => {
+                // Already handled synchronously above, but include for pipeline completeness
+                return lteResult?.remainder ?? "";
+              },
+              rag: async () => {
+                // Read latest state from ref — NOT from stale closure
+                const ragState = ragRef.current;
+                if (!ragState.state.isCorpusLoaded) return "";
+                try {
+                  const hits = await ragState.search(sourceLine, 1);
+                  if (hits.length > 0 && hits[0].ar) {
+                    const remainder = computeCachedRemainder(hits[0].ar, prefix);
+                    return remainder || hits[0].ar;
+                  }
+                } catch {
+                  // RAG timeout — skip
+                }
+                return "";
+              },
+              prefetch: async () => {
+                if (!cached) return "";
+                return computeCachedRemainder(cached.translation, prefix) || "";
+              },
+              webllm: async () => {
+                // Read latest state from ref — NOT from stale closure
+                const wllm = webLLMRef.current;
+                // CRITICAL: Only use WebLLM when the engine is fully ready.
+                // Checking isWebGPUAvailable (which includes idle/initializing states)
+                // caused generateBurst() to call initEngine(), which:
+                // 1. Sets state to "initializing" and gets stuck there if the engine hangs
+                // 2. Creates cascading state updates that cause React re-renders
+                // 3. May interfere with Monaco's editor input handling
+                // Now, the engine is initialized separately (see useWebLLM auto-init)
+                // and the ghost text provider only calls generateBurst() when ready.
+                if (!wllm.isReady) return "";
+                try {
+                  const result = await wllm.generateBurst(sourceLine, prefix);
+                  if (result.text && !result.aborted) {
+                    return result.text;
+                  }
+                } catch {
+                  // WebLLM timeout — skip
+                }
+                return "";
+              },
+              gemini: async () => {
+                // Read latest state from ref — NOT from stale closure
+                const gem = geminiRef.current;
+                if (!gem.isAvailable) return "";
+                try {
+                  const result = await gem.generateBurst(sourceLine, prefix);
+                  if (result.text) {
+                    return result.text;
+                  }
+                } catch {
+                  // Gemini timeout — skip
+                }
+                return "";
+              },
+            })
+            .then((suggestions) => {
+              // Stale check: allow 1 keystroke of lag tolerance so async
+              // results from fast typists aren't always discarded.
+              if (contentVersion - currentVersion > 1) return;
+              if (suggestions.length === 0) return;
+
+              // Find the best suggestion that isn't just the LTE one we already showed
+              const bestNew = suggestions.find(
+                (s) =>
+                  s.source !== "lte" &&
+                  s.text.trim() &&
+                  (!lteResult || s.text !== lteResult.remainder)
+              );
+
+              if (bestNew) {
+                // Re-trigger Monaco inline suggest so it calls provideInlineCompletions
+                // again with the updated state (which now has AI/RAG results cached).
+                triggerInlineSuggest(editorRef.current);
+              }
+            })
+            .catch((err) => {
+              console.warn("[RDAT Ghost] Async pipeline error:", err);
+            });
+
+          return { items };
+        } catch (err) {
+          // If any error occurs, return empty items so Monaco doesn't
+          // enter a broken state that blocks user input.
+          console.error("[RDAT Ghost] provideInlineCompletions error:", err);
+          return { items: [] };
+        }
       },
       disposeInlineCompletions: () => {
         // Cleanup
@@ -401,9 +381,6 @@ function triggerInlineSuggest(
 ): void {
   if (!editor) return;
   try {
-    // Trigger inline suggest — this causes Monaco to call
-    // provideInlineCompletions again, which now has access to
-    // cached AI/RAG results.
     editor.trigger("rdat-ghost-text", "editor.action.inlineSuggest.trigger", {});
   } catch {
     // Editor may be in a state where triggering isn't possible
@@ -456,6 +433,71 @@ export function TargetEditor({
   const { theme, setTheme } = useTheme();
   const isDark = theme === "dark";
 
+  // ── CRITICAL FIX: Uncontrolled editor with external sync ────────
+  // Using `defaultValue` instead of `value` makes the editor uncontrolled,
+  // which prevents @monaco-editor/react from calling model.setValue()
+  // on every re-render. Controlled mode can cause cursor position resets
+  // and interfere with typing, especially when React re-renders are
+  // triggered by WebLLM/Gemini/RAG state changes.
+  //
+  // We track the "last synced value" in a ref so that external updates
+  // (clear, language swap) are applied via editor.setValue() with
+  // cursor position preservation, while user-typed changes flow through
+  // onChange without any interference.
+  const lastSyncedValueRef = useRef(value);
+
+  // Sync external value changes to the editor (e.g., clear, language swap)
+  // This useEffect detects when the `value` prop changes to something
+  // different from what the user last typed, and updates the editor
+  // with cursor position preservation.
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    // Skip if value hasn't changed from what we last synced
+    if (value === lastSyncedValueRef.current) return;
+
+    // Skip if the editor already has this content (user just typed it)
+    const currentContent = editor.getModel()?.getValue();
+    if (currentContent === value) {
+      lastSyncedValueRef.current = value;
+      return;
+    }
+
+    // External value change detected — update editor with cursor preservation
+    const position = editor.getPosition();
+    const scrollTop = editor.getScrollTop();
+    const scrollLeft = editor.getScrollLeft();
+
+    editor.setValue(value);
+
+    // Restore cursor position if it's still valid
+    if (position) {
+      const model = editor.getModel();
+      const lineCount = model?.getLineCount() ?? 1;
+      const safeLine = Math.min(position.lineNumber, lineCount);
+      const maxColumn = model?.getLineMaxColumn(safeLine) ?? 1;
+      const safeColumn = Math.min(position.column, maxColumn);
+      editor.setPosition({ lineNumber: safeLine, column: safeColumn });
+    }
+    editor.setScrollTop(scrollTop);
+    editor.setScrollLeft(scrollLeft);
+
+    lastSyncedValueRef.current = value;
+  }, [value]);
+
+  // ── Stable onChange handler ────────────────────────────────────
+  // Update lastSyncedValueRef on every user-typed change so the
+  // external sync useEffect knows the value was set by the user,
+  // not an external source.
+  const handleChange = useCallback(
+    (newValue: string | undefined) => {
+      lastSyncedValueRef.current = newValue ?? "";
+      onChange?.(newValue);
+    },
+    [onChange]
+  );
+
   // Report WebGPU state to parent
   useEffect(() => {
     if (onWebgpuStateChange) {
@@ -495,9 +537,6 @@ export function TargetEditor({
     [fontFamily]
   );
 
-  // Direction changes are handled via CSS `dir` attribute on the editor container,
-  // not via Monaco's non-existent `direction` option.
-
   // ── Update Monaco theme and font when theme or direction changes ──
   useEffect(() => {
     if (editorRef.current && monacoRef.current) {
@@ -513,9 +552,12 @@ export function TargetEditor({
       editorRef.current = editor;
       monacoRef.current = monaco;
 
-      // Apply editor options (RTL is handled via CSS dir attribute, not Monaco direction option)
+      // ── CRITICAL: Ensure editor is editable ────────────────────
+      // Explicitly set readOnly: false in case any previous state
+      // or Monaco default overrides this. Also verify after mount.
       editor.updateOptions({
         ...editorOptions,
+        readOnly: false,
         theme: isDark ? "rdat-dark" : "rdat-light",
       });
 
@@ -579,9 +621,6 @@ export function TargetEditor({
         });
       }
 
-      // NOTE: Monaco does not have a `direction` editor option.
-      // RTL is handled by CSS on the editor container element.
-
       // ── Word-by-Word Acceptance (Ctrl+RightArrow) ──────────
       editor.addCommand(
         monaco.KeyMod.CtrlCmd | monaco.KeyCode.RightArrow,
@@ -597,9 +636,7 @@ export function TargetEditor({
       // ── Accept Full Suggestion (Tab) ───────────────────────
       // Only register Tab with the Monaco context gate so that normal
       // Tab behavior (indent, focus change) is preserved when no
-      // ghost text is visible. Previously, a second addCommand without
-      // a context gate was registered, which intercepted ALL Tab
-      // presses and prevented normal Tab/indent functionality.
+      // ghost text is visible.
       editor.addCommand(
         monaco.KeyCode.Tab,
         () => {
@@ -608,14 +645,13 @@ export function TargetEditor({
         "editorInlineSuggestionVisible"
       );
 
-      // ── Dismiss Suggestion (Esc) ───────────────────────────
-      editor.addCommand(monaco.KeyCode.Escape, () => {
-        editor.trigger(
-          "keyboard",
-          "editor.action.inlineSuggest.hide",
-          {}
-        );
-      });
+      // NOTE: The global Escape key handler has been REMOVED.
+      // Previously, `editor.addCommand(monaco.KeyCode.Escape, ...)`
+      // was registered WITHOUT a context gate, intercepting ALL
+      // Escape key presses. This interfered with Monaco's internal
+      // editing operations (exiting multi-cursor, closing find widget,
+      // dismissing overlays). Monaco natively handles Escape for
+      // inline suggestions — no custom handler needed.
 
       // ── Interrupt AI generation on typing ──────────────────
       editor.onDidChangeModelContent(() => {
@@ -688,8 +724,8 @@ export function TargetEditor({
         height="100%"
         defaultLanguage="plaintext"
         language="plaintext"
-        value={value}
-        onChange={onChange}
+        defaultValue={value}
+        onChange={handleChange}
         options={editorOptions}
         onMount={handleEditorDidMount}
         theme={isDark ? "rdat-dark" : "rdat-light"}

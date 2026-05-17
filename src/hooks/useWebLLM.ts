@@ -31,6 +31,9 @@ interface WebLLMRecoveryState {
   backoffDelays: number[]; // [1s, 2s, 4s, 8s, 16s, 30s]
 }
 
+/** Timeout for CreateWebWorkerMLCEngine — prevents getting stuck at "initializing" */
+const ENGINE_INIT_TIMEOUT_MS = 60_000; // 60 seconds
+
 /**
  * useWebLLM — WebGPU Neural Network with Exponential Backoff Recovery.
  * 
@@ -40,6 +43,24 @@ interface WebLLMRecoveryState {
  *  - Auto-recovery on generation failure
  *  - Max 5 retries before giving up
  *  - Proper cleanup on unmount
+ *  - Auto-initialization when model is cached (fast load from browser cache)
+ *  - Timeout protection to prevent getting stuck at "initializing"
+ *
+ * State Flow:
+ *  unavailable → idle → initializing → downloading/loading → ready → generating
+ *                    ↑                                    ↓
+ *                    └── error/recovering (with backoff) ←┘
+ *
+ * The key design decision: the ghost text provider only calls generateBurst()
+ * when the engine is ready (isReady === true). The engine initialization
+ * happens automatically when:
+ *  1. WebGPU adapter is found (state: idle)
+ *  2. AND the selected model is already cached in the browser
+ * This way:
+ *  - "WebGPU Available" is shown when adapter is found but model isn't loaded
+ *  - "Initializing..." is shown briefly during model loading
+ *  - "Ready" is shown when the model is loaded and ready to use
+ *  - The engine never gets stuck at "initializing" because of timeout protection
  */
 export function useWebLLM() {
   const [state, setState] = useState<WebLLMState>("unavailable");
@@ -49,6 +70,9 @@ export function useWebLLM() {
   const engineRef = useRef<MLCEngineInterface | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isClientRef = useRef(false);
+  const initAttemptRef = useRef(0); // Guards against concurrent initEngine calls
+  const initTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isInitializingRef = useRef(false); // Prevents concurrent initEngine calls
   
   const recoveryStateRef = useRef<WebLLMRecoveryState>({
     retryCount: 0,
@@ -80,13 +104,8 @@ export function useWebLLM() {
           return;
         }
         // WebGPU adapter found — transition to "idle" state.
-        // This tells the UI and ghost text provider that WebGPU IS available,
-        // but the model hasn't been loaded yet. The ghost text provider
-        // will now try to call generateBurst(), which triggers lazy
-        // initEngine() on first use. If the model is already cached
-        // in the browser's Cache API, loading is fast (< 5 seconds).
-        // If not cached, the first load takes longer but the suggestion
-        // timeout (5s) handles it gracefully.
+        // This tells the UI that WebGPU IS available, but the model
+        // hasn't been loaded yet. The StatusBar shows "WebGPU Available".
         setState("idle");
         setError(null);
         console.log("[WebLLM] WebGPU adapter found — engine will load on first use");
@@ -119,13 +138,23 @@ export function useWebLLM() {
   /**
    * Initialize the engine with exponential backoff retry.
    * Checks if the model is already cached before starting download.
+   * Includes timeout protection to prevent getting stuck at "initializing".
    */
-  const initEngine = useCallback(async () => {
+  const initEngine = useCallback(async (): Promise<MLCEngineInterface | null> => {
     if (!isClientRef.current) return null;
+    
+    // Prevent concurrent initialization calls
+    if (isInitializingRef.current) {
+      console.log("[WebLLM] Initialization already in progress — skipping duplicate call");
+      return engineRef.current;
+    }
+    
     if (engineRef.current) {
       // Verify engine is still healthy
       const healthy = await healthCheck();
       if (healthy) return engineRef.current;
+      // Engine is unhealthy — reset and re-init
+      engineRef.current = null;
     }
 
     const recovery = recoveryStateRef.current;
@@ -144,6 +173,10 @@ export function useWebLLM() {
       setState("recovering");
       await new Promise(resolve => setTimeout(resolve, delay));
     }
+
+    // Mark as initializing to prevent concurrent calls
+    const attemptId = ++initAttemptRef.current;
+    isInitializingRef.current = true;
 
     try {
       setState("initializing");
@@ -173,6 +206,9 @@ export function useWebLLM() {
 
       // Progress callback
       const progressCallback = (report: InitProgressReport) => {
+        // Only update if this is still the current initialization attempt
+        if (initAttemptRef.current !== attemptId) return;
+        
         setProgress({ text: report.text, percentage: report.progress * 100 });
         
         if (report.text.includes("Fetching")) {
@@ -186,8 +222,29 @@ export function useWebLLM() {
         }
       };
 
+      // ── Timeout protection ──────────────────────────────────────
+      // Prevents CreateWebWorkerMLCEngine from hanging forever and
+      // leaving the state stuck at "initializing". If the engine
+      // doesn't initialize within ENGINE_INIT_TIMEOUT_MS, we abort
+      // and transition back to "idle" so the UI shows "WebGPU Available".
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
+      }
+      const timeoutPromise = new Promise<null>((resolve) => {
+        initTimeoutRef.current = setTimeout(() => {
+          console.warn(`[WebLLM] Engine initialization timed out after ${ENGINE_INIT_TIMEOUT_MS / 1000}s`);
+          // Only update state if this is still the current attempt
+          if (initAttemptRef.current === attemptId) {
+            isInitializingRef.current = false;
+            setState("idle");
+            setError(`Model loading timed out (${ENGINE_INIT_TIMEOUT_MS / 1000}s). Click retry or select a different model.`);
+          }
+          resolve(null);
+        }, ENGINE_INIT_TIMEOUT_MS);
+      });
+
       // Create engine in a Web Worker (keeps UI thread smooth)
-      const engine = await webllm.CreateWebWorkerMLCEngine(
+      const enginePromise = webllm.CreateWebWorkerMLCEngine(
         new Worker(new URL("@mlc-ai/web-llm", import.meta.url), {
           type: "module",
         }),
@@ -197,12 +254,47 @@ export function useWebLLM() {
         }
       );
 
+      // Race between engine creation and timeout
+      const engine = await Promise.race([enginePromise, timeoutPromise]);
+
+      // Clear timeout
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
+        initTimeoutRef.current = null;
+      }
+
+      // If timeout won the race, engine is null
+      if (!engine) {
+        return null;
+      }
+
+      // Only update if this is still the current attempt
+      if (initAttemptRef.current !== attemptId) {
+        console.log("[WebLLM] Stale initialization attempt completed — discarding engine");
+        return null;
+      }
+
       engineRef.current = engine;
       recovery.retryCount = 0; // Reset on success
+      isInitializingRef.current = false;
       setState("ready");
+      setError(null);
       console.log("[WebLLM] Engine initialized successfully");
       return engine;
     } catch (err: any) {
+      isInitializingRef.current = false;
+      
+      // Clear timeout
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
+        initTimeoutRef.current = null;
+      }
+      
+      // Only update if this is still the current attempt
+      if (initAttemptRef.current !== attemptId) {
+        return null;
+      }
+      
       recovery.retryCount += 1;
       recovery.lastRetryTime = Date.now();
       
@@ -212,8 +304,12 @@ export function useWebLLM() {
         setState("error");
         setError(err.message || "Failed to initialize WebLLM after 5 attempts");
       } else {
-        setState("recovering");
-        // Auto-retry
+        // Transition to "idle" instead of "recovering" so the UI shows
+        // "WebGPU Available" and the user can see the system is still
+        // functional. Auto-retry will transition through "recovering" → "initializing".
+        setState("idle");
+        setError(null);
+        // Auto-retry with backoff
         const nextDelay = recovery.backoffDelays[recovery.retryCount - 1];
         setTimeout(() => initEngine(), nextDelay);
       }
@@ -223,17 +319,27 @@ export function useWebLLM() {
   }, [selectedModel, healthCheck]);
 
   /**
-   * Generate a burst of 3-5 Arabic words with auto-recovery.
+   * Generate a burst of 3-5 Arabic words.
+   * 
+   * CRITICAL: This function only works when the engine is already loaded.
+   * It does NOT call initEngine() — the engine must be initialized
+   * separately (via auto-init or manual loadModel()).
+   * 
+   * Previously, generateBurst() called initEngine() on first use
+   * (lazy initialization). This caused:
+   * 1. State stuck at "initializing" if engine creation hangs
+   * 2. Cascading React re-renders from state changes during typing
+   * 3. Potential interference with Monaco editor input handling
    */
   const generateBurst = useCallback(
     async (source: string, prefix: string): Promise<WebLLMResult> => {
-      let engine = engineRef.current;
+      const engine = engineRef.current;
       
+      // CRITICAL: Don't call initEngine() here. The engine must be
+      // pre-loaded. If not ready, return empty — the ghost text
+      // provider will fall back to LTE/RAG channels.
       if (!engine) {
-        engine = await initEngine();
-        if (!engine) {
-          return { text: "", aborted: true };
-        }
+        return { text: "", aborted: true };
       }
 
       // Cancel any ongoing generation
@@ -275,28 +381,16 @@ export function useWebLLM() {
         if (err.name === "AbortError") {
           return { text: "", aborted: true };
         }
-        console.error("[WebLLM] Generation failed, attempting recovery:", err);
+        console.error("[WebLLM] Generation failed:", err);
         
-        // Auto-recovery: reset engine and retry
-        engineRef.current = null;
-        setState("recovering");
-        
-        // Don't retry immediately if we just retried initialization
-        if (Date.now() - recoveryStateRef.current.lastRetryTime > 5000) {
-          const retryEngine = await initEngine();
-          if (retryEngine) {
-            // Engine re-initialized successfully — set to ready, NOT error!
-            // Previously this was setState("error") which permanently disabled
-            // the WebLLM channel after any generation failure.
-            setState("ready");
-            setError(null);
-          }
-        }
+        // Don't nuke the engine on generation failure — it may still work
+        // for the next request. Only reset if it's clearly broken.
+        setState("ready");
         
         return { text: "", aborted: true };
       }
     },
-    [initEngine]
+    [] // No dependencies — uses refs for everything
   );
 
   /**
@@ -304,13 +398,10 @@ export function useWebLLM() {
    */
   const generateFullTranslation = useCallback(
     async (source: string): Promise<WebLLMResult> => {
-      let engine = engineRef.current;
+      const engine = engineRef.current;
       
       if (!engine) {
-        engine = await initEngine();
-        if (!engine) {
-          return { text: "", aborted: true };
-        }
+        return { text: "", aborted: true };
       }
 
       // Cancel any ongoing generation
@@ -344,25 +435,13 @@ export function useWebLLM() {
         if (err.name === "AbortError") {
           return { text: "", aborted: true };
         }
-        console.error("[WebLLM] Full translation failed, attempting recovery:", err);
+        console.error("[WebLLM] Full translation failed:", err);
         
-        // Auto-recovery
-        engineRef.current = null;
-        setState("recovering");
-        
-        if (Date.now() - recoveryStateRef.current.lastRetryTime > 5000) {
-          const retryEngine = await initEngine();
-          if (retryEngine) {
-            // Engine re-initialized successfully — set to ready, NOT error!
-            setState("ready");
-            setError(null);
-          }
-        }
-        
+        setState("ready");
         return { text: "", aborted: true };
       }
     },
-    [initEngine]
+    [] // No dependencies — uses refs for everything
   );
 
   /**
@@ -373,19 +452,67 @@ export function useWebLLM() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    if (state === "generating") {
-      setState("ready");
-    }
-  }, [state]);
+    // Use a functional state update to avoid stale closure over `state`
+    setState((prev) => prev === "generating" ? "ready" : prev);
+  }, []);
 
   /**
-   * Manual retry trigger.
+   * Manual retry / model load trigger.
+   * Resets retry count and attempts initialization.
    */
-  const retry = useCallback(async () => {
+  const loadModel = useCallback(async () => {
     engineRef.current = null;
     recoveryStateRef.current.retryCount = 0;
+    setError(null);
     await initEngine();
   }, [initEngine]);
+
+  /**
+   * Legacy alias for loadModel — backward compat.
+   */
+  const retry = loadModel;
+
+  // ── Auto-initialize engine when WebGPU is available and model is cached ──
+  // This runs once when the state transitions from "unavailable" to "idle".
+  // If the model is already in the browser's cache, we load it automatically
+  // since it's fast (< 5 seconds). If not cached, we stay at "idle" and
+  // let the user trigger model loading from the AI Models view.
+  useEffect(() => {
+    if (state !== "idle") return;
+    if (!isClientRef.current) return;
+    if (isInitializingRef.current) return;
+    if (engineRef.current) return;
+
+    let cancelled = false;
+
+    const autoInitIfCached = async () => {
+      try {
+        const webllm = await import("@mlc-ai/web-llm");
+        if (cancelled) return;
+
+        const isCached = await webllm.hasModelInCache(selectedModel);
+        if (cancelled) return;
+
+        if (isCached) {
+          console.log(`[WebLLM] Model "${selectedModel}" is cached — auto-loading`);
+          await initEngine();
+        } else {
+          console.log(`[WebLLM] Model "${selectedModel}" not cached — staying idle (user can load from AI Models view)`);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.warn("[WebLLM] Auto-init cache check failed:", err);
+          // Stay at "idle" — don't block the UI
+        }
+      }
+    };
+
+    autoInitIfCached();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [state, selectedModel, initEngine]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -393,6 +520,10 @@ export function useWebLLM() {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      if (initTimeoutRef.current) {
+        clearTimeout(initTimeoutRef.current);
+      }
+      isInitializingRef.current = false;
     };
   }, []);
 
@@ -403,14 +534,15 @@ export function useWebLLM() {
     generateBurst,
     generateFullTranslation,
     interruptGenerate,
+    loadModel,
     retry,
     isReady: state === "ready",
     isGenerating: state === "generating",
     /**
      * WebGPU hardware is available (adapter found).
-     * Use this to decide whether to ATTEMPT WebLLM generation.
-     * Unlike isReady (which requires the model to be loaded),
-     * isWebGPUAvailable only requires the browser to support WebGPU.
+     * Use this to decide whether to SHOW the WebGPU status badge.
+     * The ghost text provider should use isReady (not this) to decide
+     * whether to call generateBurst().
      */
     isWebGPUAvailable: state !== "unavailable",
   };
