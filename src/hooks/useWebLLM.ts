@@ -6,6 +6,7 @@ import { useSettingsStore } from "@/stores/settings-store";
 
 export type WebLLMState = 
   | "unavailable"
+  | "idle"           // WebGPU adapter found, model not loaded yet
   | "initializing"
   | "downloading"
   | "loading"
@@ -78,12 +79,16 @@ export function useWebLLM() {
           setError("No WebGPU adapter found");
           return;
         }
-        // WebGPU adapter found, but the LLM model hasn't been loaded yet.
-        // Do NOT set state to "ready" here — that would cause the ghost
-        // text provider to think WebLLM is available and try to call
-        // generateBurst(), which triggers initEngine() (model download)
-        // that takes seconds to minutes, causing all suggestions to time out.
-        // Instead, keep state as "unavailable" until initEngine() completes.
+        // WebGPU adapter found — transition to "idle" state.
+        // This tells the UI and ghost text provider that WebGPU IS available,
+        // but the model hasn't been loaded yet. The ghost text provider
+        // will now try to call generateBurst(), which triggers lazy
+        // initEngine() on first use. If the model is already cached
+        // in the browser's Cache API, loading is fast (< 5 seconds).
+        // If not cached, the first load takes longer but the suggestion
+        // timeout (5s) handles it gracefully.
+        setState("idle");
+        setError(null);
         console.log("[WebLLM] WebGPU adapter found — engine will load on first use");
       },
       () => {
@@ -113,6 +118,7 @@ export function useWebLLM() {
 
   /**
    * Initialize the engine with exponential backoff retry.
+   * Checks if the model is already cached before starting download.
    */
   const initEngine = useCallback(async () => {
     if (!isClientRef.current) return null;
@@ -145,7 +151,25 @@ export function useWebLLM() {
       setError(null);
 
       // Dynamic import to prevent SSR bundling
-      const { CreateWebWorkerMLCEngine } = await import("@mlc-ai/web-llm");
+      const webllm = await import("@mlc-ai/web-llm");
+
+      // Check if model is already cached in the browser's Cache API
+      // This prevents re-downloading and shows appropriate status
+      let isModelCached = false;
+      try {
+        isModelCached = await webllm.hasModelInCache(selectedModel);
+        if (isModelCached) {
+          console.log(`[WebLLM] Model "${selectedModel}" found in cache — loading from cache`);
+          setProgress({ text: "Loading model from cache...", percentage: 0.1 });
+          // Reset retry count since cached models load reliably
+          recovery.retryCount = 0;
+        } else {
+          console.log(`[WebLLM] Model "${selectedModel}" not in cache — will download`);
+        }
+      } catch (cacheCheckErr) {
+        // hasModelInCache may fail in some environments — proceed anyway
+        console.warn("[WebLLM] Cache check failed, proceeding with initialization:", cacheCheckErr);
+      }
 
       // Progress callback
       const progressCallback = (report: InitProgressReport) => {
@@ -163,7 +187,7 @@ export function useWebLLM() {
       };
 
       // Create engine in a Web Worker (keeps UI thread smooth)
-      const engine = await CreateWebWorkerMLCEngine(
+      const engine = await webllm.CreateWebWorkerMLCEngine(
         new Worker(new URL("@mlc-ai/web-llm", import.meta.url), {
           type: "module",
         }),
@@ -382,5 +406,12 @@ export function useWebLLM() {
     retry,
     isReady: state === "ready",
     isGenerating: state === "generating",
+    /**
+     * WebGPU hardware is available (adapter found).
+     * Use this to decide whether to ATTEMPT WebLLM generation.
+     * Unlike isReady (which requires the model to be loaded),
+     * isWebGPUAvailable only requires the browser to support WebGPU.
+     */
+    isWebGPUAvailable: state !== "unavailable",
   };
 }

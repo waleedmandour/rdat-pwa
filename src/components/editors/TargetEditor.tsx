@@ -252,7 +252,14 @@ function registerGhostTextProvider(
             webllm: async () => {
               // Read latest state from ref — NOT from stale closure
               const wllm = webLLMRef.current;
-              if (!wllm.isReady) return "";
+              // Use isWebGPUAvailable (not isReady) so that generateBurst()
+              // is called even when the model hasn't been loaded yet.
+              // generateBurst() handles lazy initEngine() internally.
+              // Previously, checking isReady created a chicken-and-egg problem:
+              // the provider never called generateBurst() because isReady
+              // was false, and isReady never became true because initEngine()
+              // was never called.
+              if (!wllm.isWebGPUAvailable) return "";
               try {
                 const result = await wllm.generateBurst(sourceLine, prefix);
                 if (result.text && !result.aborted) {
@@ -588,7 +595,11 @@ export function TargetEditor({
       );
 
       // ── Accept Full Suggestion (Tab) ───────────────────────
-      // Primary: with Monaco context gate
+      // Only register Tab with the Monaco context gate so that normal
+      // Tab behavior (indent, focus change) is preserved when no
+      // ghost text is visible. Previously, a second addCommand without
+      // a context gate was registered, which intercepted ALL Tab
+      // presses and prevented normal Tab/indent functionality.
       editor.addCommand(
         monaco.KeyCode.Tab,
         () => {
@@ -596,13 +607,6 @@ export function TargetEditor({
         },
         "editorInlineSuggestionVisible"
       );
-      // Fallback: global Tab handler without context gate
-      // This ensures Tab commit works even when Monaco's context gate
-      // doesn't detect the inline suggestion as visible (RTL quirk).
-      editor.addCommand(monaco.KeyCode.Tab, () => {
-        // Try to commit; if no suggestion visible, this is a no-op
-        editor.trigger("keyboard", "editor.action.inlineSuggest.commit", {});
-      });
 
       // ── Dismiss Suggestion (Esc) ───────────────────────────
       editor.addCommand(monaco.KeyCode.Escape, () => {
@@ -651,7 +655,14 @@ export function TargetEditor({
     [onCursorChange, direction, isDark]
   );
 
-  // Cleanup on unmount
+  // Cleanup on unmount ONLY (empty dependency array).
+  // Previously, this had [webLLM, gemini] as dependencies, which
+  // are new objects on every render (hooks return new objects each
+  // time). This caused the cleanup to run on EVERY render, disposing
+  // the ghost text provider and interrupting generation unnecessarily.
+  // The provider was never re-registered because handleEditorDidMount
+  // only fires once. This effectively killed ghost text after the
+  // first render.
   useEffect(() => {
     return () => {
       if (ghostProviderRef.current) {
@@ -664,11 +675,12 @@ export function TargetEditor({
       if (cursorDebounceRef.current) {
         clearTimeout(cursorDebounceRef.current);
       }
-      webLLM.interruptGenerate();
-      gemini.interruptGenerate();
+      // Use refs for cleanup to avoid stale closures
+      webLLMRef.current.interruptGenerate();
+      geminiRef.current.interruptGenerate();
       providerRegisteredRef.current = false;
     };
-  }, [webLLM, gemini]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className={cn("h-full w-full", className)} dir={direction}>

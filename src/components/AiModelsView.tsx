@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/LanguageContext";
 import { useSettingsStore } from "@/stores/settings-store";
 import { useRAG } from "@/hooks/useRAG";
+import { useWebLLM } from "@/hooks/useWebLLM";
 import {
   Cpu,
   Zap,
@@ -36,8 +37,37 @@ export function AiModelsView() {
   const geminiKey = useSettingsStore((s) => s.geminiApiKey);
   const useCloud = useSettingsStore((s) => s.useCloudFallback);
 
-  // Determine engine statuses
-  const hasWebGPU = typeof navigator !== "undefined" && "gpu" in navigator;
+  // Determine engine statuses — use WebLLM hook for accurate state
+  const webLLM = useWebLLM();
+  const selectedModel = useSettingsStore((s) => s.webLLMModel);
+  const hasWebGPU = webLLM.isWebGPUAvailable;
+
+  // Determine WebLLM status text based on actual state
+  const getWebLLMStatus = () => {
+    if (!hasWebGPU) {
+      return { en: "WebGPU Not Available", ar: "WebGPU غير متاح" };
+    }
+    switch (webLLM.state) {
+      case "ready":
+        return { en: `Ready — ${selectedModel}`, ar: `جاهز — ${selectedModel}` };
+      case "downloading":
+        return { en: `Downloading — ${webLLM.progress.percentage.toFixed(0)}%`, ar: `جاري التنزيل — ${webLLM.progress.percentage.toFixed(0)}%` };
+      case "loading":
+        return { en: "Loading model...", ar: "جاري تحميل النموذج..." };
+      case "initializing":
+        return { en: "Initializing...", ar: "جاري التهيئة..." };
+      case "generating":
+        return { en: "Generating...", ar: "يولّد..." };
+      case "error":
+        return { en: `Error — ${webLLM.error || "Unknown"}`, ar: `خطأ — ${webLLM.error || "غير معروف"}` };
+      case "recovering":
+        return { en: "Recovering...", ar: "جاري الاسترداد..." };
+      case "idle":
+      default:
+        return { en: "WebGPU Available — Model loads on first use", ar: "WebGPU متاح — يتم تحميل النموذج عند الاستخدام" };
+    }
+  };
+  const webllmStatus = getWebLLMStatus();
 
   const engines: EngineCard[] = [
     {
@@ -79,8 +109,8 @@ export function AiModelsView() {
       icon: hasWebGPU ? Wifi : WifiOff,
       color: hasWebGPU ? "text-emerald-400" : "text-warning",
       isActive: hasWebGPU,
-      statusText: hasWebGPU ? "WebGPU Available — Ready to download" : "WebGPU Not Available",
-      statusTextAr: hasWebGPU ? "WebGPU متاح — جاهز للتنزيل" : "WebGPU غير متاح",
+      statusText: webllmStatus.en,
+      statusTextAr: webllmStatus.ar,
     },
     {
       id: "gemini",

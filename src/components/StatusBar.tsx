@@ -8,7 +8,7 @@ import type { RAGState } from "@/hooks/useRAG";
 
 export type EngineMode = "hybrid" | "local" | "cloud";
 export type GTRStatus = "active" | "zero-shot";
-export type WebGPUState = "ready" | "unavailable" | "loading" | "downloading" | "generating" | "error" | "initializing";
+export type WebGPUState = "ready" | "unavailable" | "idle" | "loading" | "downloading" | "generating" | "error" | "initializing";
 
 export interface WebGPUInfo {
   state: WebGPUState;
@@ -82,10 +82,11 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
 
   // Map WebLLM states to displayable states
   // WebLLM has "recovering" which isn't in WebGPUState — treat as "initializing"
+  // WebLLM has "idle" (WebGPU available, model not loaded) — display as-is
   const safeState: WebGPUState = 
-    ["ready", "unavailable", "loading", "downloading", "generating", "error", "initializing"]
-      .includes(info.state) 
-      ? info.state 
+    ["ready", "unavailable", "idle", "loading", "downloading", "generating", "error", "initializing"]
+      .includes(info.state as string) 
+      ? info.state as WebGPUState
       : "loading";
 
   const config: Record<WebGPUState, { icon: React.ReactNode; bg: string; label: string }> = {
@@ -93,6 +94,11 @@ const WebGPUBadge: React.FC<{ info: WebGPUInfo }> = ({ info }) => {
       icon: <Wifi className="w-3 h-3" />,
       bg: "bg-primary-muted text-primary",
       label: t("status.webgpu.ready"),
+    },
+    idle: {
+      icon: <Wifi className="w-3 h-3" />,
+      bg: "bg-blue-900/40 text-blue-400",
+      label: isRTL ? "WebGPU متاح" : "WebGPU Available",
     },
     unavailable: {
       icon: <WifiOff className="w-3 h-3" />,
