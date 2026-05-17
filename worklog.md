@@ -18,3 +18,47 @@ Stage Summary:
 - Fixed AiModelsView.tsx: now uses useWebLLM() hook for real-time WebLLM state, shows model name and download progress
 - All 72 tests passing, 0 TypeScript errors
 - Pushed to GitHub: commit 060c58d
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix TargetEditor - User cannot enter translation
+
+Work Log:
+- Diagnosed root cause: controlled `value` prop in @monaco-editor/react could cause cursor resets on React re-renders triggered by WebLLM/Gemini/RAG state changes
+- Found that global Escape key handler (no context gate) intercepted ALL Esc presses, interfering with Monaco's internal editing
+- Found that provideInlineCompletions handler lacked try-catch, potentially breaking Monaco's inline suggestion system
+- Switched from controlled `value` to `defaultValue` with external sync mechanism
+- Added cursor position preservation for external value updates (clear, language swap)
+- Removed global Escape key handler (Monaco handles Escape natively)
+- Wrapped provideInlineCompletions in try-catch to always return valid results
+- Changed ghost text provider to check isReady instead of isWebGPUAvailable
+
+Stage Summary:
+- TargetEditor.tsx now uses uncontrolled mode (defaultValue) preventing cursor resets
+- External value sync preserves cursor position (scrollTop, scrollLeft, position)
+- Ghost text provider won't trigger initEngine() during suggestions
+- 0 TypeScript errors, 72/72 tests passing
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix WebGPU stuck at 'initializing' - should show 'WebGPU Available'
+
+Work Log:
+- Diagnosed root cause: generateBurst() called initEngine() which set state to "initializing", but CreateWebWorkerMLCEngine could hang without timeout
+- Added 60-second timeout for CreateWebWorkerMLCEngine using Promise.race
+- Added auto-init when model is already cached in browser's Cache API
+- On failure/timeout, transition back to "idle" (WebGPU Available) instead of "error"
+- generateBurst() no longer calls initEngine() — engine must be pre-loaded
+- Added concurrent init prevention guard (isInitializingRef + initAttemptRef)
+- Used functional setState in interruptGenerate to avoid stale closures
+- Added loadModel() method for explicit model loading
+- Updated AiModelsView with Load Model button and progress bar
+- Fixed WorkspaceShell initial state from "loading" to "unavailable"
+
+Stage Summary:
+- WebGPU badge now shows "WebGPU Available" when adapter found but model not loaded
+- Auto-loads cached models on mount for seamless experience
+- 60s timeout prevents getting stuck at "initializing" forever
+- Load Model button in AI Models view for manual loading
+- All changes pushed to GitHub: commit b8be301
