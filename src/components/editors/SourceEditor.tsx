@@ -1,24 +1,24 @@
 "use client";
 
-import React, { useRef, useEffect, useMemo } from "react";
+import React, { useRef, useEffect, useMemo, useCallback } from "react";
 import dynamic from "next/dynamic";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
 
-// Dynamically import Monaco to prevent SSR hydration crashes
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ssr: false,
   loading: () => <EditorSkeleton />,
 });
 
 interface SourceEditorProps {
-  value?: string;
+  defaultValue?: string;           // initial content (uncontrolled)
   onChange?: (value: string | undefined) => void;
   highlightedLine?: number | null;
   className?: string;
   direction?: "ltr" | "rtl";
+  resetKey?: string;              // forces remount on external content change
 }
 
 const BASE_EDITOR_OPTIONS = {
@@ -45,19 +45,22 @@ const BASE_EDITOR_OPTIONS = {
 };
 
 export function SourceEditor({
-  value = "",
+  defaultValue = "",
   onChange,
   highlightedLine,
   className,
   direction = "ltr",
+  resetKey,
 }: SourceEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
   const decorationsRef = useRef<string[]>([]);
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  // Dynamic font family based on direction — Arabic when RTL, Latin when LTR
   const fontFamily = useMemo(
     () =>
       direction === "rtl"
@@ -66,75 +69,69 @@ export function SourceEditor({
     [direction]
   );
 
-  // Build editor options with dynamic font
   const editorOptions = useMemo(
-    () => ({
-      ...BASE_EDITOR_OPTIONS,
-      fontFamily,
-    }),
+    () => ({ ...BASE_EDITOR_OPTIONS, fontFamily }),
     [fontFamily]
   );
 
-  const handleEditorDidMount: OnMount = (editor, monaco) => {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
+  const handleEditorDidMount: OnMount = useCallback(
+    (editor, monaco) => {
+      editorRef.current = editor;
+      monacoRef.current = monaco;
 
-    // Define custom themes for both dark and light modes
-    monaco.editor.defineTheme("rdat-dark", {
-      base: "vs-dark",
-      inherit: true,
-      rules: [],
-      colors: {},
-    });
-    monaco.editor.defineTheme("rdat-light", {
-      base: "vs",
-      inherit: true,
-      rules: [],
-      colors: {},
-    });
+      // Ensure editable
+      editor.updateOptions({ readOnly: false, theme: isDark ? "rdat-dark" : "rdat-light", fontFamily });
 
-    // Apply editor options (RTL is handled via CSS, not Monaco direction option)
-    editor.updateOptions({
-      ...editorOptions,
-      theme: isDark ? "rdat-dark" : "rdat-light",
-    });
-  };
+      // Themes
+      monaco.editor.defineTheme("rdat-dark", {
+        base: "vs-dark",
+        inherit: true,
+        rules: [],
+        colors: {},
+      });
+      monaco.editor.defineTheme("rdat-light", {
+        base: "vs",
+        inherit: true,
+        rules: [],
+        colors: {},
+      });
 
-  // Direction changes are handled via CSS `dir` attribute on the editor container,
-  // not via Monaco's non-existent `direction` option.
+      // Report changes upward (uncontrolled)
+      const contentListener = editor.onDidChangeModelContent(() => {
+        onChangeRef.current?.(editor.getValue());
+      });
 
-  // Update Monaco theme and font when theme or direction changes
+      return () => {
+        contentListener.dispose();
+      };
+    },
+    [isDark, fontFamily]
+  );
+
+  // Update theme and font on change
   useEffect(() => {
-    if (editorRef.current && monacoRef.current) {
-      editorRef.current.updateOptions({
+    const editor = editorRef.current;
+    if (editor) {
+      editor.updateOptions({
         theme: isDark ? "rdat-dark" : "rdat-light",
         fontFamily,
       } as any);
     }
   }, [isDark, fontFamily]);
 
-  // Update line highlight decorations
+  // Update highlighted line decorations
   useEffect(() => {
-    if (!editorRef.current || !monacoRef.current) return;
-
     const editor = editorRef.current;
     const monaco = monacoRef.current;
+    if (!editor || !monaco) return;
 
-    // Clear previous decorations
     if (decorationsRef.current.length > 0) {
       editor.deltaDecorations(decorationsRef.current, []);
       decorationsRef.current = [];
     }
 
-    // Apply new highlight
     if (highlightedLine !== null && highlightedLine !== undefined) {
-      const range = new monaco.Range(
-        highlightedLine,
-        1,
-        highlightedLine,
-        1
-      );
-
+      const range = new monaco.Range(highlightedLine, 1, highlightedLine, 1);
       decorationsRef.current = editor.deltaDecorations([], [
         {
           range,
@@ -142,14 +139,8 @@ export function SourceEditor({
             isWholeLine: true,
             className: "source-line-highlight",
             inlineClassName: "source-line-highlight-inline",
-            minimap: {
-              color: "rgba(2, 132, 199, 0.3)",
-              position: 1,
-            },
-            overviewRuler: {
-              color: "rgba(2, 132, 199, 0.5)",
-              position: 1,
-            },
+            minimap: { color: "rgba(2, 132, 199, 0.3)", position: 1 },
+            overviewRuler: { color: "rgba(2, 132, 199, 0.5)", position: 1 },
           },
         },
       ]);
@@ -159,11 +150,11 @@ export function SourceEditor({
   return (
     <div className={cn("h-full w-full", className)} dir={direction}>
       <MonacoEditor
+        key={resetKey ?? "source-editor"}   // remount when resetKey changes
         height="100%"
         defaultLanguage="plaintext"
         language="plaintext"
-        value={value}
-        onChange={onChange}
+        defaultValue={defaultValue}
         options={editorOptions}
         onMount={handleEditorDidMount}
         theme={isDark ? "rdat-dark" : "rdat-light"}
