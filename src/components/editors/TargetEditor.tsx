@@ -3,7 +3,7 @@
 import React, { useRef, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { OnMount } from "@monaco-editor/react";
-import type { editor, languages, IDisposable } from "monaco-editor";
+import type { editor, IDisposable } from "monaco-editor";
 import type * as Monaco from "monaco-editor";
 import { cn } from "@/lib/utils";
 import { getLTE } from "@/lib/local-translation-engine";
@@ -21,7 +21,7 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 });
 
 interface TargetEditorProps {
-  value?: string;
+  defaultValue?: string;           // initial content (uncontrolled)
   onChange?: (value: string | undefined) => void;
   onCursorChange?: (lineNumber: number) => void;
   sourceLines?: string[];
@@ -30,6 +30,7 @@ interface TargetEditorProps {
   onRagStateChange?: (state: import("@/hooks/useRAG").RAGState) => void;
   className?: string;
   direction?: "ltr" | "rtl";
+  translationKey?: string;        // changes when content is replaced externally
 }
 
 const BASE_EDITOR_OPTIONS = {
@@ -81,173 +82,132 @@ function calculateGhostTextRange(
 function registerGhostTextProvider(
   monaco: typeof import("monaco-editor"),
   sourceLinesRef: React.MutableRefObject<string[]>,
-  webLLMRef: React.MutableRefObject<ReturnType<typeof useWebLLM>>,
-  geminiRef: React.MutableRefObject<ReturnType<typeof useGemini>>,
-  ragRef: React.MutableRefObject<ReturnType<typeof useRAG>>,
+  webLLMRef: React.MutableRefObject<any>,
+  geminiRef: React.MutableRefObject<any>,
+  ragRef: React.MutableRefObject<any>,
   suggestionProvider: MonacoSuggestionProvider,
   editorRef: React.MutableRefObject<editor.IStandaloneCodeEditor | null>
 ): IDisposable {
   const languageId = "plaintext";
   let contentVersion = 0;
 
-  const providerDisposable = monaco.languages.registerInlineCompletionsProvider(
-    languageId,
-    {
-      provideInlineCompletions: async (model, position) => {
-        try {
-          const currentVersion = ++contentVersion;
-          const lineText = model.getLineContent(position.lineNumber);
-          const prefix = lineText.substring(0, position.column - 1).trim();
+  return monaco.languages.registerInlineCompletionsProvider(languageId, {
+    provideInlineCompletions: async (model, position) => {
+      try {
+        const currentVersion = ++contentVersion;
+        const lineText = model.getLineContent(position.lineNumber);
+        const prefix = lineText.substring(0, position.column - 1).trim();
+        const sourceLines = sourceLinesRef.current;
+        const sourceLine = sourceLines[position.lineNumber - 1]?.trim() ?? "";
 
-          const sourceLines = sourceLinesRef.current;
-          const sourceLine = sourceLines[position.lineNumber - 1]?.trim() ?? "";
+        const isMeaningful = (t: string) => t.trim() && t.trim() !== prefix;
+        const range = calculateGhostTextRange(monaco, position);
 
-          const isMeaningfulSuggestion = (insertText: string): boolean => {
-            const trimmedText = insertText.trim();
-            if (!trimmedText) return false;
-            if (trimmedText === prefix) return false;
-            return true;
-          };
+        const items: languages.InlineCompletion[] = [];
+        const lte = getLTE();
+        const lteResult = lte.getSuggestion(sourceLine, prefix);
+        const lteRemainder = lteResult?.remainder?.trim() ?? "";
+        if (isMeaningful(lteRemainder)) items.push({ insertText: lteRemainder, range });
 
-          // Empty source line: try prefetch cache
-          if (!sourceLine) {
-            const { getPrefetch: getPF } = usePrefetchStore.getState();
-            const cached = getPF(position.lineNumber);
-            if (cached?.translation.trim()) {
-              const range = calculateGhostTextRange(monaco, position);
-              const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
-              if (isMeaningfulSuggestion(cachedRemainder)) {
-                return {
-                  items: [{ insertText: cachedRemainder, range }],
-                };
-              }
-            }
-            return { items: [] };
-          }
-
-          const range = calculateGhostTextRange(monaco, position);
-
-          // Immediate LTE
-          const lte = getLTE();
-          const lteResult = lte.getSuggestion(sourceLine, prefix);
-          const items: languages.InlineCompletion[] = [];
-          const lteRemainder = lteResult?.remainder?.trim() || "";
-          if (lteRemainder && lteRemainder !== prefix) {
-            items.push({ insertText: lteRemainder, range });
-          }
-
-          // Prefetch cache
-          const { getPrefetch } = usePrefetchStore.getState();
-          const cached = getPrefetch(position.lineNumber);
-          if (cached?.translation.trim()) {
-            const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
-            if (isMeaningfulSuggestion(cachedRemainder) && !lteRemainder) {
-              items.push({ insertText: cachedRemainder, range });
-            }
-          }
-
-          // Avoid unnecessary async calls when user already typed the full translation
-          if (items.length === 0 && prefix.length > 0) {
-            const lteFull = lteResult?.match;
-            if (lteFull && prefix === lteFull.trim()) return { items: [] };
-            if (cached?.translation && prefix === cached.translation.trim())
-              return { items: [] };
-          }
-
-          // Async pipeline (non‑blocking)
-          suggestionProvider.cancelPending();
-          suggestionProvider
-            .getSuggestions(sourceLine, prefix, {
-              lte: async () => lteRemainder,
-              rag: async () => {
-                const ragState = ragRef.current;
-                if (!ragState.state.isCorpusLoaded) return "";
-                try {
-                  const hits = await ragState.search(sourceLine, 1);
-                  if (hits.length > 0 && hits[0].ar) {
-                    const remainder = computeCachedRemainder(hits[0].ar, prefix);
-                    return isMeaningfulSuggestion(remainder) ? remainder : "";
-                  }
-                } catch { /* skip */ }
-                return "";
-              },
-              prefetch: async () => {
-                if (!cached) return "";
-                const remainder = computeCachedRemainder(cached.translation, prefix);
-                return isMeaningfulSuggestion(remainder) ? remainder : "";
-              },
-              webllm: async () => {
-                const wllm = webLLMRef.current;
-                if (!wllm.isReady) return "";
-                try {
-                  const result = await wllm.generateBurst(sourceLine, prefix);
-                  if (result.text && !result.aborted) {
-                    const trimmed = result.text.trim();
-                    return trimmed && trimmed !== prefix ? trimmed : "";
-                  }
-                } catch { /* skip */ }
-                return "";
-              },
-              gemini: async () => {
-                const gem = geminiRef.current;
-                if (!gem.isAvailable) return "";
-                try {
-                  const result = await gem.generateBurst(sourceLine, prefix);
-                  if (result.text) {
-                    const trimmed = result.text.trim();
-                    return trimmed && trimmed !== prefix ? trimmed : "";
-                  }
-                } catch { /* skip */ }
-                return "";
-              },
-            })
-            .then((suggestions) => {
-              if (contentVersion - currentVersion > 1) return;
-              if (suggestions.length === 0) return;
-              const bestNew = suggestions.find(
-                (s) =>
-                  s.source !== "lte" &&
-                  s.text.trim() &&
-                  s.text.trim() !== prefix &&
-                  (!lteRemainder || s.text !== lteRemainder)
-              );
-              if (bestNew) triggerInlineSuggest(editorRef.current);
-            })
-            .catch((err) => console.warn("[RDAT Ghost] Async pipeline error:", err));
-
-          return { items };
-        } catch (err) {
-          console.error("[RDAT Ghost] provideInlineCompletions error:", err);
-          return { items: [] };
+        const { getPrefetch } = usePrefetchStore.getState();
+        const cached = getPrefetch(position.lineNumber);
+        if (cached?.translation.trim()) {
+          const rem = computeCachedRemainder(cached.translation, prefix);
+          if (isMeaningful(rem) && !lteRemainder) items.push({ insertText: rem, range });
         }
-      },
-      disposeInlineCompletions: () => {},
-    }
-  );
 
-  return providerDisposable;
+        if (items.length === 0 && prefix.length > 0) {
+          if (lteResult?.match && prefix === lteResult.match.trim()) return { items: [] };
+          if (cached?.translation && prefix === cached.translation.trim()) return { items: [] };
+        }
+
+        // Async pipeline
+        suggestionProvider.cancelPending();
+        suggestionProvider
+          .getSuggestions(sourceLine, prefix, {
+            lte: async () => lteRemainder,
+            rag: async () => {
+              const ragState = ragRef.current;
+              if (!ragState.state.isCorpusLoaded) return "";
+              try {
+                const hits = await ragState.search(sourceLine, 1);
+                if (hits.length > 0 && hits[0].ar) {
+                  const rem = computeCachedRemainder(hits[0].ar, prefix);
+                  return isMeaningful(rem) ? rem : "";
+                }
+              } catch {}
+              return "";
+            },
+            prefetch: async () => {
+              if (!cached) return "";
+              const rem = computeCachedRemainder(cached.translation, prefix);
+              return isMeaningful(rem) ? rem : "";
+            },
+            webllm: async () => {
+              const wllm = webLLMRef.current;
+              if (!wllm.isReady) return "";
+              try {
+                const result = await wllm.generateBurst(sourceLine, prefix);
+                if (result.text && !result.aborted) {
+                  const t = result.text.trim();
+                  return t && t !== prefix ? t : "";
+                }
+              } catch {}
+              return "";
+            },
+            gemini: async () => {
+              const gem = geminiRef.current;
+              if (!gem.isAvailable) return "";
+              try {
+                const result = await gem.generateBurst(sourceLine, prefix);
+                if (result.text) {
+                  const t = result.text.trim();
+                  return t && t !== prefix ? t : "";
+                }
+              } catch {}
+              return "";
+            },
+          })
+          .then((suggestions) => {
+            if (contentVersion - currentVersion > 1) return;
+            if (suggestions.length === 0) return;
+            const bestNew = suggestions.find(
+              (s) =>
+                s.source !== "lte" &&
+                s.text.trim() &&
+                s.text.trim() !== prefix &&
+                (!lteRemainder || s.text !== lteRemainder)
+            );
+            if (bestNew) triggerInlineSuggest(editorRef.current);
+          })
+          .catch((e) => console.warn("[RDAT Ghost] Async error:", e));
+
+        return { items };
+      } catch (err) {
+        console.error("[RDAT Ghost] Fatal error:", err);
+        return { items: [] };
+      }
+    },
+    disposeInlineCompletions: () => {},
+  });
 }
 
-function computeCachedRemainder(fullTranslation: string, typedPrefix: string): string {
-  const trimmed = fullTranslation.trim();
-  const prefix = typedPrefix.trim();
-  if (!prefix) return trimmed;
-  if (trimmed.startsWith(prefix)) {
-    const remainder = trimmed.substring(prefix.length).trimStart();
-    return remainder;
-  }
-  return "";
+function computeCachedRemainder(full: string, prefix: string): string {
+  const trimmed = full.trim();
+  const p = prefix.trim();
+  if (!p) return trimmed;
+  return trimmed.startsWith(p) ? trimmed.substring(p.length).trimStart() : "";
 }
 
-function triggerInlineSuggest(editor: editor.IStandaloneCodeEditor | null): void {
+function triggerInlineSuggest(editor: editor.IStandaloneCodeEditor | null) {
   if (!editor) return;
   try {
     editor.trigger("rdat-ghost-text", "editor.action.inlineSuggest.trigger", {});
-  } catch { /* editor may be in a temporary state */ }
+  } catch {}
 }
 
 export function TargetEditor({
-  value = "",
+  defaultValue = "",
   onChange,
   onCursorChange,
   sourceLines = [],
@@ -256,6 +216,7 @@ export function TargetEditor({
   onRagStateChange,
   className,
   direction = "rtl",
+  translationKey,
 }: TargetEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
@@ -263,13 +224,6 @@ export function TargetEditor({
   const suggestionProviderRef = useRef<MonacoSuggestionProvider | null>(null);
   const sourceLinesRef = useRef<string[]>(sourceLines);
   useEffect(() => { sourceLinesRef.current = sourceLines; }, [sourceLines]);
-
-  // Store initial value for defaultValue (only changes on segment switch)
-  const initialValueRef = useRef(value);
-  // Track external value changes to sync only when not from user typing
-  const prevExternalValueRef = useRef(value);
-  // Flag to ignore user‑initiated changes when syncing from prop
-  const isUserEditRef = useRef(false);
 
   const webLLM = useWebLLM();
   const gemini = useGemini();
@@ -281,17 +235,27 @@ export function TargetEditor({
   useEffect(() => { geminiRef.current = gemini; }, [gemini]);
   useEffect(() => { ragRef.current = rag; }, [rag]);
 
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cursorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  // Stable callbacks stored in refs to avoid stale closures
-  const onCursorChangeRef = useRef(onCursorChange);
-  useEffect(() => { onCursorChangeRef.current = onCursorChange; }, [onCursorChange]);
+  const fontFamily = useMemo(
+    () =>
+      direction === "rtl"
+        ? "'Noto Sans Arabic', 'JetBrains Mono', 'Fira Code', monospace"
+        : "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
+    [direction]
+  );
+
+  const editorOptions = useMemo(
+    () => ({ ...BASE_EDITOR_OPTIONS, fontFamily }),
+    [fontFamily]
+  );
+
+  // Callback refs for stable up‑calling
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  const onCursorChangeRef = useRef(onCursorChange);
+  useEffect(() => { onCursorChangeRef.current = onCursorChange; }, [onCursorChange]);
   const onWebgpuStateChangeRef = useRef(onWebgpuStateChange);
   useEffect(() => { onWebgpuStateChangeRef.current = onWebgpuStateChange; }, [onWebgpuStateChange]);
   const onGeminiAvailableChangeRef = useRef(onGeminiAvailableChange);
@@ -314,64 +278,15 @@ export function TargetEditor({
     onRagStateChangeRef.current?.(rag.state);
   }, [rag.state]);
 
-  const fontFamily = useMemo(
-    () =>
-      direction === "rtl"
-        ? "'Noto Sans Arabic', 'JetBrains Mono', 'Fira Code', monospace"
-        : "'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace",
-    [direction]
-  );
-
-  const editorOptions = useMemo(
-    () => ({ ...BASE_EDITOR_OPTIONS, fontFamily }),
-    [fontFamily]
-  );
-
-  // ──────────────────────────────────────────────────────────────
-  // Sync editor content with external `value` prop (segment changes)
-  // only when it comes from outside and not from user typing.
-  // ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor) return;
-    // If the editor is currently composing (IME), do nothing
-    if (editor.getOption(monacoRef.current?.editor?.EditorOption?.inComposition ?? 0)) return;
-
-    // If the latest change was user‑typed, do not overwrite
-    if (isUserEditRef.current) {
-      isUserEditRef.current = false;
-      return;
-    }
-
-    // Only apply when value actually differs from editor content
-    const currentEditorValue = editor.getValue();
-    if (value !== currentEditorValue) {
-      editor.setValue(value);
-      prevExternalValueRef.current = value;
-    }
-  }, [value]);
-
-  // Update theme & font on the fly
-  useEffect(() => {
-    const editor = editorRef.current;
-    const monaco = monacoRef.current;
-    if (editor && monaco) {
-      editor.updateOptions({
-        theme: isDark ? "rdat-dark" : "rdat-light",
-        fontFamily,
-      });
-    }
-  }, [isDark, fontFamily]);
-
   const handleEditorDidMount: OnMount = useCallback(
     (editor, monaco) => {
       editorRef.current = editor;
       monacoRef.current = monaco;
 
-      // Ensure it's always writable
-      editor.updateOptions({ readOnly: false });
+      // Force editable
+      editor.updateOptions({ readOnly: false, theme: isDark ? "rdat-dark" : "rdat-light", fontFamily });
 
-      // Define themes
+      // Themes
       monaco.editor.defineTheme("rdat-dark", {
         base: "vs-dark",
         inherit: true,
@@ -385,13 +300,10 @@ export function TargetEditor({
         colors: { "editor.inlineSuggest.foreground": "#94a3b8" },
       });
 
-      // Initialize suggestion provider
-      if (!suggestionProviderRef.current) {
+      // Ghost text provider
+      if (ghostProviderRef.current) ghostProviderRef.current.dispose();
+      if (!suggestionProviderRef.current)
         suggestionProviderRef.current = new MonacoSuggestionProvider();
-      }
-      if (ghostProviderRef.current) {
-        ghostProviderRef.current.dispose();
-      }
       ghostProviderRef.current = registerGhostTextProvider(
         monaco,
         sourceLinesRef,
@@ -402,7 +314,7 @@ export function TargetEditor({
         editorRef
       );
 
-      // Initial ghost text trigger
+      // Initial trigger
       setTimeout(() => triggerInlineSuggest(editor), 500);
 
       editor.onDidFocusEditorWidget(() => {
@@ -415,57 +327,51 @@ export function TargetEditor({
         () => editor.trigger("keyboard", "editor.action.inlineSuggest.acceptNextWord", {})
       );
 
-      // Tab: accept full suggestion
+      // Tab commit
       editor.addCommand(
         monaco.KeyCode.Tab,
         () => editor.trigger("keyboard", "editor.action.inlineSuggest.commit", {}),
         "editorInlineSuggestionVisible"
       );
 
-      // ── User typing event ──────────────────────────────
-      editor.onDidChangeModelContent(() => {
-        // Mark that the change originated from user input
-        isUserEditRef.current = true;
-
-        // Report value to parent (uncontrolled, but we still propagate)
-        const newValue = editor.getValue();
-        onChangeRef.current?.(newValue);
-
-        // Interrupt AI generation
+      // User content change → propagate upward
+      const contentListener = editor.onDidChangeModelContent(() => {
+        onChangeRef.current?.(editor.getValue());
+        // Interrupt AI
         webLLMRef.current.interruptGenerate();
         geminiRef.current.interruptGenerate();
         suggestionProviderRef.current?.cancelPending();
+      });
 
-        // Debounced ghost‑text trigger
-        if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-        idleTimerRef.current = setTimeout(() => {
-          triggerInlineSuggest(editorRef.current);
-          idleTimerRef.current = null;
+      // Cursor tracking
+      const cursorListener = editor.onDidChangeCursorPosition((e) => {
+        onCursorChangeRef.current?.(e.position.lineNumber);
+      });
+
+      // Idle ghost text trigger (separate timer)
+      let idleTimer: ReturnType<typeof setTimeout> | null = null;
+      const contentListener2 = editor.onDidChangeModelContent(() => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          triggerInlineSuggest(editor);
+          idleTimer = null;
         }, IDLE_TRIGGER_DELAY_MS);
       });
 
-      // Cursor position tracking
-      editor.onDidChangeCursorPosition((e) => {
-        onCursorChangeRef.current?.(e.position.lineNumber);
-        if (cursorDebounceRef.current) clearTimeout(cursorDebounceRef.current);
-        cursorDebounceRef.current = setTimeout(() => {
-          triggerInlineSuggest(editor);
-          cursorDebounceRef.current = null;
-        }, 200);
-      });
+      return () => {
+        contentListener.dispose();
+        cursorListener.dispose();
+        contentListener2.dispose();
+        if (idleTimer) clearTimeout(idleTimer);
+      };
     },
-    [] // stable, refs inside handle all dynamic values
+    [isDark, fontFamily]
   );
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (ghostProviderRef.current) {
-        ghostProviderRef.current.dispose();
-        ghostProviderRef.current = null;
-      }
-      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      if (cursorDebounceRef.current) clearTimeout(cursorDebounceRef.current);
+      ghostProviderRef.current?.dispose();
       webLLMRef.current.interruptGenerate();
       geminiRef.current.interruptGenerate();
     };
@@ -474,15 +380,11 @@ export function TargetEditor({
   return (
     <div className={cn("h-full w-full", className)} dir={direction}>
       <MonacoEditor
+        key={translationKey ?? "target-editor"}   // remount when segment changes
         height="100%"
         defaultLanguage="plaintext"
         language="plaintext"
-        defaultValue={initialValueRef.current}
-        onChange={(newValue) => {
-          // This onChange is called for all changes. We already report it inside
-          // onDidChangeModelContent, but this is a fallback.
-          onChangeRef.current?.(newValue);
-        }}
+        defaultValue={defaultValue}
         options={editorOptions}
         onMount={handleEditorDidMount}
         theme={isDark ? "rdat-dark" : "rdat-light"}
