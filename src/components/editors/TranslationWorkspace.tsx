@@ -321,12 +321,12 @@ export function TranslationWorkspace({
           />
           <div className="flex-1" style={{ minHeight: 0 }}>
             <SourceEditor
-              key={`source-${sourceResetKey}`}
-              value={sourceValue}
-              onChange={handleSourceChange}
-              highlightedLine={targetLine}
-              className="h-full"
-              direction={sourceDir}
+            key={`source-${sourceResetKey}`}
+            defaultValue={sourceValue}
+            onChange={handleSourceChange}
+            highlightedLine={targetLine}
+            className="h-full"
+            direction={sourceDir}
             />
           </div>
         </div>
