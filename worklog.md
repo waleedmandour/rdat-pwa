@@ -88,3 +88,35 @@ Stage Summary:
 - useWebLLM.ts: Added autoInitAttemptedRef to prevent infinite init loops — fixes WebGPU stuck at "initializing"
 - StatusBar should now show "WebGPU Available" when adapter is found but model init fails/times out
 - Commit: https://github.com/waleedmandour/rdat-pwa/commit/26509f1
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix commit 26509f1 — React 19 ref violations, lint errors, build failure
+
+Work Log:
+- Ran `next build` — FAILED with TypeScript error: skills/ directory contains imports for 'z-ai-web-dev-sdk' which doesn't exist
+- Fixed tsconfig.json: added "skills" to exclude array
+- Ran `eslint` on TargetEditor.tsx — found 18 errors, 5 warnings
+- CRITICAL: React 19 `react-hooks/refs` rule forbids writing ref.current during render
+  - sourceLinesRef.current = sourceLines (line 361) — ILLEGAL in React 19
+  - webLLMRef.current = webLLM (line 373) — ILLEGAL
+  - geminiRef.current = gemini (line 374) — ILLEGAL
+  - ragRef.current = rag (line 375) — ILLEGAL
+  - onWebgpuStateChangeRef.current = onWebgpuStateChange (line 422) — ILLEGAL
+  - onGeminiAvailableChangeRef.current = onGeminiAvailableChange (line 433) — ILLEGAL
+  - onRagStateChangeRef.current = onRagStateChange (line 440) — ILLEGAL
+- Fixed ALL ref violations: moved ref.current assignments into useEffect callbacks
+- Removed unused `useState` import
+- Removed unused local variables (webLLM, rag) inside provideInlineCompletions
+- Fixed useWebLLM.ts: changed `catch (err: any)` to `catch (err: unknown)` with proper type narrowing
+- Added eslint-disable comments for necessary `any` casts (WebGPU API, MLCEngine.unload)
+- Fixed err.message access on unknown type with safe extraction
+- VERIFICATION: next build SUCCESS, 72/72 tests PASS, 0 eslint errors on changed files
+- Pushed to GitHub: commit f80be1c
+
+Stage Summary:
+- Root cause of "not successful": React 19 ref violations causing runtime errors + tsconfig not excluding skills/ causing build failure
+- All ref.current writes now happen in useEffect (React 19 compliant)
+- Build passes, tests pass, lint clean
+- Commit: https://github.com/waleedmandour/rdat-pwa/commit/f80be1c
