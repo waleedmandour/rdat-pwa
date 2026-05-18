@@ -146,6 +146,21 @@ function registerGhostTextProvider(
           const sourceLines = sourceLinesRef.current;
           const sourceLine = sourceLines[position.lineNumber - 1]?.trim() ?? "";
 
+          // ── Helper: check if an insertText is a meaningful suggestion ──
+          // A suggestion is meaningful only if it:
+          //   1. Is non-empty after trimming
+          //   2. Does NOT duplicate what the user has already typed (prefix)
+          // This prevents Monaco's inline suggestion system from showing
+          // duplicate ghost text that blocks or interferes with user input.
+          const isMeaningfulSuggestion = (insertText: string): boolean => {
+            const trimmedText = insertText.trim();
+            if (!trimmedText) return false;
+            // If the suggestion is identical to what the user typed, there's
+            // nothing to ghost — reject it.
+            if (trimmedText === prefix) return false;
+            return true;
+          };
+
           // ── Empty source line: check prefetch cache before giving up ──
           if (!sourceLine) {
             const { getPrefetch: getPF } = usePrefetchStore.getState();
@@ -153,7 +168,7 @@ function registerGhostTextProvider(
             if (cached?.translation.trim()) {
               const range = calculateGhostTextRange(monaco, position);
               const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
-              if (cachedRemainder) {
+              if (isMeaningfulSuggestion(cachedRemainder)) {
                 return {
                   items: [{ insertText: cachedRemainder, range }],
                 };
@@ -171,9 +186,11 @@ function registerGhostTextProvider(
 
           const items: languages.InlineCompletion[] = [];
 
-          if (lteResult && lteResult.remainder.trim()) {
+          // ── STRICT: Only add LTE suggestion if it's meaningful ──
+          const lteRemainder = lteResult?.remainder?.trim() || "";
+          if (lteRemainder && lteRemainder !== prefix) {
             items.push({
-              insertText: lteResult.remainder,
+              insertText: lteRemainder,
               range,
             });
           }
@@ -184,11 +201,28 @@ function registerGhostTextProvider(
 
           if (cached && cached.translation.trim()) {
             const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
-            if (cachedRemainder && (!lteResult || !lteResult.remainder.trim())) {
+            // ── STRICT: Only add cache suggestion if meaningful AND no LTE ──
+            if (isMeaningfulSuggestion(cachedRemainder) && !lteRemainder) {
               items.push({
                 insertText: cachedRemainder,
                 range,
               });
+            }
+          }
+
+          // ── Early exit: if no meaningful items, skip async pipeline ──
+          // This prevents unnecessary API calls when we already know
+          // the user has typed the full translation.
+          if (items.length === 0 && prefix.length > 0) {
+            // Check if the prefix covers the full translation from any source
+            const lteFull = lteResult?.match;
+            if (lteFull && prefix === lteFull.trim()) {
+              // User has typed the complete LTE suggestion — nothing more to offer
+              return { items: [] };
+            }
+            if (cached?.translation && prefix === cached.translation.trim()) {
+              // User has typed the complete cached suggestion
+              return { items: [] };
             }
           }
 
@@ -198,7 +232,7 @@ function registerGhostTextProvider(
           suggestionProvider
             .getSuggestions(sourceLine, prefix, {
               lte: async () => {
-                return lteResult?.remainder ?? "";
+                return lteRemainder;
               },
               rag: async () => {
                 const ragState = ragRef.current;
@@ -207,7 +241,8 @@ function registerGhostTextProvider(
                   const hits = await ragState.search(sourceLine, 1);
                   if (hits.length > 0 && hits[0].ar) {
                     const remainder = computeCachedRemainder(hits[0].ar, prefix);
-                    return remainder || hits[0].ar;
+                    // Only return if meaningful; don't fall back to full translation
+                    return isMeaningfulSuggestion(remainder) ? remainder : "";
                   }
                 } catch {
                   // RAG timeout — skip
@@ -216,7 +251,8 @@ function registerGhostTextProvider(
               },
               prefetch: async () => {
                 if (!cached) return "";
-                return computeCachedRemainder(cached.translation, prefix) || "";
+                const remainder = computeCachedRemainder(cached.translation, prefix);
+                return isMeaningfulSuggestion(remainder) ? remainder : "";
               },
               webllm: async () => {
                 const wllm = webLLMRef.current;
@@ -224,7 +260,9 @@ function registerGhostTextProvider(
                 try {
                   const result = await wllm.generateBurst(sourceLine, prefix);
                   if (result.text && !result.aborted) {
-                    return result.text;
+                    // Filter: only return if it offers something beyond the prefix
+                    const trimmed = result.text.trim();
+                    return (trimmed && trimmed !== prefix) ? trimmed : "";
                   }
                 } catch {
                   // WebLLM timeout — skip
@@ -237,7 +275,8 @@ function registerGhostTextProvider(
                 try {
                   const result = await gem.generateBurst(sourceLine, prefix);
                   if (result.text) {
-                    return result.text;
+                    const trimmed = result.text.trim();
+                    return (trimmed && trimmed !== prefix) ? trimmed : "";
                   }
                 } catch {
                   // Gemini timeout — skip
@@ -253,7 +292,8 @@ function registerGhostTextProvider(
                 (s) =>
                   s.source !== "lte" &&
                   s.text.trim() &&
-                  (!lteResult || s.text !== lteResult.remainder)
+                  s.text.trim() !== prefix &&
+                  (!lteRemainder || s.text !== lteRemainder)
               );
 
               if (bestNew) {
@@ -282,6 +322,16 @@ function registerGhostTextProvider(
 /**
  * Compute the remainder of a cached/Prefetch translation after the user's prefix.
  * Strips the matching prefix portion and returns only what's left to complete.
+ *
+ * CRITICAL: Returns empty string ("") when there is NO meaningful ghost text
+ * to suggest. This prevents Monaco's inline suggestion system from showing
+ * duplicate ghost text that blocks or interferes with user input.
+ *
+ * Rules:
+ *  1. If no prefix typed → return full translation (initial ghost text)
+ *  2. If prefix matches start of translation → return only the UN-typed remainder
+ *  3. If remainder is empty (user typed it all) → return "" (no suggestion)
+ *  4. If prefix doesn't match at all → return "" (no suggestion)
  */
 function computeCachedRemainder(
   fullTranslation: string,
@@ -290,39 +340,21 @@ function computeCachedRemainder(
   const trimmed = fullTranslation.trim();
   const prefix = typedPrefix.trim();
 
+  // No prefix typed — return full translation as initial ghost text
   if (!prefix) return trimmed;
 
+  // Exact prefix match — return only the un-typed remainder
   if (trimmed.startsWith(prefix)) {
     const remainder = trimmed.substring(prefix.length).trimStart();
-    return remainder || trimmed;
+    // CRITICAL: If remainder is empty, the user has already typed the
+    // complete translation. Return "" to signal "no suggestion". Do NOT
+    // fall back to the full translation — that creates duplicate ghost text.
+    return remainder;
   }
 
-  // Try fuzzy alignment using character overlap
-  const prefixLen = prefix.length;
-  const maxOffset = Math.min(Math.ceil(prefixLen * 1.5), trimmed.length);
-  let bestOffset = 0;
-  let bestScore = 0;
-
-  for (let offset = 1; offset <= maxOffset; offset += Math.max(1, Math.floor(prefixLen / 8))) {
-    const candidate = trimmed.substring(0, offset);
-    let matches = 0;
-    const minLen = Math.min(prefix.length, candidate.length);
-    for (let i = 0; i < minLen; i++) {
-      if (prefix[i] === candidate[i]) matches++;
-    }
-    const score = matches / Math.max(prefix.length, candidate.length);
-    if (score > bestScore) {
-      bestScore = score;
-      bestOffset = offset;
-    }
-  }
-
-  if (bestScore > 0.4) {
-    const remainder = trimmed.substring(bestOffset).trimStart();
-    return remainder || trimmed;
-  }
-
-  return trimmed;
+  // Prefix doesn't match the start of the translation — no meaningful
+  // ghost text to offer. Return "" so the caller skips this suggestion.
+  return "";
 }
 
 /**

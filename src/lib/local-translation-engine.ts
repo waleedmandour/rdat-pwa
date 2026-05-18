@@ -354,10 +354,15 @@ export class LocalTranslationEngine {
     // Exact prefix match — return only the remainder after the prefix
     if (trimmedArabic.startsWith(trimmedPrefix)) {
       const remainder = trimmedArabic.substring(trimmedPrefix.length).trimStart();
+      // CRITICAL: If remainder is empty, the user has already typed the
+      // complete translation. Return null (no suggestion) instead of falling
+      // back to the full Arabic — that would create duplicate ghost text
+      // that blocks or interferes with user input.
+      if (!remainder) return null;
       return {
         match: fullArabic,
         source,
-        remainder: remainder || trimmedArabic,
+        remainder,
         score: baseScore,
         type: matchType,
       };
@@ -371,10 +376,13 @@ export class LocalTranslationEngine {
     if (alignment.score > 0.5) {
       // Good alignment found — return remainder from the alignment point
       const remainder = trimmedArabic.substring(alignment.arabicOffset).trimStart();
+      // CRITICAL: Same as exact match — if remainder is empty after alignment,
+      // there's nothing to suggest. Return null to let other channels try.
+      if (!remainder) return null;
       return {
         match: fullArabic,
         source,
-        remainder: remainder || trimmedArabic,
+        remainder,
         score: baseScore * alignment.score,
         type: matchType,
       };
