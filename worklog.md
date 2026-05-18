@@ -62,3 +62,29 @@ Stage Summary:
 - 60s timeout prevents getting stuck at "initializing" forever
 - Load Model button in AI Models view for manual loading
 - All changes pushed to GitHub: commit b8be301
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix TargetEditor typing blocked + WebGPU stuck at initializing
+
+Work Log:
+- Read and analyzed all relevant source files: TargetEditor.tsx, useWebLLM.ts, TranslationWorkspace.tsx, SourceEditor.tsx, StatusBar.tsx, TargetToolbar.tsx, WorkspaceShell.tsx, globals.css
+- Analyzed @monaco-editor/react v4.7.0 source code (dist/index.mjs) to understand controlled vs uncontrolled mode behavior
+- Diagnosed TargetEditor issue: The uncontrolled mode (defaultValue) + sync useEffect (editor.setValue()) pattern was fragile — could race with user typing, cause cursor resets, or block input
+- Fixed TargetEditor: Switched from uncontrolled (defaultValue + sync useEffect calling editor.setValue()) to controlled mode (value prop). @monaco-editor/react v4.7.0 uses executeEdits() for controlled updates which preserves undo history and doesn't block input
+- Removed providerRegisteredRef flag that could prevent ghost text provider re-registration after component remounts
+- Made ref updates synchronous instead of useEffect-based for immediate availability
+- Used refs for callback deps (onWebgpuStateChange, onGeminiAvailableChange, onRagStateChange) to prevent unnecessary re-renders
+- Diagnosed WebGPU issue: Auto-init loop where state goes idle → initializing → timeout → idle → initializing infinitely
+- Fixed useWebLLM: Added autoInitAttemptedRef to prevent infinite auto-init loops. After timeout/failure, state returns to "idle" (showing "WebGPU Available") but auto-init won't fire again until manual loadModel() or model change
+- Added model change detection with proper engine cleanup
+- Fixed TypeScript errors: replaced engine.dispose() with (engine as any).unload?.()
+- All 72 tests pass, 0 TypeScript errors in project source
+- Pushed to GitHub: commit 26509f1
+
+Stage Summary:
+- TargetEditor.tsx: Switched to controlled mode (value prop) — fixes typing blocking
+- useWebLLM.ts: Added autoInitAttemptedRef to prevent infinite init loops — fixes WebGPU stuck at "initializing"
+- StatusBar should now show "WebGPU Available" when adapter is found but model init fails/times out
+- Commit: https://github.com/waleedmandour/rdat-pwa/commit/26509f1
