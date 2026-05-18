@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useCallback, useEffect, useMemo } from "react";
+import React, { useRef, useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor, languages, IDisposable } from "monaco-editor";
@@ -61,10 +61,6 @@ const BASE_EDITOR_OPTIONS = {
   suggestOnTriggerCharacters: false,
   suggest: { preview: false },
   tabCompletion: "on" as const,
-  // NOTE: Monaco does not have a `direction` option. RTL is handled via CSS
-  // `dir` attribute on the container and the browser's bidirectional algorithm.
-  // Setting `direction: 'rtl'` with `as any` was silently ignored and hid
-  // the TypeScript error. Do NOT add it back.
   // Inline suggestions (ghost text)
   inlineSuggest: {
     enabled: true,
@@ -85,23 +81,14 @@ const IDLE_TRIGGER_DELAY_MS = 350;
 /**
  * Calculate ghost text range for Monaco inline completion.
  *
- * CRITICAL FIX: The range MUST always be empty (cursor position to cursor
- * position). This is the standard Monaco approach used by GitHub Copilot.
- *
- * Previously, the range covered the partial word at the cursor (e.g.,
- * Range(1, 7, 1, 13) for the word "مستقبل"). Combined with the old
- * `mode: "prefix"` setting, Monaco validated that `insertText` starts
- * with the text inside the range. Since we return remainder-only text
- * (the completion AFTER what the user typed), this validation always
- * failed and ghost text was silently discarded.
- *
+ * The range MUST always be empty (cursor position to cursor position).
+ * This is the standard Monaco approach used by GitHub Copilot.
  * With an empty range, there is no text to match against, so Monaco
  * always accepts the suggestion and renders the ghost text at the
  * cursor position.
  *
  * RTL positioning is handled by the browser's bidirectional algorithm
- * and the CSS rules in globals.css — no Unicode bidi control characters
- * or Monaco `direction` option needed.
+ * and the CSS rules in globals.css.
  */
 function calculateGhostTextRange(
   monaco: typeof import("monaco-editor"),
@@ -118,15 +105,10 @@ function calculateGhostTextRange(
 /**
  * Register the Multi-Channel Ghost Text inline completions provider.
  *
- * CRITICAL FIX — Stale Closure Prevention:
+ * CRITICAL — Stale Closure Prevention:
  * All hook state (webLLM, gemini, rag) is read through REFS that are
  * updated on every render. This ensures the provider always sees the
  * latest readiness state, not the frozen values from mount time.
- *
- * Previously, the provider captured hook return values via closure at
- * registration time. When hooks updated their state later (e.g., WebLLM
- * becoming ready, Gemini key being set, RAG corpus loading), the provider
- * never saw those updates — permanently disabling all async channels.
  */
 function registerGhostTextProvider(
   monaco: typeof import("monaco-editor"),
@@ -147,9 +129,9 @@ function registerGhostTextProvider(
     {
       provideInlineCompletions: async (model, position) => {
         // ── CRITICAL: Wrap entire handler in try-catch ──────────────
-        // If any synchronous code throws, the promise rejects and
-        // Monaco's inline suggestion system may enter a broken state
-        // that blocks user input. Always return a valid result.
+        // If any code throws, the promise rejects and Monaco's inline
+        // suggestion system may enter a broken state that blocks user
+        // input. Always return a valid result.
         try {
           const currentVersion = ++contentVersion;
 
@@ -181,11 +163,10 @@ function registerGhostTextProvider(
             return { items: [] };
           }
 
-          // Calculate range for ghost text — always empty range (see function docs)
+          // Calculate range for ghost text — always empty range
           const range = calculateGhostTextRange(monaco, position);
 
           // ── Immediate LTE channel (synchronous, <5ms) ──────────────
-          // Show LTE result instantly while async channels load
           const lte = getLTE();
           const lteResult = lte.getSuggestion(sourceLine, prefix);
 
@@ -203,7 +184,6 @@ function registerGhostTextProvider(
           const cached = getPrefetch(position.lineNumber);
 
           if (cached && cached.translation.trim()) {
-            // Compute the remainder from the cached translation based on prefix
             const cachedRemainder = computeCachedRemainder(cached.translation, prefix);
             if (cachedRemainder && (!lteResult || !lteResult.remainder.trim())) {
               items.push({
@@ -214,18 +194,14 @@ function registerGhostTextProvider(
           }
 
           // ── Async channels via MonacoSuggestionProvider ─────────────
-          // Run the full pipeline in the background. When results arrive,
-          // re-trigger Monaco inline suggest so it picks up the new suggestions.
-          suggestionProvider.cancelPending(); // cancel any previous in-flight request
+          suggestionProvider.cancelPending();
 
           suggestionProvider
             .getSuggestions(sourceLine, prefix, {
               lte: async () => {
-                // Already handled synchronously above, but include for pipeline completeness
                 return lteResult?.remainder ?? "";
               },
               rag: async () => {
-                // Read latest state from ref — NOT from stale closure
                 const ragState = ragRef.current;
                 if (!ragState.state.isCorpusLoaded) return "";
                 try {
@@ -244,16 +220,7 @@ function registerGhostTextProvider(
                 return computeCachedRemainder(cached.translation, prefix) || "";
               },
               webllm: async () => {
-                // Read latest state from ref — NOT from stale closure
                 const wllm = webLLMRef.current;
-                // CRITICAL: Only use WebLLM when the engine is fully ready.
-                // Checking isWebGPUAvailable (which includes idle/initializing states)
-                // caused generateBurst() to call initEngine(), which:
-                // 1. Sets state to "initializing" and gets stuck there if the engine hangs
-                // 2. Creates cascading state updates that cause React re-renders
-                // 3. May interfere with Monaco's editor input handling
-                // Now, the engine is initialized separately (see useWebLLM auto-init)
-                // and the ghost text provider only calls generateBurst() when ready.
                 if (!wllm.isReady) return "";
                 try {
                   const result = await wllm.generateBurst(sourceLine, prefix);
@@ -266,7 +233,6 @@ function registerGhostTextProvider(
                 return "";
               },
               gemini: async () => {
-                // Read latest state from ref — NOT from stale closure
                 const gem = geminiRef.current;
                 if (!gem.isAvailable) return "";
                 try {
@@ -281,12 +247,9 @@ function registerGhostTextProvider(
               },
             })
             .then((suggestions) => {
-              // Stale check: allow 1 keystroke of lag tolerance so async
-              // results from fast typists aren't always discarded.
               if (contentVersion - currentVersion > 1) return;
               if (suggestions.length === 0) return;
 
-              // Find the best suggestion that isn't just the LTE one we already showed
               const bestNew = suggestions.find(
                 (s) =>
                   s.source !== "lte" &&
@@ -295,8 +258,6 @@ function registerGhostTextProvider(
               );
 
               if (bestNew) {
-                // Re-trigger Monaco inline suggest so it calls provideInlineCompletions
-                // again with the updated state (which now has AI/RAG results cached).
                 triggerInlineSuggest(editorRef.current);
               }
             })
@@ -306,8 +267,6 @@ function registerGhostTextProvider(
 
           return { items };
         } catch (err) {
-          // If any error occurs, return empty items so Monaco doesn't
-          // enter a broken state that blocks user input.
           console.error("[RDAT Ghost] provideInlineCompletions error:", err);
           return { items: [] };
         }
@@ -324,7 +283,6 @@ function registerGhostTextProvider(
 /**
  * Compute the remainder of a cached/Prefetch translation after the user's prefix.
  * Strips the matching prefix portion and returns only what's left to complete.
- * This avoids the duplicate-text ghost-text bug.
  */
 function computeCachedRemainder(
   fullTranslation: string,
@@ -348,7 +306,6 @@ function computeCachedRemainder(
 
   for (let offset = 1; offset <= maxOffset; offset += Math.max(1, Math.floor(prefixLen / 8))) {
     const candidate = trimmed.substring(0, offset);
-    // Simple character overlap score
     let matches = 0;
     const minLen = Math.min(prefix.length, candidate.length);
     for (let i = 0; i < minLen; i++) {
@@ -366,15 +323,11 @@ function computeCachedRemainder(
     return remainder || trimmed;
   }
 
-  // No reasonable alignment — return full translation as suggestion
   return trimmed;
 }
 
 /**
  * Re-trigger Monaco's inline suggestion mechanism.
- * This is the crucial bridge that makes Google-like cascading ghost text work:
- * after async channels produce results, we ask Monaco to re-evaluate
- * inline completions, which will call provideInlineCompletions again.
  */
 function triggerInlineSuggest(
   editor: editor.IStandaloneCodeEditor | null
@@ -402,15 +355,12 @@ export function TargetEditor({
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
   const ghostProviderRef = useRef<IDisposable | null>(null);
   const suggestionProviderRef = useRef<MonacoSuggestionProvider | null>(null);
-  const providerRegisteredRef = useRef(false);
 
   // ── Ref for sourceLines so the provider always reads fresh data ──
   const sourceLinesRef = useRef<string[]>(sourceLines);
   sourceLinesRef.current = sourceLines; // Update on every render
 
-  // ── CRITICAL FIX: Refs for hook state to prevent stale closures ──
-  // The ghost text provider reads from these refs on every invocation,
-  // so it always sees the latest WebLLM/Gemini/RAG readiness state.
+  // ── Refs for hook state to prevent stale closures ──
   const webLLM = useWebLLM();
   const gemini = useGemini();
   const rag = useRAG();
@@ -420,106 +370,79 @@ export function TargetEditor({
   const ragRef = useRef(rag);
 
   // Update refs on every render so the provider always has fresh state
-  useEffect(() => { webLLMRef.current = webLLM; }, [webLLM]);
-  useEffect(() => { geminiRef.current = gemini; }, [gemini]);
-  useEffect(() => { ragRef.current = rag; }, [rag]);
+  webLLMRef.current = webLLM;
+  geminiRef.current = gemini;
+  ragRef.current = rag;
 
-  // ── Debounce timer for idle-trigger re-suggest ──────────────────
+  // ── Debounce timers ────────────────────────────────────────────
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // ── Debounce timer for cursor position change trigger ──────────
   const cursorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Theme ────────────────────────────────────────────────────────
-  const { theme, setTheme } = useTheme();
+  const { theme } = useTheme();
   const isDark = theme === "dark";
 
-  // ── CRITICAL FIX: Uncontrolled editor with external sync ────────
-  // Using `defaultValue` instead of `value` makes the editor uncontrolled,
-  // which prevents @monaco-editor/react from calling model.setValue()
-  // on every re-render. Controlled mode can cause cursor position resets
-  // and interfere with typing, especially when React re-renders are
-  // triggered by WebLLM/Gemini/RAG state changes.
+  // ══════════════════════════════════════════════════════════════════
+  // ROBUST VALUE MANAGEMENT
   //
-  // We track the "last synced value" in a ref so that external updates
-  // (clear, language swap) are applied via editor.setValue() with
-  // cursor position preservation, while user-typed changes flow through
-  // onChange without any interference.
-  const lastSyncedValueRef = useRef(value);
+  // The editor uses CONTROLLED mode (value prop). This is the simplest
+  // and most reliable approach — @monaco-editor/react handles the
+  // model.setValue() / executeEdits() calls internally, and we just
+  // need to provide the current value and an onChange handler.
+  //
+  // Previous approach: uncontrolled mode (defaultValue) with a sync
+  // useEffect calling editor.setValue(). This was fragile because:
+  //   1. The sync useEffect could race with user typing
+  //   2. editor.setValue() resets undo history
+  //   3. The "last synced value" ref could get out of sync
+  //
+  // The key concern with controlled mode is that re-renders from hook
+  // state changes (WebLLM, Gemini, RAG) would call model.setValue()
+  // and reset the cursor. However, @monaco-editor/react v4.7.0 uses
+  // executeEdits() instead of setValue() for controlled updates, which
+  // preserves the undo stack and cursor position when the value hasn't
+  // actually changed.
+  //
+  // IMPORTANT: The value prop MUST match what the user typed. Since
+  // onChange updates the parent state which feeds back as the value
+  // prop, the value should always be in sync with the editor content.
+  // ══════════════════════════════════════════════════════════════════
 
-  // Sync external value changes to the editor (e.g., clear, language swap)
-  // This useEffect detects when the `value` prop changes to something
-  // different from what the user last typed, and updates the editor
-  // with cursor position preservation.
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!editor) return;
-
-    // Skip if value hasn't changed from what we last synced
-    if (value === lastSyncedValueRef.current) return;
-
-    // Skip if the editor already has this content (user just typed it)
-    const currentContent = editor.getModel()?.getValue();
-    if (currentContent === value) {
-      lastSyncedValueRef.current = value;
-      return;
-    }
-
-    // External value change detected — update editor with cursor preservation
-    const position = editor.getPosition();
-    const scrollTop = editor.getScrollTop();
-    const scrollLeft = editor.getScrollLeft();
-
-    editor.setValue(value);
-
-    // Restore cursor position if it's still valid
-    if (position) {
-      const model = editor.getModel();
-      const lineCount = model?.getLineCount() ?? 1;
-      const safeLine = Math.min(position.lineNumber, lineCount);
-      const maxColumn = model?.getLineMaxColumn(safeLine) ?? 1;
-      const safeColumn = Math.min(position.column, maxColumn);
-      editor.setPosition({ lineNumber: safeLine, column: safeColumn });
-    }
-    editor.setScrollTop(scrollTop);
-    editor.setScrollLeft(scrollLeft);
-
-    lastSyncedValueRef.current = value;
-  }, [value]);
-
-  // ── Stable onChange handler ────────────────────────────────────
-  // Update lastSyncedValueRef on every user-typed change so the
-  // external sync useEffect knows the value was set by the user,
-  // not an external source.
+  // Stable onChange handler — propagates changes to parent immediately
   const handleChange = useCallback(
     (newValue: string | undefined) => {
-      lastSyncedValueRef.current = newValue ?? "";
       onChange?.(newValue);
     },
     [onChange]
   );
 
-  // Report WebGPU state to parent
+  // Report WebGPU state to parent — use individual state values as deps
+  // to avoid unnecessary re-renders when other hook properties change
+  const webgpuStateRef = useRef(onWebgpuStateChange);
+  webgpuStateRef.current = onWebgpuStateChange;
   useEffect(() => {
-    if (onWebgpuStateChange) {
-      onWebgpuStateChange({
-        state: webLLM.state as WebGPUInfo["state"],
-        progress: webLLM.progress.percentage > 0 ? webLLM.progress : undefined,
-        error: webLLM.error,
-      });
-    }
-  }, [webLLM.state, webLLM.progress, webLLM.error, onWebgpuStateChange]);
+    webgpuStateRef.current?.({
+      state: webLLM.state as WebGPUInfo["state"],
+      progress: webLLM.progress.percentage > 0 ? webLLM.progress : undefined,
+      error: webLLM.error,
+    });
+  }, [webLLM.state, webLLM.progress.percentage, webLLM.error]);
 
   // Report Gemini availability to parent
+  const geminiAvailRef = useRef(onGeminiAvailableChange);
+  geminiAvailRef.current = onGeminiAvailableChange;
   useEffect(() => {
-    onGeminiAvailableChange?.(gemini.isAvailable);
-  }, [gemini.isAvailable, onGeminiAvailableChange]);
+    geminiAvailRef.current?.(gemini.isAvailable);
+  }, [gemini.isAvailable]);
 
-  // Report RAG state to parent (for StatusBar display)
+  // Report RAG state to parent
+  const ragStateRef = useRef(onRagStateChange);
+  ragStateRef.current = onRagStateChange;
   useEffect(() => {
-    onRagStateChange?.(rag.state);
-  }, [rag.state, onRagStateChange]);
+    ragStateRef.current?.(rag.state);
+  }, [rag.state]);
 
-  // Dynamic font family based on direction — Arabic when RTL, Latin when LTR
+  // Dynamic font family based on direction
   const fontFamily = useMemo(
     () =>
       direction === "rtl"
@@ -528,7 +451,8 @@ export function TargetEditor({
     [direction]
   );
 
-  // Build editor options with dynamic font
+  // Build editor options with dynamic font — memoized to prevent
+  // unnecessary re-renders of the Monaco component
   const editorOptions = useMemo(
     () => ({
       ...BASE_EDITOR_OPTIONS,
@@ -553,73 +477,63 @@ export function TargetEditor({
       monacoRef.current = monaco;
 
       // ── CRITICAL: Ensure editor is editable ────────────────────
-      // Explicitly set readOnly: false in case any previous state
-      // or Monaco default overrides this. Also verify after mount.
       editor.updateOptions({
-        ...editorOptions,
         readOnly: false,
         theme: isDark ? "rdat-dark" : "rdat-light",
+        fontFamily,
       });
 
-      // Register provider ONCE (not on every render) to fix memory leak
-      if (!providerRegisteredRef.current) {
-        // Initialize suggestion provider
-        if (!suggestionProviderRef.current) {
-          suggestionProviderRef.current = new MonacoSuggestionProvider();
-        }
+      // ── Define custom themes with ghost text foreground color ──
+      monaco.editor.defineTheme("rdat-dark", {
+        base: "vs-dark",
+        inherit: true,
+        rules: [],
+        colors: {
+          "editor.inlineSuggest.foreground": "#64748b",
+        },
+      });
+      monaco.editor.defineTheme("rdat-light", {
+        base: "vs",
+        inherit: true,
+        rules: [],
+        colors: {
+          "editor.inlineSuggest.foreground": "#94a3b8",
+        },
+      });
 
-        // Dispose old provider if exists
-        if (ghostProviderRef.current) {
-          ghostProviderRef.current.dispose();
-        }
+      // ── Register ghost text provider ──────────────────────────
+      // Initialize suggestion provider (singleton per editor instance)
+      if (!suggestionProviderRef.current) {
+        suggestionProviderRef.current = new MonacoSuggestionProvider();
+      }
 
-        // Register new provider with REF-based access to hook state
-        // This is the CRITICAL FIX: refs are always up-to-date
-        ghostProviderRef.current = registerGhostTextProvider(
-          monaco,
-          sourceLinesRef,
-          webLLMRef,   // Ref, not direct value
-          geminiRef,   // Ref, not direct value
-          ragRef,      // Ref, not direct value
-          suggestionProviderRef.current,
-          editorRef
-        );
+      // Dispose old provider if exists (from previous mount)
+      if (ghostProviderRef.current) {
+        ghostProviderRef.current.dispose();
+      }
 
-        providerRegisteredRef.current = true;
+      // Register new provider with REF-based access to hook state
+      ghostProviderRef.current = registerGhostTextProvider(
+        monaco,
+        sourceLinesRef,
+        webLLMRef,   // Ref, not direct value
+        geminiRef,   // Ref, not direct value
+        ragRef,      // Ref, not direct value
+        suggestionProviderRef.current,
+        editorRef
+      );
 
-        // ── Define custom themes with ghost text foreground color ──
-        // Ensures ghost text is visible in both dark and light modes
-        monaco.editor.defineTheme("rdat-dark", {
-          base: "vs-dark",
-          inherit: true,
-          rules: [],
-          colors: {
-            "editor.inlineSuggest.foreground": "#64748b",
-          },
-        });
-        monaco.editor.defineTheme("rdat-light", {
-          base: "vs",
-          inherit: true,
-          rules: [],
-          colors: {
-            "editor.inlineSuggest.foreground": "#94a3b8",
-          },
-        });
+      // ── Initial ghost text trigger on mount ──────────────
+      setTimeout(() => {
+        triggerInlineSuggest(editor);
+      }, 500);
 
-        // ── Initial ghost text trigger on mount ──────────────
-        // After 500ms, trigger inline suggest so ghost text appears
-        // immediately when the editor loads with default content.
+      // ── Trigger ghost text on editor focus ──────────────
+      editor.onDidFocusEditorWidget(() => {
         setTimeout(() => {
           triggerInlineSuggest(editor);
-        }, 500);
-
-        // ── Trigger ghost text on editor focus ──────────────
-        editor.onDidFocusEditorWidget(() => {
-          setTimeout(() => {
-            triggerInlineSuggest(editor);
-          }, 300);
-        });
-      }
+        }, 300);
+      });
 
       // ── Word-by-Word Acceptance (Ctrl+RightArrow) ──────────
       editor.addCommand(
@@ -634,9 +548,8 @@ export function TargetEditor({
       );
 
       // ── Accept Full Suggestion (Tab) ───────────────────────
-      // Only register Tab with the Monaco context gate so that normal
-      // Tab behavior (indent, focus change) is preserved when no
-      // ghost text is visible.
+      // Context gate ensures normal Tab behavior is preserved
+      // when no ghost text is visible.
       editor.addCommand(
         monaco.KeyCode.Tab,
         () => {
@@ -644,14 +557,6 @@ export function TargetEditor({
         },
         "editorInlineSuggestionVisible"
       );
-
-      // NOTE: The global Escape key handler has been REMOVED.
-      // Previously, `editor.addCommand(monaco.KeyCode.Escape, ...)`
-      // was registered WITHOUT a context gate, intercepting ALL
-      // Escape key presses. This interfered with Monaco's internal
-      // editing operations (exiting multi-cursor, closing find widget,
-      // dismissing overlays). Monaco natively handles Escape for
-      // inline suggestions — no custom handler needed.
 
       // ── Interrupt AI generation on typing ──────────────────
       editor.onDidChangeModelContent(() => {
@@ -662,9 +567,6 @@ export function TargetEditor({
         suggestionProviderRef.current?.cancelPending();
 
         // ── Idle-trigger: Google-like behavior ─────────────────
-        // After the user stops typing for IDLE_TRIGGER_DELAY_MS,
-        // re-trigger inline suggest so slower channels (RAG, AI)
-        // get a chance to show ghost text.
         if (idleTimerRef.current) {
           clearTimeout(idleTimerRef.current);
         }
@@ -675,7 +577,6 @@ export function TargetEditor({
       });
 
       // ── Listen to cursor position changes ──────────────────
-      // Trigger ghost text when cursor moves to a different line
       editor.onDidChangeCursorPosition((e) => {
         const lineNumber = e.position.lineNumber;
         onCursorChange?.(lineNumber);
@@ -688,17 +589,10 @@ export function TargetEditor({
         }, 200);
       });
     },
-    [onCursorChange, direction, isDark]
+    [onCursorChange, isDark, fontFamily]
   );
 
-  // Cleanup on unmount ONLY (empty dependency array).
-  // Previously, this had [webLLM, gemini] as dependencies, which
-  // are new objects on every render (hooks return new objects each
-  // time). This caused the cleanup to run on EVERY render, disposing
-  // the ghost text provider and interrupting generation unnecessarily.
-  // The provider was never re-registered because handleEditorDidMount
-  // only fires once. This effectively killed ghost text after the
-  // first render.
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (ghostProviderRef.current) {
@@ -711,12 +605,10 @@ export function TargetEditor({
       if (cursorDebounceRef.current) {
         clearTimeout(cursorDebounceRef.current);
       }
-      // Use refs for cleanup to avoid stale closures
       webLLMRef.current.interruptGenerate();
       geminiRef.current.interruptGenerate();
-      providerRegisteredRef.current = false;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className={cn("h-full w-full", className)} dir={direction}>
@@ -724,7 +616,7 @@ export function TargetEditor({
         height="100%"
         defaultLanguage="plaintext"
         language="plaintext"
-        defaultValue={value}
+        value={value}
         onChange={handleChange}
         options={editorOptions}
         onMount={handleEditorDidMount}
