@@ -321,49 +321,48 @@ export function TranslationWorkspace({
           />
           <div className="flex-1" style={{ minHeight: 0 }}>
             <SourceEditor
-            key={`source-${sourceResetKey}`}
-            defaultValue={sourceValue}
-            onChange={handleSourceChange}
-            highlightedLine={targetLine}
-            className="h-full"
-            direction={sourceDir}
+              key={`source-${sourceResetKey}`}
+              defaultValue={sourceValue}
+              onChange={handleSourceChange}
+              highlightedLine={targetLine}
+              className="h-full"
+              direction={sourceDir}
             />
           </div>
         </div>
 
         {/* Target Pane (Editable, Dynamic Direction) */}
-<div className="flex-1 flex flex-col overflow-hidden relative">
-  <TargetToolbar 
-    targetText={targetValue} 
-    onClear={handleClear} 
-    onExplain={runAITutor}
-    onQA={runQALinter}
-    langLabel={targetLangLabel}
-  />
-  {/* CRITICAL: This container must have a definite height and pointer-events enabled */}
-  <div 
-    className="flex-1 relative" 
-    style={{ 
-      minHeight: 0, 
-      pointerEvents: "auto",
-      zIndex: 1 
-    }}
-  >
-    <TargetEditor
-      key={`target-${targetResetKey}`}
-      defaultValue={targetValue}
-      onChange={handleTargetChange}
-      onCursorChange={handleTargetCursorChange}
-      sourceLines={sourceLinesArr}
-      onWebgpuStateChange={onWebgpuStateChange}
-      onGeminiAvailableChange={onGeminiAvailableChange}
-      onRagStateChange={onRagStateChange}
-      className="h-full"
-      direction={targetDir}
-    />
-  </div>
-  {/* Remove the initialization overlay completely since isSystemReady is always true */}
-</div>
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          <TargetToolbar 
+            targetText={targetValue} 
+            onClear={handleClear} 
+            onExplain={runAITutor}
+            onQA={runQALinter}
+            langLabel={targetLangLabel}
+          />
+          <div 
+            className="flex-1 relative" 
+            style={{ 
+              minHeight: 0, 
+              pointerEvents: "auto",
+              zIndex: 1 
+            }}
+          >
+            <TargetEditor
+              key={`target-${targetResetKey}`}
+              defaultValue={targetValue}
+              onChange={handleTargetChange}
+              onCursorChange={handleTargetCursorChange}
+              sourceLines={sourceLinesArr}
+              onWebgpuStateChange={onWebgpuStateChange}
+              onGeminiAvailableChange={onGeminiAvailableChange}
+              onRagStateChange={onRagStateChange}
+              className="h-full"
+              direction={targetDir}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Segment Highlighter — invisible sync logic */}
       <SegmentHighlighter
