@@ -332,44 +332,38 @@ export function TranslationWorkspace({
         </div>
 
         {/* Target Pane (Editable, Dynamic Direction) */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-          <TargetToolbar 
-            targetText={targetValue} 
-            onClear={handleClear} 
-            onExplain={runAITutor}
-            onQA={runQALinter}
-            langLabel={targetLangLabel}
-          />
-          <div className="flex-1" style={{ minHeight: 0 }}>
-            <TargetEditor
-              key={`target-${targetResetKey}`}
-              defaultValue={targetValue}
-              onChange={handleTargetChange}
-              onCursorChange={handleTargetCursorChange}
-              sourceLines={sourceLinesArr}
-              onWebgpuStateChange={onWebgpuStateChange}
-              onGeminiAvailableChange={onGeminiAvailableChange}
-              onRagStateChange={onRagStateChange}
-              className="h-full"
-              direction={targetDir}
-            />
-          </div>
-          {/* Initialization overlay — blocks typing until LTE corpus is loaded */}
-          {!isSystemReady && (
-            <div className="absolute inset-0 top-8 bg-background/80 backdrop-blur-sm flex items-center justify-center z-10 cursor-wait">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                <span className="text-sm text-muted-foreground">
-                  {locale === "ar" ? "جاري تهيئة المحرك…" : "Initializing engine…"}
-                </span>
-                <span className="text-[10px] text-muted-foreground/60">
-                  {locale === "ar" ? "تحميل قاموس الترجمة" : "Loading translation corpus"}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+<div className="flex-1 flex flex-col overflow-hidden relative">
+  <TargetToolbar 
+    targetText={targetValue} 
+    onClear={handleClear} 
+    onExplain={runAITutor}
+    onQA={runQALinter}
+    langLabel={targetLangLabel}
+  />
+  {/* CRITICAL: This container must have a definite height and pointer-events enabled */}
+  <div 
+    className="flex-1 relative" 
+    style={{ 
+      minHeight: 0, 
+      pointerEvents: "auto",
+      zIndex: 1 
+    }}
+  >
+    <TargetEditor
+      key={`target-${targetResetKey}`}
+      defaultValue={targetValue}
+      onChange={handleTargetChange}
+      onCursorChange={handleTargetCursorChange}
+      sourceLines={sourceLinesArr}
+      onWebgpuStateChange={onWebgpuStateChange}
+      onGeminiAvailableChange={onGeminiAvailableChange}
+      onRagStateChange={onRagStateChange}
+      className="h-full"
+      direction={targetDir}
+    />
+  </div>
+  {/* Remove the initialization overlay completely since isSystemReady is always true */}
+</div>
 
       {/* Segment Highlighter — invisible sync logic */}
       <SegmentHighlighter
