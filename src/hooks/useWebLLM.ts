@@ -97,7 +97,9 @@ export function useWebLLM() {
     }
 
     // Check for adapter
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- WebGPU API not in TS types yet
     (navigator as any).gpu.requestAdapter().then(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (adapter: any) => {
         if (!adapter) {
           setState("unavailable");
@@ -265,6 +267,7 @@ export function useWebLLM() {
       // Only update if this is still the current attempt
       if (initAttemptRef.current !== attemptId) {
         console.log("[WebLLM] Stale initialization attempt completed — discarding engine");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- unload() not in MLCEngineInterface types
         try { (engine as any).unload?.(); } catch {}
         return null;
       }
@@ -276,7 +279,7 @@ export function useWebLLM() {
       setError(null);
       console.log("[WebLLM] Engine initialized successfully");
       return engine;
-    } catch (err: any) {
+    } catch (err: unknown) {
       isInitializingRef.current = false;
 
       // Clear timeout
@@ -293,11 +296,12 @@ export function useWebLLM() {
       recovery.retryCount += 1;
       recovery.lastRetryTime = Date.now();
 
+      const errMsg = err instanceof Error ? err.message : String(err);
       console.error(`[WebLLM] Initialization failed (attempt ${recovery.retryCount}/5):`, err);
 
       if (recovery.retryCount >= 5) {
         setState("error");
-        setError(err.message || "Failed to initialize WebLLM after 5 attempts");
+        setError(errMsg || "Failed to initialize WebLLM after 5 attempts");
       } else {
         // Transition to "idle" so the UI shows "WebGPU Available"
         setState("idle");
@@ -347,6 +351,7 @@ export function useWebLLM() {
         ];
 
         const response = await engine.chat.completions.create({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MLCEngine chat types are loose
           messages: prompt as any,
           max_tokens: burstTokens * 3,
           temperature: temperature,
@@ -359,8 +364,8 @@ export function useWebLLM() {
 
         console.log(`[WebLLM] Burst: "${text.substring(0, 60)}..."`);
         return { text, aborted: false };
-      } catch (err: any) {
-        if (err.name === "AbortError") {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
           return { text: "", aborted: true };
         }
         console.error("[WebLLM] Generation failed:", err);
@@ -397,6 +402,7 @@ export function useWebLLM() {
         ];
 
         const response = await engine.chat.completions.create({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MLCEngine chat types are loose
           messages: prompt as any,
           max_tokens: 256,
           temperature: useSettingsStore.getState().temperature,
@@ -409,8 +415,8 @@ export function useWebLLM() {
 
         console.log(`[WebLLM] Full: "${text.substring(0, 80)}..."`);
         return { text, aborted: false };
-      } catch (err: any) {
-        if (err.name === "AbortError") {
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === "AbortError") {
           return { text: "", aborted: true };
         }
         console.error("[WebLLM] Full translation failed:", err);
@@ -505,6 +511,7 @@ export function useWebLLM() {
     autoInitAttemptedRef.current = false;
     // If we have an existing engine for a different model, dispose it
     if (engineRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- unload() not in MLCEngineInterface types
       try { (engineRef.current as any).unload?.(); } catch {}
       engineRef.current = null;
     }
@@ -522,6 +529,7 @@ export function useWebLLM() {
         clearTimeout(initTimeoutRef.current);
       }
       if (engineRef.current) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- unload() not in MLCEngineInterface types
         try { (engineRef.current as any).unload?.(); } catch {}
       }
       isInitializingRef.current = false;

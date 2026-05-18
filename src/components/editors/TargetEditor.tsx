@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useCallback, useEffect, useMemo, useState } from "react";
+import React, { useRef, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { OnMount } from "@monaco-editor/react";
 import type { editor, languages, IDisposable } from "monaco-editor";
@@ -107,8 +107,9 @@ function calculateGhostTextRange(
  *
  * CRITICAL — Stale Closure Prevention:
  * All hook state (webLLM, gemini, rag) is read through REFS that are
- * updated on every render. This ensures the provider always sees the
+ * updated via useEffect. This ensures the provider always sees the
  * latest readiness state, not the frozen values from mount time.
+ * Refs MUST be updated in useEffect (not during render) per React 19 rules.
  */
 function registerGhostTextProvider(
   monaco: typeof import("monaco-editor"),
@@ -139,9 +140,7 @@ function registerGhostTextProvider(
           const prefix = lineText.substring(0, position.column - 1).trim();
 
           // ── ALWAYS read latest hook state from refs ────────────
-          const webLLM = webLLMRef.current;
-          const gemini = geminiRef.current;
-          const rag = ragRef.current;
+          // webLLMRef, geminiRef, ragRef are read in async callbacks below
 
           // Read source lines from the ref (always up-to-date)
           const sourceLines = sourceLinesRef.current;
@@ -358,7 +357,10 @@ export function TargetEditor({
 
   // ── Ref for sourceLines so the provider always reads fresh data ──
   const sourceLinesRef = useRef<string[]>(sourceLines);
-  sourceLinesRef.current = sourceLines; // Update on every render
+  // React 19 rule: refs must be updated in useEffect, not during render
+  useEffect(() => {
+    sourceLinesRef.current = sourceLines;
+  }, [sourceLines]);
 
   // ── Refs for hook state to prevent stale closures ──
   const webLLM = useWebLLM();
@@ -369,10 +371,20 @@ export function TargetEditor({
   const geminiRef = useRef(gemini);
   const ragRef = useRef(rag);
 
-  // Update refs on every render so the provider always has fresh state
-  webLLMRef.current = webLLM;
-  geminiRef.current = gemini;
-  ragRef.current = rag;
+  // React 19 rule: update refs in useEffect, not during render.
+  // These refs are read by the ghost text provider inside
+  // provideInlineCompletions (which runs asynchronously in a
+  // Monaco microtask), so the useEffect timing is fine — the ref
+  // will be updated before the provider reads it.
+  useEffect(() => {
+    webLLMRef.current = webLLM;
+  }, [webLLM]);
+  useEffect(() => {
+    geminiRef.current = gemini;
+  }, [gemini]);
+  useEffect(() => {
+    ragRef.current = rag;
+  }, [rag]);
 
   // ── Debounce timers ────────────────────────────────────────────
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -383,29 +395,16 @@ export function TargetEditor({
   const isDark = theme === "dark";
 
   // ══════════════════════════════════════════════════════════════════
-  // ROBUST VALUE MANAGEMENT
+  // CONTROLLED EDITOR VALUE MANAGEMENT
   //
-  // The editor uses CONTROLLED mode (value prop). This is the simplest
-  // and most reliable approach — @monaco-editor/react handles the
-  // model.setValue() / executeEdits() calls internally, and we just
-  // need to provide the current value and an onChange handler.
+  // The editor uses CONTROLLED mode (value prop). @monaco-editor/react
+  // v4.7.0 uses executeEdits() internally for controlled updates,
+  // which preserves the undo stack and doesn't block input.
   //
-  // Previous approach: uncontrolled mode (defaultValue) with a sync
-  // useEffect calling editor.setValue(). This was fragile because:
-  //   1. The sync useEffect could race with user typing
-  //   2. editor.setValue() resets undo history
-  //   3. The "last synced value" ref could get out of sync
-  //
-  // The key concern with controlled mode is that re-renders from hook
-  // state changes (WebLLM, Gemini, RAG) would call model.setValue()
-  // and reset the cursor. However, @monaco-editor/react v4.7.0 uses
-  // executeEdits() instead of setValue() for controlled updates, which
-  // preserves the undo stack and cursor position when the value hasn't
-  // actually changed.
-  //
-  // IMPORTANT: The value prop MUST match what the user typed. Since
-  // onChange updates the parent state which feeds back as the value
-  // prop, the value should always be in sync with the editor content.
+  // Key invariant: the value prop MUST equal what the user typed.
+  // onChange → parent setState → value prop → editor content.
+  // Since @monaco-editor/react checks `value !== editor.getValue()`
+  // before calling executeEdits, no-ops are safe when value matches.
   // ══════════════════════════════════════════════════════════════════
 
   // Stable onChange handler — propagates changes to parent immediately
@@ -416,30 +415,42 @@ export function TargetEditor({
     [onChange]
   );
 
-  // Report WebGPU state to parent — use individual state values as deps
-  // to avoid unnecessary re-renders when other hook properties change
-  const webgpuStateRef = useRef(onWebgpuStateChange);
-  webgpuStateRef.current = onWebgpuStateChange;
+  // ── Report hook states to parent via refs ─────────────────────
+  // React 19 rule: callback refs must be stored in useEffect, not
+  // during render. We use a ref for the callback itself so the
+  // useEffect doesn't need the callback as a dependency (which would
+  // cause unnecessary re-runs when parent re-renders).
+  const onWebgpuStateChangeRef = useRef(onWebgpuStateChange);
+  const onGeminiAvailableChangeRef = useRef(onGeminiAvailableChange);
+  const onRagStateChangeRef = useRef(onRagStateChange);
+
   useEffect(() => {
-    webgpuStateRef.current?.({
+    onWebgpuStateChangeRef.current = onWebgpuStateChange;
+  }, [onWebgpuStateChange]);
+  useEffect(() => {
+    onGeminiAvailableChangeRef.current = onGeminiAvailableChange;
+  }, [onGeminiAvailableChange]);
+  useEffect(() => {
+    onRagStateChangeRef.current = onRagStateChange;
+  }, [onRagStateChange]);
+
+  // Report WebGPU state to parent
+  useEffect(() => {
+    onWebgpuStateChangeRef.current?.({
       state: webLLM.state as WebGPUInfo["state"],
       progress: webLLM.progress.percentage > 0 ? webLLM.progress : undefined,
       error: webLLM.error,
     });
-  }, [webLLM.state, webLLM.progress.percentage, webLLM.error]);
+  }, [webLLM.state, webLLM.progress, webLLM.error]);
 
   // Report Gemini availability to parent
-  const geminiAvailRef = useRef(onGeminiAvailableChange);
-  geminiAvailRef.current = onGeminiAvailableChange;
   useEffect(() => {
-    geminiAvailRef.current?.(gemini.isAvailable);
+    onGeminiAvailableChangeRef.current?.(gemini.isAvailable);
   }, [gemini.isAvailable]);
 
   // Report RAG state to parent
-  const ragStateRef = useRef(onRagStateChange);
-  ragStateRef.current = onRagStateChange;
   useEffect(() => {
-    ragStateRef.current?.(rag.state);
+    onRagStateChangeRef.current?.(rag.state);
   }, [rag.state]);
 
   // Dynamic font family based on direction
@@ -467,7 +478,7 @@ export function TargetEditor({
       editorRef.current.updateOptions({
         theme: isDark ? "rdat-dark" : "rdat-light",
         fontFamily,
-      } as any);
+      });
     }
   }, [isDark, fontFamily]);
 
