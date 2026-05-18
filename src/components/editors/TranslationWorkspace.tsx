@@ -349,8 +349,7 @@ export function TranslationWorkspace({
             }}
           >
             <TargetEditor
-              key={`target-${targetResetKey}`}
-              defaultValue={targetValue}
+              value={targetValue}
               onChange={handleTargetChange}
               onCursorChange={handleTargetCursorChange}
               sourceLines={sourceLinesArr}
