@@ -78,6 +78,12 @@ export function TranslationWorkspace({
     targetContent ?? (savedTarget || DEFAULT_TARGET)
   );
 
+  // ── Reset keys for editors ─────────────────────────────────────
+  // When incremented, TargetEditor and SourceEditor remount,
+  // picking up the new defaultValue and resetting internal state.
+  const [sourceResetKey, setSourceResetKey] = useState(0);
+  const [targetResetKey, setTargetResetKey] = useState(0);
+
   // Translation direction — persisted in store
   const [swapDirection, setSwapDirection] = useState(savedSwap);
   const sourceDir = swapDirection ? "rtl" : "ltr";
@@ -180,12 +186,15 @@ export function TranslationWorkspace({
     };
   }, []);
 
-  // Clear both panes — also clear from store
+  // Clear both panes — also clear from store, remount editors
   const handleClear = useCallback(() => {
     setSourceValue("");
     setTargetValue("");
     setSavedSource("");
     setSavedTarget("");
+    // Force remount of both editors with fresh empty content
+    setSourceResetKey(k => k + 1);
+    setTargetResetKey(k => k + 1);
   }, [setSavedSource, setSavedTarget]);
 
   // Calculate line counts for status bar
@@ -312,6 +321,7 @@ export function TranslationWorkspace({
           />
           <div className="flex-1" style={{ minHeight: 0 }}>
             <SourceEditor
+              key={`source-${sourceResetKey}`}
               value={sourceValue}
               onChange={handleSourceChange}
               highlightedLine={targetLine}
@@ -332,7 +342,8 @@ export function TranslationWorkspace({
           />
           <div className="flex-1" style={{ minHeight: 0 }}>
             <TargetEditor
-              value={targetValue}
+              key={`target-${targetResetKey}`}
+              defaultValue={targetValue}
               onChange={handleTargetChange}
               onCursorChange={handleTargetCursorChange}
               sourceLines={sourceLinesArr}
