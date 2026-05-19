@@ -78,7 +78,14 @@ const BASE_EDITOR_OPTIONS = {
  * many milliseconds, we re-trigger the inline suggest so that
  * slower channels (RAG, AI) get a chance to surface ghost text.
  */
-const IDLE_TRIGGER_DELAY_MS = 350;
+const IDLE_TRIGGER_DELAY_MS = 400;
+
+/**
+ * Minimum gap between provideInlineCompletions calls (ms).
+ * Prevents the INP (Interaction to Next Paint) issue where rapid-fire
+ * ghost text requests block the main thread for 1+ seconds.
+ */
+const PROVIDER_THROTTLE_MS = 300;
 
 /**
  * Calculate ghost text range for Monaco inline completion.
@@ -126,6 +133,9 @@ function registerGhostTextProvider(
 
   // Track the last content-version to cancel stale suggestions
   let contentVersion = 0;
+  // ── INP FIX: Throttle provideInlineCompletions ─────────────────
+  // Prevents rapid-fire calls that block the main thread.
+  let lastProviderCallTime = 0;
 
   const providerDisposable = monaco.languages.registerInlineCompletionsProvider(
     languageId,
@@ -136,6 +146,13 @@ function registerGhostTextProvider(
         // suggestion system may enter a broken state that blocks user
         // input. Always return a valid result.
         try {
+          // ── INP FIX: Throttle — skip if called too recently ──────
+          const now = performance.now();
+          if (now - lastProviderCallTime < PROVIDER_THROTTLE_MS) {
+            return { items: [] };
+          }
+          lastProviderCallTime = now;
+
           const currentVersion = ++contentVersion;
 
           const lineText = model.getLineContent(position.lineNumber);
@@ -423,7 +440,6 @@ export function TargetEditor({
 
   // ── Debounce timers ────────────────────────────────────────────
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cursorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Theme ────────────────────────────────────────────────────────
   const { theme } = useTheme();
@@ -608,9 +624,19 @@ export function TargetEditor({
       );
 
       // ── Report content changes to parent (uncontrolled) ──
+      // INP FIX: Debounce onChange propagation to prevent re-render
+      // cascades on every keystroke from blocking the UI.
+      let onChangeRaf: number | null = null;
       const contentListener = editor.onDidChangeModelContent(() => {
-        // Propagate changes upward
-        onChangeRef.current?.(editor.getValue());
+        // Debounce: use requestAnimationFrame for the first call,
+        // then a short timeout for subsequent rapid calls.
+        if (onChangeRaf !== null) {
+          cancelAnimationFrame(onChangeRaf);
+        }
+        onChangeRaf = requestAnimationFrame(() => {
+          onChangeRaf = null;
+          onChangeRef.current?.(editor.getValue());
+        });
 
         webLLMRef.current.interruptGenerate();
         geminiRef.current.interruptGenerate();
@@ -629,20 +655,16 @@ export function TargetEditor({
       });
 
       // ── Listen to cursor position changes ──────────────────
+      // INP FIX: Only propagate cursor changes, don't trigger ghost text
+      // on every cursor move — the idle timer from content changes handles that.
       editor.onDidChangeCursorPosition((e) => {
         const lineNumber = e.position.lineNumber;
         onCursorChangeRef.current?.(lineNumber);
-
-        // Debounced ghost text trigger on cursor position change
-        if (cursorDebounceRef.current) clearTimeout(cursorDebounceRef.current);
-        cursorDebounceRef.current = setTimeout(() => {
-          triggerInlineSuggest(editor);
-          cursorDebounceRef.current = null;
-        }, 200);
       });
 
       return () => {
         contentListener.dispose();
+        if (onChangeRaf !== null) cancelAnimationFrame(onChangeRaf);
       };
     },
     [isDark, fontFamily]
@@ -657,9 +679,6 @@ export function TargetEditor({
       }
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current);
-      }
-      if (cursorDebounceRef.current) {
-        clearTimeout(cursorDebounceRef.current);
       }
       webLLMRef.current.interruptGenerate();
       geminiRef.current.interruptGenerate();
