@@ -22,7 +22,7 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
 });
 
 interface TargetEditorProps {
-  value?: string;
+  defaultValue?: string;           // initial content (uncontrolled)
   onChange?: (value: string | undefined) => void;
   onCursorChange?: (lineNumber: number) => void;
   sourceLines?: string[];
@@ -31,6 +31,7 @@ interface TargetEditorProps {
   onRagStateChange?: (state: import("@/hooks/useRAG").RAGState) => void;
   className?: string;
   direction?: "ltr" | "rtl";
+  resetKey?: string;              // forces remount on external content change
 }
 
 const BASE_EDITOR_OPTIONS = {
@@ -373,7 +374,7 @@ function triggerInlineSuggest(
 }
 
 export function TargetEditor({
-  value = "",
+  defaultValue = "",
   onChange,
   onCursorChange,
   sourceLines = [],
@@ -382,6 +383,7 @@ export function TargetEditor({
   onRagStateChange,
   className,
   direction = "rtl",
+  resetKey,
 }: TargetEditorProps) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
@@ -428,25 +430,28 @@ export function TargetEditor({
   const isDark = theme === "dark";
 
   // ══════════════════════════════════════════════════════════════════
-  // CONTROLLED EDITOR VALUE MANAGEMENT
+  // UNCONTROLLED EDITOR VALUE MANAGEMENT
   //
-  // The editor uses CONTROLLED mode (value prop). @monaco-editor/react
-  // v4.7.0 uses executeEdits() internally for controlled updates,
-  // which preserves the undo stack and doesn't block input.
+  // The editor uses UNCONTROLLED mode (defaultValue prop). This avoids
+  // the critical bug where @monaco-editor/react's controlled mode
+  // (value prop) calls executeEdits() on every render when value
+  // doesn't exactly match editor.getValue() — Monaco adds trailing
+  // newlines that cause a perpetual mismatch, resetting the cursor
+  // and effectively blocking user typing.
   //
-  // Key invariant: the value prop MUST equal what the user typed.
-  // onChange → parent setState → value prop → editor content.
-  // Since @monaco-editor/react checks `value !== editor.getValue()`
-  // before calling executeEdits, no-ops are safe when value matches.
+  // With uncontrolled mode:
+  //  - defaultValue sets the initial content on mount
+  //  - The editor manages its own content internally
+  //  - onChange propagates changes to the parent
+  //  - resetKey forces remount when external changes occur
+  //    (e.g., clear, language swap)
   // ══════════════════════════════════════════════════════════════════
 
-  // Stable onChange handler — propagates changes to parent immediately
-  const handleChange = useCallback(
-    (newValue: string | undefined) => {
-      onChange?.(newValue);
-    },
-    [onChange]
-  );
+  // Stable refs for callbacks used in mount handler
+  const onChangeRef = useRef(onChange);
+  useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  const onCursorChangeRef = useRef(onCursorChange);
+  useEffect(() => { onCursorChangeRef.current = onCursorChange; }, [onCursorChange]);
 
   // ── Report hook states to parent via refs ─────────────────────
   // React 19 rule: callback refs must be stored in useEffect, not
@@ -602,8 +607,11 @@ export function TargetEditor({
         "editorInlineSuggestionVisible"
       );
 
-      // ── Interrupt AI generation on typing ──────────────────
-      editor.onDidChangeModelContent(() => {
+      // ── Report content changes to parent (uncontrolled) ──
+      const contentListener = editor.onDidChangeModelContent(() => {
+        // Propagate changes upward
+        onChangeRef.current?.(editor.getValue());
+
         webLLMRef.current.interruptGenerate();
         geminiRef.current.interruptGenerate();
 
@@ -623,7 +631,7 @@ export function TargetEditor({
       // ── Listen to cursor position changes ──────────────────
       editor.onDidChangeCursorPosition((e) => {
         const lineNumber = e.position.lineNumber;
-        onCursorChange?.(lineNumber);
+        onCursorChangeRef.current?.(lineNumber);
 
         // Debounced ghost text trigger on cursor position change
         if (cursorDebounceRef.current) clearTimeout(cursorDebounceRef.current);
@@ -632,8 +640,12 @@ export function TargetEditor({
           cursorDebounceRef.current = null;
         }, 200);
       });
+
+      return () => {
+        contentListener.dispose();
+      };
     },
-    [onCursorChange, isDark, fontFamily]
+    [isDark, fontFamily]
   );
 
   // Cleanup on unmount
@@ -657,11 +669,11 @@ export function TargetEditor({
   return (
     <div className={cn("h-full w-full", className)} dir={direction}>
       <MonacoEditor
+        key={resetKey ?? "target-editor"}   // remount when resetKey changes
         height="100%"
         defaultLanguage="plaintext"
         language="plaintext"
-        value={value}
-        onChange={handleChange}
+        defaultValue={defaultValue}
         options={editorOptions}
         onMount={handleEditorDidMount}
         theme={isDark ? "rdat-dark" : "rdat-light"}

@@ -167,11 +167,33 @@ export function TranslationWorkspace({
     [onTargetChange, debouncedSaveTarget]
   );
 
-  // Handle language swap — persist to store
+  // Handle language swap — swap content AND direction, persist to store
   const handleSwapDirection = useCallback(() => {
+    // ── CRITICAL: Swap the actual content between editors ──
+    // When swapping EN→AR, the old English source becomes the new
+    // Arabic target, and the old Arabic target becomes the new
+    // English source. This ensures both editors always have content.
+    //
+    // We read current values from state setters to avoid stale closures.
+    let currentSource = "";
+    let currentTarget = "";
+    setSourceValue((prev) => { currentSource = prev; return prev; });
+    setTargetValue((prev) => { currentTarget = prev; return prev; });
+
+    // Now swap them
+    setSourceValue(currentTarget);
+    setTargetValue(currentSource);
+    setSavedSource(currentTarget);
+    setSavedTarget(currentSource);
+
+    // Toggle the direction
     setSwapDirection((d) => !d);
     toggleSavedSwap();
-  }, [toggleSavedSwap]);
+
+    // Force both editors to remount with the swapped content
+    setSourceResetKey((k) => k + 1);
+    setTargetResetKey((k) => k + 1);
+  }, [toggleSavedSwap, setSavedSource, setSavedTarget]);
 
   // Expose sourceLines to window for TMX export hack
   useEffect(() => {
@@ -349,7 +371,8 @@ export function TranslationWorkspace({
             }}
           >
             <TargetEditor
-              value={targetValue}
+              key={`target-${targetResetKey}`}
+              defaultValue={targetValue}
               onChange={handleTargetChange}
               onCursorChange={handleTargetCursorChange}
               sourceLines={sourceLinesArr}
@@ -358,6 +381,7 @@ export function TranslationWorkspace({
               onRagStateChange={onRagStateChange}
               className="h-full"
               direction={targetDir}
+              resetKey={`target-${targetResetKey}`}
             />
           </div>
         </div>
